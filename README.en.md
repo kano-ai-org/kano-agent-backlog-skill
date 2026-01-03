@@ -37,20 +37,20 @@ Goal: convert “evaporating context” into **searchable, linkable, auditable**
 - `references/workflow.md`: SOP (when to create items, when to record decisions, how to converge)
 - `references/views.md`: Obsidian Dataview query/view patterns
 
-Optionally, create `.kano/backlog/` in your project repo to store items, ADRs, views, and helper scripts as the system-of-record.
+Optionally, create `_kano/backlog/` in your project repo to store items, ADRs, views, and helper scripts as the system-of-record.
 
 ## Quick start (see value in ~5 minutes)
 
-1) Add a backlog folder to your repo (recommended): `.kano/backlog/`
+1) Add a backlog folder to your repo (recommended): `_kano/backlog/`
 2) (Optional) Open the repo in Obsidian and enable the Dataview plugin
-3) Open `.kano/backlog/views/Dashboard.md` or build your own views from `references/views.md`
+3) Open `_kano/backlog/views/Dashboard.md` or build your own views from `references/views.md`
 4) Before any code change, have the agent create a Task/Bug using `references/templates.md` and satisfy the Ready gate
 5) When a load-bearing decision happens, append a Worklog line; create an ADR when it’s truly architectural and link it
 
 ## Recommended backlog structure (in your project)
 
 ```text
-.kano/backlog/
+_kano/backlog/
   _meta/                 # schema, conventions, index registry
   items/
     epics/<bucket>/
@@ -70,11 +70,11 @@ Buckets are per-100 (`0000`, `0100`, `0200`, ...) to avoid huge folders.
 - Agent rules: `SKILL.md`
 - References: `references/`
 
-If you’re looking for a working `.kano/backlog` example, use the demo host repo (or treat `references/templates.md` as your initialization input).
+If you’re looking for a working `_kano/backlog` example, use the demo host repo (or treat `references/templates.md` as your initialization input).
 
 ## Roadmap (direction, not promises)
 
-- Reusable `.kano/backlog` bootstrap assets (templates + tools) for one-command initialization
+- Reusable `_kano/backlog` bootstrap assets (templates + tools) for one-command initialization
 - Minimal Jira/Azure Boards linking (sync only a few fields to avoid two-way-sync hell)
 - A lightweight Ready gate validator while staying local-first
 

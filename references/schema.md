@@ -53,7 +53,7 @@ To move to Ready, each item must include:
   - If only one letter, use the first letter plus the next consonant (A/E/I/O/U skipped).
   - If still short, use the first two letters.
   - Uppercase the result (example: `kano-agent-backlog-skill-demo` -> `KABSD`).
-- Store files under `.kano/backlog/items/<type>/<bucket>/` by item type.
+- Store files under `_kano/backlog/items/<type>/<bucket>/` by item type.
 - Bucket names use the lower bound of each 100 range:
   - `0000`, `0100`, `0200`, ...
 - For Epic, create `<ID>_<slug>.index.md` in the same folder.

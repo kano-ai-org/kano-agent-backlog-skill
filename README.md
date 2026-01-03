@@ -37,20 +37,20 @@ English version: `README.en.md`
 - `references/workflow.md`: SOP（何時建票、何時寫決策、如何收斂）
 - `references/views.md`: Obsidian Dataview 查詢/視圖模式
 
-（可選）在你的專案內建立 `.kano/backlog/`，把 item、ADR、views 與工具腳本放在那裡，skill 會以此作為 system-of-record。
+（可選）在你的專案內建立 `_kano/backlog/`，把 item、ADR、views 與工具腳本放在那裡，skill 會以此作為 system-of-record。
 
 ## 快速上手（5 分鐘看到效果）
 
-1) 把 backlog 放進你的 repo（建議路徑）：`.kano/backlog/`
+1) 把 backlog 放進你的 repo（建議路徑）：`_kano/backlog/`
 2) （可選）用 Obsidian 打開 repo，啟用 Dataview plugin
-3) 開啟 `.kano/backlog/views/Dashboard.md` 或使用 `references/views.md` 的查詢建立自己的視圖
+3) 開啟 `_kano/backlog/views/Dashboard.md` 或使用 `references/views.md` 的查詢建立自己的視圖
 4) 在任何 code change 前，要求 agent 先依 `references/templates.md` 建一張 Task/Bug，並填滿 Ready gate
 5) 討論出關鍵取捨時：在該票 Worklog 追加一行，必要時新增 ADR 並互相連結
 
 ## 建議的 backlog 結構（在你的專案內）
 
 ```text
-.kano/backlog/
+_kano/backlog/
   _meta/                 # schema, conventions, indexes registry
   items/
     epics/<bucket>/
@@ -70,11 +70,11 @@ English version: `README.en.md`
 - 行為規範：`SKILL.md`
 - 參考文件：`references/`
 
-如果你在找「如何實際落地的 `.kano/backlog` 範例」，請參考本 skill 的 demo host repo（或把 `references/templates.md` 直接當作初始化腳本的輸入）。
+如果你在找「如何實際落地的 `_kano/backlog` 範例」，請參考本 skill 的 demo host repo（或把 `references/templates.md` 直接當作初始化腳本的輸入）。
 
 ## Roadmap（方向，不是承諾）
 
-- 提供可重用的 `.kano/backlog` bootstrap assets（模板 + tools）以便一鍵初始化
+- 提供可重用的 `_kano/backlog` bootstrap assets（模板 + tools）以便一鍵初始化
 - 最小化的 Jira/Azure Boards 連結（只同步少數欄位，避免雙向同步地獄）
 - 更嚴謹但更輕量的 Ready gate/validator（仍保持 local-first）
 

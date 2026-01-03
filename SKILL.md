@@ -48,29 +48,29 @@ Use this skill to:
 
 ## Recommended layout
 
-- `.kano/backlog/_meta/` (schema, conventions, config)
-- `.kano/backlog/items/epics/`
-- `.kano/backlog/items/features/`
-- `.kano/backlog/items/userstories/`
-- `.kano/backlog/items/tasks/`
-- `.kano/backlog/items/bugs/`
-- `.kano/backlog/decisions/` (ADR files)
-- `.kano/backlog/views/` (Obsidian Dataview/DataviewJS)
+- `_kano/backlog/_meta/` (schema, conventions, config)
+- `_kano/backlog/items/epics/`
+- `_kano/backlog/items/features/`
+- `_kano/backlog/items/userstories/`
+- `_kano/backlog/items/tasks/`
+- `_kano/backlog/items/bugs/`
+- `_kano/backlog/decisions/` (ADR files)
+- `_kano/backlog/views/` (Obsidian Dataview/DataviewJS)
 
 ## Item bucket folders (per 100)
 
-- Store items under `.kano/backlog/items/<type>/<bucket>/`.
+- Store items under `_kano/backlog/items/<type>/<bucket>/`.
 - Bucket names use 4 digits for the lower bound of each 100 range.
   - Example: `0000`, `0100`, `0200`, `0300`, ...
 - Example path:
-  - `.kano/backlog/items/tasks/0000/KABSD-TSK-0007_define-secret-provider-validation.md`
+  - `_kano/backlog/items/tasks/0000/KABSD-TSK-0007_define-secret-provider-validation.md`
 
 ## Index/MOC files
 
 - For Epic, create an adjacent index file:
   - `<ID>_<slug>.index.md`
 - Index files should render a tree using Dataview/DataviewJS and rely on `parent` links.
-- Track epic index files in `.kano/backlog/_meta/indexes.md` (type, item_id, index_file, updated, notes).
+- Track epic index files in `_kano/backlog/_meta/indexes.md` (type, item_id, index_file, updated, notes).
 
 ## References
 
@@ -83,7 +83,7 @@ If the backlog structure is missing, propose creation and wait for user approval
 
 ## State update helper
 
-- Use `.kano/backlog/tools/update_state.py` to update state + append Worklog.
+- Use `_kano/backlog/tools/update_state.py` to update state + append Worklog.
 - Prefer `--action` for common transitions (`start`, `ready`, `review`, `done`, `block`, `drop`).
 - When moving to Ready, it validates required sections unless `--force` is set.
 

@@ -2,7 +2,7 @@
 
 ## Work item template
 
-Place the file under `.kano/backlog/items/<type>/`.
+Place the file under `_kano/backlog/items/<type>/`.
 Use the ID prefix derived from `config/profile.env` -> `PROJECT_NAME` (example: `kano-agent-backlog-skill-demo` -> `KABSD`).
 
 ```
