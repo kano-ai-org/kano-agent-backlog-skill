@@ -36,6 +36,9 @@ Goal: convert “evaporating context” into **searchable, linkable, auditable**
 - `references/templates.md`: work item / ADR templates
 - `references/workflow.md`: SOP (when to create items, when to record decisions, how to converge)
 - `references/views.md`: Obsidian Dataview query/view patterns
+- `scripts/backlog/`: backlog helpers (create_item, update_state, validate_ready, generate_view, test_scripts)
+- `scripts/fs/`: file ops (cp_file, mv_file, rm_file, trash_item)
+- `scripts/logging/`: audit logging (audit_logger, run_with_audit)
 
 Optionally, create `_kano/backlog/` in your project repo to store items, ADRs, views, and helper scripts as the system-of-record.
 
@@ -80,7 +83,6 @@ If you're looking for a working `_kano/backlog` example, use the demo host repo 
 ## Roadmap (direction, not promises)
 
 - Reusable `_kano/backlog` bootstrap assets (templates + tools) for one-command initialization
-- Minimal Jira/Azure Boards linking (sync only a few fields to avoid two-way-sync hell)
 - A lightweight Ready gate validator while staying local-first
 
 ## Contributing

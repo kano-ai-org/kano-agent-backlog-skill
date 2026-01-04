@@ -9,6 +9,27 @@ The `references/` folder is intentionally split into multiple small files so an 
 - `workflow.md`: SOP for planning/decisions/worklog
 - `views.md`: view patterns (Dataview + plain Markdown generators)
 - `bases.md`: Obsidian Bases notes (plugin-free table-style views)
+- `logging.md`: audit log schema, redaction, rotation defaults
+
+## Scripts (optional automation)
+
+Backlog scripts:
+- `scripts/backlog/create_item.py`: create a new item from template (ID + bucket + optional Epic index)
+- `scripts/backlog/update_state.py`: update `state` + `updated` and append Worklog
+- `scripts/backlog/validate_ready.py`: check Ready gate sections
+- `scripts/backlog/generate_view.py`: generate plain Markdown views
+- `scripts/backlog/test_scripts.py`: smoke tests for the backlog scripts
+
+Filesystem scripts:
+- `scripts/fs/cp_file.py`: copy a file inside the repo
+- `scripts/fs/mv_file.py`: move a file inside the repo
+- `scripts/fs/rm_file.py`: delete a file inside the repo
+- `scripts/fs/trash_item.py`: move to trash then optionally delete
+
+Logging scripts:
+- `scripts/logging/audit_logger.py`: JSONL audit log writer + redaction
+- `scripts/logging/audit_runner.py`: helper to wrap skill scripts with audit logging
+- `scripts/logging/run_with_audit.py`: run a command and append an audit log entry
 
 ## Related (demo repo convention)
 

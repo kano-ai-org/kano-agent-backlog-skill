@@ -30,6 +30,11 @@ Use this skill to:
   - Avoid new items for exploratory discussion; record in existing Worklog instead.
   - Keep Tasks/Bugs sized for a single focused session.
   - Avoid ADRs unless a real architectural trade-off is made.
+- Ticketing threshold (agent-decided):
+  - Open a new Task/Bug when you will change code/docs/views/scripts.
+  - Open an ADR (and link it) when a real trade-off or direction change is decided.
+  - Otherwise, record the discussion in an existing Worklog; ask if unsure.
+- State ownership: the agent decides when to move items to InProgress or Done; humans observe and can add context.
 - Hierarchy is in frontmatter links, not folder nesting; avoid moving files to reflect scope changes.
 - Filenames stay stable; use ASCII slugs.
 - Never include secrets in backlog files or logs.
@@ -83,9 +88,30 @@ Use this skill to:
 
 If the backlog structure is missing, propose creation and wait for user approval before writing files.
 
+## Scripts (optional automation)
+
+Backlog scripts:
+- `scripts/backlog/create_item.py`: create a new item with ID + bucket (Epic can also create an index file)
+- `scripts/backlog/update_state.py`: update `state` + `updated` and append Worklog
+- `scripts/backlog/validate_ready.py`: check Ready gate sections
+- `scripts/backlog/generate_view.py`: generate plain Markdown views
+- `scripts/backlog/test_scripts.py`: smoke tests for the backlog scripts
+
+Filesystem scripts:
+- `scripts/fs/cp_file.py`: copy a file inside the repo
+- `scripts/fs/mv_file.py`: move a file inside the repo
+- `scripts/fs/rm_file.py`: delete a file inside the repo
+- `scripts/fs/trash_item.py`: move to trash then optionally delete
+
+Logging scripts:
+- `scripts/logging/audit_logger.py`: JSONL audit log writer + redaction
+- `scripts/logging/run_with_audit.py`: run a command and append an audit log entry
+
+If the repo keeps its own `_kano/backlog/tools` wrappers, keep arguments consistent with these scripts.
+
 ## State update helper
 
-- Use `_kano/backlog/tools/update_state.py` to update state + append Worklog.
+- Use `scripts/backlog/update_state.py` (or `_kano/backlog/tools/update_state.py` in the demo repo) to update state + append Worklog.
 - Prefer `--action` for common transitions (`start`, `ready`, `review`, `done`, `block`, `drop`).
 - When moving to Ready, it validates required sections unless `--force` is set.
 

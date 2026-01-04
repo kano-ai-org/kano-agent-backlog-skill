@@ -36,6 +36,9 @@ English version: `README.en.md`
 - `references/templates.md`: work item / ADR 模板
 - `references/workflow.md`: SOP（何時建票、何時寫決策、如何收斂）
 - `references/views.md`: Obsidian Dataview 查詢/視圖模式
+- `scripts/backlog/`: backlog helpers (create_item, update_state, validate_ready, generate_view, test_scripts)
+- `scripts/fs/`: file ops (cp_file, mv_file, rm_file, trash_item)
+- `scripts/logging/`: audit logging (audit_logger, run_with_audit)
 
 （可選）在你的專案內建立 `_kano/backlog/`，把 item、ADR、views 與工具腳本放在那裡，skill 會以此作為 system-of-record。
 
@@ -81,7 +84,6 @@ _kano/backlog/
 ## Roadmap（方向，不是承諾）
 
 - 提供可重用的 `_kano/backlog` bootstrap assets（模板 + tools）以便一鍵初始化
-- 最小化的 Jira/Azure Boards 連結（只同步少數欄位，避免雙向同步地獄）
 - 更嚴謹但更輕量的 Ready gate/validator（仍保持 local-first）
 
 ## Contributing
