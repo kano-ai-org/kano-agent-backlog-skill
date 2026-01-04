@@ -34,6 +34,11 @@ def parse_args() -> argparse.Namespace:
         help="ID prefix override (default: derived from repo name).",
     )
     parser.add_argument(
+        "--agent",
+        required=True,
+        help="Worklog agent name for seeded items (required).",
+    )
+    parser.add_argument(
         "--force",
         action="store_true",
         help="Allow seeding even if demo items already exist.",
@@ -161,6 +166,7 @@ def main() -> int:
     generate_view = SCRIPT_DIR / "generate_view.py"
     prefix = derive_prefix(repo_root, args.prefix)
     tags = "demo-seed"
+    agent = args.agent
 
     epic_path = run_create_item(
         python,
@@ -178,6 +184,8 @@ def main() -> int:
             "demo",
             "--tags",
             tags,
+            "--agent",
+            agent,
             "--prefix",
             prefix,
         ],
@@ -205,6 +213,8 @@ def main() -> int:
             tags,
             "--parent",
             epic_id or "",
+            "--agent",
+            agent,
             "--prefix",
             prefix,
         ],
@@ -232,6 +242,8 @@ def main() -> int:
             tags,
             "--parent",
             feature_id or "",
+            "--agent",
+            agent,
             "--prefix",
             prefix,
         ],
@@ -259,6 +271,8 @@ def main() -> int:
             tags,
             "--parent",
             story_id or "",
+            "--agent",
+            agent,
             "--prefix",
             prefix,
         ],
@@ -283,6 +297,8 @@ def main() -> int:
             tags,
             "--parent",
             story_id or "",
+            "--agent",
+            agent,
             "--prefix",
             prefix,
         ],
@@ -299,7 +315,7 @@ def main() -> int:
                 "--groups",
                 "New,InProgress",
                 "--title",
-                "Active Work",
+                "InProgress Work",
                 "--output",
                 str(views_root / "Dashboard_PlainMarkdown_Active.md"),
                 "--source-label",

@@ -69,7 +69,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--iteration", default="null", help="Iteration value or null.")
     parser.add_argument("--tags", default="", help="Comma-separated tags.")
     parser.add_argument("--owner", default="null", help="Owner value or null.")
-    parser.add_argument("--agent", default="codex", help="Worklog agent name.")
+    parser.add_argument("--agent", required=True, help="Worklog agent name (required).")
     parser.add_argument("--project-name", help="Project name override.")
     parser.add_argument("--prefix", help="ID prefix override.")
     parser.add_argument(
@@ -319,7 +319,7 @@ def render_index(item_id: str, title: str, updated: str, backlog_root_label: str
         "",
         "```dataview",
         "table id, state, priority",
-        f"from \"{backlog_root_label}/items/features\"",
+        f"from \"{backlog_root_label}/items\"",
         f"where parent = \"{item_id}\"",
         "sort priority asc",
         "```",

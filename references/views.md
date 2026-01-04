@@ -27,7 +27,7 @@ where iteration != null and state != "Done" and state != "Dropped"
 sort iteration asc, priority asc
 ```
 
-## Active view (no Dataview required)
+## InProgress view (no Dataview required)
 
 Generate plain Markdown lists (no Dataview required):
 
@@ -38,6 +38,6 @@ bash _kano/backlog/tools/generate_done_view.sh
 ```
 
 Outputs:
-- `_kano/backlog/views/Dashboard_PlainMarkdown_Active.md` (New + InProgress)
+- `_kano/backlog/views/Dashboard_PlainMarkdown_Active.md` (New + InProgress/Review/Blocked)
 - `_kano/backlog/views/Dashboard_PlainMarkdown_New.md` (New only)
 - `_kano/backlog/views/Dashboard_PlainMarkdown_Done.md` (Done + Dropped)

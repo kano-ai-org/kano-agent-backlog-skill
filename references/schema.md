@@ -28,6 +28,26 @@
 - Done
 - Dropped
 
+## State semantics (summary)
+
+- Proposed: not ready to start; needs more discovery/confirmation.
+- Planned: approved for the plan; detail refinement can proceed, but not started.
+- Ready: Ready gate passed (typically for Task/Bug before start).
+- InProgress: work started.
+- Blocked: work started but blocked.
+- Review: work complete pending review/verification.
+- Done: work complete and accepted.
+- Dropped: work intentionally stopped.
+
+## Parent state sync (forward-only)
+
+When a child item state changes, parents can auto-advance forward-only:
+- Never downgrade parent state automatically.
+- Never change child states based on parent edits.
+- Ready/Planned children advance parents to Planned (not Ready).
+- Any InProgress/Review/Blocked child advances parent to InProgress.
+- All Done => parent Done; all Dropped => parent Dropped; mix Done/Dropped => parent Done.
+
 ## Ready gate (required, non-empty)
 
 To move to Ready, each item must include:

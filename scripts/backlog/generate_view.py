@@ -81,8 +81,8 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--title",
-        default="Active Work",
-        help="Document title (default: Active Work).",
+        default="InProgress Work",
+        help="Document title (default: InProgress Work).",
     )
     parser.add_argument(
         "--source-label",

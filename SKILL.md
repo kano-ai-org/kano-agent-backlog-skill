@@ -35,13 +35,22 @@ Use this skill to:
   - Open an ADR (and link it) when a real trade-off or direction change is decided.
   - Otherwise, record the discussion in an existing Worklog; ask if unsure.
 - State ownership: the agent decides when to move items to InProgress or Done; humans observe and can add context.
+- State semantics: Proposed = needs discovery/confirmation; Planned = approved but not started; Ready gate applies before start.
 - Hierarchy is in frontmatter links, not folder nesting; avoid moving files to reflect scope changes.
 - Filenames stay stable; use ASCII slugs.
 - Never include secrets in backlog files or logs.
+- Agent Identity: In Worklog and audit logs, use your own identity (e.g., `[agent=antigravity]`), never copy `[agent=codex]` blindly.
+- Worklog-writing scripts require an explicit `--agent` value; there is no default.
+- **Agent Identity Protocol**: Supply `--agent <ID>` with your real product name (e.g., `cursor`, `copilot`, `windsurf`, `antigravity`).
+  - **Forbidden (Placeholders)**: `auto`, `user`, `assistant`, `<AGENT_NAME>`, `$AGENT_NAME`.
 - File operations for backlog/skill artifacts must go through skill scripts
   (`scripts/backlog/*` or `scripts/fs/*`) so audit logs capture the action.
 - Skill scripts only operate on paths under `_kano/backlog/` or `_kano/backlog_sandbox/`;
   refuse other paths.
+- After modifying backlog items, refresh the plain Markdown views immediately using
+  `scripts/backlog/generate_view.py` so the demo dashboards stay current.
+- `update_state.py` auto-syncs parent states forward-only by default; use `--no-sync-parent`
+  for manual re-plans where parent state should stay put.
 - Add Obsidian `[[wikilink]]` references in the body (e.g., a `## Links` section) so Graph/backlinks work; frontmatter alone does not create graph edges.
 
 ## ID prefix derivation
@@ -100,6 +109,7 @@ Backlog scripts:
 - `scripts/backlog/update_state.py`: update `state` + `updated` and append Worklog
 - `scripts/backlog/validate_ready.py`: check Ready gate sections
 - `scripts/backlog/generate_view.py`: generate plain Markdown views
+- `scripts/backlog/generate_epic_index.py`: generate item index (MOC) with task state labels (Epic/Feature/UserStory)
 - `scripts/backlog/seed_demo.py`: seed demo items and views
 - `scripts/backlog/test_scripts.py`: smoke tests for the backlog scripts
 

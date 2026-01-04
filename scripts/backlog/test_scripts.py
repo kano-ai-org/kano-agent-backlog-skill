@@ -111,6 +111,7 @@ def main() -> int:
     python = sys.executable
     repo_root = Path.cwd().resolve()
     allowed_roots = allowed_roots_for_repo(repo_root)
+    agent_name = "test-agent"
 
     create_item = script_dir / "create_item.py"
     update_state = script_dir / "update_state.py"
@@ -165,6 +166,8 @@ def main() -> int:
                 "Demo Epic",
                 "--prefix",
                 "DM",
+                "--agent",
+                agent_name,
             ]
         )
 
@@ -194,6 +197,8 @@ def main() -> int:
                 "DM",
                 "--parent",
                 epic_id,
+                "--agent",
+                agent_name,
             ]
         )
 
@@ -216,7 +221,18 @@ def main() -> int:
         fill_ready_sections(task_path)
         run([python, str(validate_ready), "--item", str(task_path)])
 
-        run([python, str(update_state), "--item", str(task_path), "--action", "start"])
+        run(
+            [
+                python,
+                str(update_state),
+                "--item",
+                str(task_path),
+                "--action",
+                "start",
+                "--agent",
+                agent_name,
+            ]
+        )
         updated = task_path.read_text(encoding="utf-8")
         if "state: InProgress" not in updated:
             raise SystemExit("State not updated to InProgress.")
@@ -244,7 +260,18 @@ def main() -> int:
         if epic_id not in output:
             raise SystemExit("Epic not found in generated New view.")
 
-        run([python, str(update_state), "--item", str(task_path), "--action", "done"])
+        run(
+            [
+                python,
+                str(update_state),
+                "--item",
+                str(task_path),
+                "--action",
+                "done",
+                "--agent",
+                agent_name,
+            ]
+        )
         done_view = backlog_root / "views" / "done.md"
         run(
             [

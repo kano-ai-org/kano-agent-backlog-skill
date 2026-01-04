@@ -40,7 +40,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--state", help="Target state (e.g., Ready, InProgress).")
     parser.add_argument("--action", choices=sorted(STATE_ACTIONS.keys()), help="Action shortcut.")
     parser.add_argument("--message", help="Worklog message override.")
-    parser.add_argument("--agent", default="codex", help="Worklog agent name.")
+    parser.add_argument("--agent", required=True, help="Worklog agent name (required).")
     parser.add_argument("--force", action="store_true", help="Skip Ready gate validation.")
     return parser.parse_args()
 

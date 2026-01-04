@@ -45,14 +45,18 @@ decisions: []
 
 # Worklog
 
-2026-01-02 10:00 [agent=codex] Created from discussion: <summary>.
+2026-01-02 10:00 [agent=<AGENT_NAME>] Created from discussion: <summary>.
 ```
+
+**Important**: Replace `<AGENT_NAME>` with your actual agent identity. See `SKILL.md` "Agent Identity Determination" for how to determine your identity. NEVER use example values like `codex`, `antigravity`, or `auto`.
 
 ## Worklog line format
 
 ```
-YYYY-MM-DD HH:MM [agent=codex] <message>
+YYYY-MM-DD HH:MM [agent=<AGENT_NAME>] <message>
 ```
+
+**Agent Identity**: Provide the actual runtime agent identity explicitly in Worklog entries; do not copy placeholders or examples. See `SKILL.md` for details.
 
 ## ADR template
 

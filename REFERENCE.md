@@ -20,6 +20,7 @@ Backlog scripts:
 - `scripts/backlog/update_state.py`: update `state` + `updated` and append Worklog
 - `scripts/backlog/validate_ready.py`: check Ready gate sections
 - `scripts/backlog/generate_view.py`: generate plain Markdown views
+- `scripts/backlog/generate_epic_index.py`: generate item index (MOC) with task state labels (Epic/Feature/UserStory)
 - `scripts/backlog/seed_demo.py`: seed demo items and views
 - `scripts/backlog/test_scripts.py`: smoke tests for the backlog scripts
 

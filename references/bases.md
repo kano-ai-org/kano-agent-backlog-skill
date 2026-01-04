@@ -27,7 +27,7 @@ To keep Bases filtering predictable, prefer:
 
 Avoid relying on nested objects for filtering. Keep nested objects only for external references if needed.
 
-## Create a Base for “Active Work”
+## Create a Base for "InProgress Work"
 
 In Obsidian:
 
@@ -43,6 +43,6 @@ In Obsidian:
 
 Even if you adopt Bases, keep these generator commands as a no-plugin fallback for sharing/CI artifacts:
 
-- `python _kano/backlog/tools/generate_view.py --groups "New,InProgress" --title "Active Work" --output _kano/backlog/views/Dashboard_PlainMarkdown_Active.md`
-- `python _kano/backlog/tools/generate_view.py --groups "New" --title "New Work" --output _kano/backlog/views/Dashboard_PlainMarkdown_New.md`
-- `python _kano/backlog/tools/generate_view.py --groups "Done" --title "Done Work" --output _kano/backlog/views/Dashboard_PlainMarkdown_Done.md`
+- `python skills/kano-agent-backlog-skill/scripts/backlog/generate_view.py --groups "New,InProgress" --title "InProgress Work" --output _kano/backlog/views/Dashboard_PlainMarkdown_Active.md`
+- `python skills/kano-agent-backlog-skill/scripts/backlog/generate_view.py --groups "New" --title "New Work" --output _kano/backlog/views/Dashboard_PlainMarkdown_New.md`
+- `python skills/kano-agent-backlog-skill/scripts/backlog/generate_view.py --groups "Done" --title "Done Work" --output _kano/backlog/views/Dashboard_PlainMarkdown_Done.md`

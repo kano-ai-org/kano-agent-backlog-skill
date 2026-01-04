@@ -7,7 +7,7 @@
 3. Split into UserStories (user perspective).
 4. Split into Tasks/Bugs (single focused coding sessions).
 5. Fill Ready gate sections for each Task/Bug.
-6. Append Worklog entry: "Created from discussion: ...".
+6. Append Worklog entry: "Created from discussion: ..." (scripts require `--agent`).
 
 ## B) Ready gate
 
@@ -28,6 +28,12 @@
 2. Append a Worklog summary with:
    - What changed
    - Related items and ADRs
+
+## D.1) Parent sync (forward-only)
+
+- When a child state changes, parents can be auto-advanced forward-only.
+- Parent edits never force child states.
+- Use `--no-sync-parent` if you need to keep parent state unchanged for a manual re-plan.
 
 ## E) Scope change
 
