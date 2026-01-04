@@ -14,6 +14,17 @@ if str(LOGGING_DIR) not in sys.path:
 from audit_runner import run_with_audit  # noqa: E402
 
 
+def backlog_root_for_repo(repo_root: Path) -> Path:
+    return (repo_root / "_kano" / "backlog").resolve()
+
+
+def ensure_under_backlog(path: Path, backlog_root: Path, label: str) -> None:
+    try:
+        path.resolve().relative_to(backlog_root)
+    except ValueError as exc:
+        raise SystemExit(f"{label} must be under {backlog_root}: {path}") from exc
+
+
 STATE_GROUPS = {
     "Proposed": "New",
     "Planned": "New",
@@ -153,14 +164,17 @@ def format_items(
 
 def main() -> int:
     args = parse_args()
-    repo_root = Path.cwd()
+    repo_root = Path.cwd().resolve()
+    backlog_root = backlog_root_for_repo(repo_root)
     allowed_groups = [group.strip() for group in args.groups.split(",") if group.strip()]
     items_root = Path(args.items_root)
     if not items_root.is_absolute():
         items_root = (repo_root / items_root).resolve()
+    ensure_under_backlog(items_root, backlog_root, "items-root")
     output_path = Path(args.output)
     if not output_path.is_absolute():
         output_path = (repo_root / output_path).resolve()
+    ensure_under_backlog(output_path, backlog_root, "output")
 
     source_label = args.source_label or args.items_root
     groups = collect_items(items_root, allowed_groups)

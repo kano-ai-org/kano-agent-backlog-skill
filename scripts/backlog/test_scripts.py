@@ -15,6 +15,17 @@ if str(LOGGING_DIR) not in sys.path:
     sys.path.insert(0, str(LOGGING_DIR))
 from audit_runner import run_with_audit  # noqa: E402
 
+
+def backlog_root_for_repo(repo_root: Path) -> Path:
+    return (repo_root / "_kano" / "backlog").resolve()
+
+
+def ensure_under_backlog(path: Path, backlog_root: Path, label: str) -> None:
+    try:
+        path.resolve().relative_to(backlog_root)
+    except ValueError as exc:
+        raise SystemExit(f"{label} must be under {backlog_root}: {path}") from exc
+
 def run(
     cmd: List[str],
     expect_ok: bool = True,
@@ -40,7 +51,7 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--temp-root",
-        help="Optional temp root path (default: <cwd>/_tmp_tests).",
+        help="Optional temp root path (default: _kano/backlog/_tmp_tests).",
     )
     return parser.parse_args()
 
@@ -83,6 +94,8 @@ def main() -> int:
     args = parse_args()
     script_dir = Path(__file__).resolve().parent
     python = sys.executable
+    repo_root = Path.cwd().resolve()
+    allowed_root = backlog_root_for_repo(repo_root)
 
     create_item = script_dir / "create_item.py"
     update_state = script_dir / "update_state.py"
@@ -91,9 +104,12 @@ def main() -> int:
 
     stamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
     if args.temp_root:
-        temp_root = Path(args.temp_root).resolve()
+        temp_root = Path(args.temp_root)
+        if not temp_root.is_absolute():
+            temp_root = (repo_root / temp_root).resolve()
+        ensure_under_backlog(temp_root, allowed_root, "temp-root")
     else:
-        temp_root = Path.cwd() / "_tmp_tests"
+        temp_root = allowed_root / "_tmp_tests"
     temp_root.mkdir(parents=True, exist_ok=True)
     suffix = uuid.uuid4().hex[:6]
     test_root = temp_root / f"script_tests_{stamp}_{suffix}"

@@ -38,6 +38,9 @@ Use this skill to:
 - Hierarchy is in frontmatter links, not folder nesting; avoid moving files to reflect scope changes.
 - Filenames stay stable; use ASCII slugs.
 - Never include secrets in backlog files or logs.
+- File operations for backlog/skill artifacts must go through skill scripts
+  (`scripts/backlog/*` or `scripts/fs/*`) so audit logs capture the action.
+- Skill scripts only operate on paths under `_kano/backlog/`; refuse other paths.
 - Add Obsidian `[[wikilink]]` references in the body (e.g., a `## Links` section) so Graph/backlinks work; frontmatter alone does not create graph edges.
 
 ## ID prefix derivation
@@ -108,6 +111,9 @@ Logging scripts:
 - `scripts/logging/run_with_audit.py`: run a command and append an audit log entry
 
 If the repo keeps its own `_kano/backlog/tools` wrappers, keep arguments consistent with these scripts.
+
+Audit logging requires running these scripts directly; do not perform ad-hoc file
+operations outside the script layer when working on backlog/skill artifacts.
 
 ## State update helper
 

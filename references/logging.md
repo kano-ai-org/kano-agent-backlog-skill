@@ -64,3 +64,13 @@ These values can be made configurable later, but the defaults must exist.
 
 Backlog and filesystem scripts call `scripts/logging/audit_runner.py` at
 entrypoint so every invocation appends an audit log entry.
+
+## Environment overrides
+
+Set these environment variables to adjust logging without code changes:
+
+- `KANO_AUDIT_LOG_DISABLED=1` to disable audit logging.
+- `KANO_AUDIT_LOG_ROOT` to override the log directory.
+- `KANO_AUDIT_LOG_FILE` to override the log filename.
+- `KANO_AUDIT_LOG_MAX_BYTES` to override rotation size (bytes).
+- `KANO_AUDIT_LOG_MAX_FILES` to override the number of rotated files kept.

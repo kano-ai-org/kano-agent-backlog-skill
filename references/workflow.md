@@ -34,3 +34,8 @@
 - Do not rewrite a ticket into a different task.
 - Split into a new ticket and link via `links.relates`.
 - Append a Worklog entry explaining the split.
+
+## F) File operations
+
+- Use `scripts/backlog/*` or `scripts/fs/*` for backlog/skill artifacts.
+- Scripts only operate under `_kano/backlog/` to keep audit logs clean.

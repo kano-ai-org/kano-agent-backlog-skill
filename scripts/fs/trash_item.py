@@ -13,6 +13,10 @@ if str(LOGGING_DIR) not in sys.path:
 from audit_runner import run_with_audit  # noqa: E402
 
 
+def backlog_root_for_repo(repo_root: Path) -> Path:
+    return (repo_root / "_kano" / "backlog").resolve()
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Move a file into a trash bin, then optionally delete it."
@@ -39,19 +43,20 @@ def resolve_path(value: str, repo_root: Path) -> Path:
     return path
 
 
-def ensure_inside_repo(path: Path, repo_root: Path) -> None:
+def ensure_inside_backlog(path: Path, backlog_root: Path) -> None:
     try:
-        path.relative_to(repo_root)
+        path.relative_to(backlog_root)
     except ValueError as exc:
-        raise SystemExit(f"Path must be inside the repo root: {path}") from exc
+        raise SystemExit(f"Path must be inside {backlog_root}: {path}") from exc
 
 
 def main() -> int:
     args = parse_args()
     repo_root = Path.cwd().resolve()
+    backlog_root = backlog_root_for_repo(repo_root)
 
     src = resolve_path(args.path, repo_root)
-    ensure_inside_repo(src, repo_root)
+    ensure_inside_backlog(src, backlog_root)
 
     if not src.exists():
         raise SystemExit(f"Path not found: {src}")
@@ -59,7 +64,7 @@ def main() -> int:
         raise SystemExit(f"Only files are supported: {src}")
 
     trash_root = resolve_path(args.trash_root, repo_root)
-    ensure_inside_repo(trash_root, repo_root)
+    ensure_inside_backlog(trash_root, backlog_root)
     stamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
     dest = trash_root / stamp / src.relative_to(repo_root)
 

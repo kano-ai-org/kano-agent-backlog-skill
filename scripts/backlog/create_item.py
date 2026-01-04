@@ -24,6 +24,17 @@ TYPE_MAP = {
 }
 
 
+def backlog_root_for_repo(repo_root: Path) -> Path:
+    return (repo_root / "_kano" / "backlog").resolve()
+
+
+def ensure_under_backlog(path: Path, backlog_root: Path, label: str) -> None:
+    try:
+        path.resolve().relative_to(backlog_root)
+    except ValueError as exc:
+        raise SystemExit(f"{label} must be under {backlog_root}: {path}") from exc
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Create a backlog item from a template.")
     parser.add_argument(
@@ -310,17 +321,23 @@ def main() -> int:
 
     type_label, type_code, type_folder = TYPE_MAP[type_key]
 
+    repo_root = Path.cwd().resolve()
+    allowed_root = backlog_root_for_repo(repo_root)
+
     items_root = Path(args.items_root)
     if not items_root.is_absolute():
-        items_root = (Path.cwd() / items_root).resolve()
+        items_root = (repo_root / items_root).resolve()
+    ensure_under_backlog(items_root, allowed_root, "items-root")
 
     backlog_root = None
     if args.backlog_root:
         backlog_root = Path(args.backlog_root)
         if not backlog_root.is_absolute():
-            backlog_root = (Path.cwd() / backlog_root).resolve()
+            backlog_root = (repo_root / backlog_root).resolve()
     elif items_root.name == "items":
         backlog_root = items_root.parent
+    if backlog_root:
+        ensure_under_backlog(backlog_root, allowed_root, "backlog-root")
 
     prefix = args.prefix
     if not prefix:

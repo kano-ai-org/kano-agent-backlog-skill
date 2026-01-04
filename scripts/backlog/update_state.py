@@ -13,6 +13,17 @@ if str(LOGGING_DIR) not in sys.path:
 from audit_runner import run_with_audit  # noqa: E402
 
 
+def backlog_root_for_repo(repo_root: Path) -> Path:
+    return (repo_root / "_kano" / "backlog").resolve()
+
+
+def ensure_under_backlog(path: Path, backlog_root: Path) -> None:
+    try:
+        path.resolve().relative_to(backlog_root)
+    except ValueError as exc:
+        raise SystemExit(f"Item must be under {backlog_root}: {path}") from exc
+
+
 READY_SECTIONS = [
     "Context",
     "Goal",
@@ -133,7 +144,12 @@ def append_worklog(lines: List[str], message: str, agent: str) -> List[str]:
 
 def main() -> int:
     args = parse_args()
+    repo_root = Path.cwd().resolve()
+    backlog_root = backlog_root_for_repo(repo_root)
     item_path = Path(args.item)
+    if not item_path.is_absolute():
+        item_path = (repo_root / item_path).resolve()
+    ensure_under_backlog(item_path, backlog_root)
     if not item_path.exists():
         raise SystemExit(f"Item not found: {item_path}")
 
