@@ -184,6 +184,63 @@ def main() -> int:
         )
     )
 
+    checks.append(
+        (
+            "KABSD-USR-0012",
+            lambda: check_exists(
+                skill_root / "scripts" / "indexing" / "build_sqlite_index.py",
+                "SQLite index builder script",
+            ),
+        )
+    )
+    checks.append(
+        (
+            "KABSD-USR-0012.schema",
+            lambda: check_exists(
+                references / "indexing_schema.sql",
+                "SQLite index schema (SQL)",
+            ),
+        )
+    )
+    checks.append(
+        (
+            "KABSD-USR-0012.schema.json",
+            lambda: check_exists(
+                references / "indexing_schema.json",
+                "SQLite index schema (JSON)",
+            ),
+        )
+    )
+    checks.append(
+        (
+            "KABSD-USR-0014.index_enabled",
+            lambda: check_config_key(
+                config,
+                ["index", "enabled"],
+                "Index enabled config",
+            ),
+        )
+    )
+    checks.append(
+        (
+            "KABSD-USR-0016",
+            lambda: check_contains(
+                references / "indexing.md",
+                "DB-first is out of scope",
+                "Indexing reference (file-first)",
+            ),
+        )
+    )
+    checks.append(
+        (
+            "KABSD-USR-0017",
+            lambda: check_exists(
+                skill_root / "scripts" / "indexing" / "query_sqlite_index.py",
+                "SQLite index query script",
+            ),
+        )
+    )
+
     results = run_checks(checks)
 
     print("User Story Validation Results")

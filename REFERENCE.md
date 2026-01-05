@@ -11,6 +11,7 @@ The `references/` folder is intentionally split into multiple small files so an 
 - `bases.md`: Obsidian Bases notes (plugin-free table-style views)
 - `logging.md`: audit log schema, redaction, rotation defaults
 - `processes.md`: process profile schema and examples
+- `indexing.md`: optional indexing layer (artifacts, config, rebuild workflow)
 - `indexing_schema.sql`: optional DB index schema (SQLite-first)
 - `indexing_schema.json`: DB schema description (machine-readable)
 
@@ -22,12 +23,15 @@ Backlog scripts:
 - `scripts/backlog/update_state.py`: update `state` + `updated` and append Worklog
 - `scripts/backlog/validate_ready.py`: check Ready gate sections
 - `scripts/backlog/generate_view.py`: generate plain Markdown views
+- `scripts/backlog/refresh_dashboards.py`: rebuild SQLite index (optional) and refresh standard dashboards
 - `scripts/backlog/generate_epic_index.py`: generate item index (MOC) with task state labels (Epic/Feature/UserStory)
 - `scripts/backlog/seed_demo.py`: seed demo Epic/Feature/UserStory/Task/Bug items (tagged `demo-seed`) and plain Markdown views
 - `scripts/backlog/test_scripts.py`: smoke tests for the backlog scripts
 
 Indexing scripts:
 - `scripts/indexing/build_sqlite_index.py`: build a rebuildable SQLite index for file-first backlog items
+- `scripts/indexing/query_sqlite_index.py`: read-only query helper for the SQLite index (presets + safe --sql)
+- `scripts/indexing/render_db_view.py`: generate Markdown dashboard views from SQLite index queries (DB remains gitignored)
 
 Filesystem scripts:
 - `scripts/fs/cp_file.py`: copy a file inside the repo

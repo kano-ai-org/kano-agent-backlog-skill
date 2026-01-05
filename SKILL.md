@@ -47,8 +47,9 @@ Use this skill to:
   (`scripts/backlog/*` or `scripts/fs/*`) so audit logs capture the action.
 - Skill scripts only operate on paths under `_kano/backlog/` or `_kano/backlog_sandbox/`;
   refuse other paths.
-- After modifying backlog items, refresh the plain Markdown views immediately using
-  `scripts/backlog/generate_view.py` so the demo dashboards stay current.
+- After modifying backlog items, refresh the dashboards immediately so the demo stays current:
+  - Recommended: `scripts/backlog/refresh_dashboards.py` (can refresh the SQLite index first, then regenerate views)
+  - Or: `scripts/backlog/generate_view.py --source auto` to regenerate individual views.
 - `update_state.py` auto-syncs parent states forward-only by default; use `--no-sync-parent`
   for manual re-plans where parent state should stay put.
 - Add Obsidian `[[wikilink]]` references in the body (e.g., a `## Links` section) so Graph/backlinks work; frontmatter alone does not create graph edges.
