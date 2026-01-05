@@ -37,7 +37,10 @@ PRESETS = {
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Render a Markdown dashboard view from the SQLite backlog index."
+        description=(
+            "Render a Markdown view from the SQLite backlog index (debug/reporting). "
+            "For canonical dashboards, prefer `scripts/backlog/generate_view.py --source auto`."
+        )
     )
     parser.add_argument(
         "--backlog-root",
@@ -67,7 +70,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--output",
         help=(
-            "Output markdown file path. Default: `<backlog-root>/views/Dashboard_DBIndex_<Preset>.md`."
+            "Output markdown file path. Default: `<backlog-root>/views/_debug/Dashboard_IndexDebug_<Preset>.md`."
         ),
     )
     parser.add_argument(
@@ -174,11 +177,15 @@ def main() -> int:
     title = args.title or title_default
 
     output_name = {
-        "new": "Dashboard_DBIndex_New.md",
-        "inprogress": "Dashboard_DBIndex_InProgress.md",
-        "done": "Dashboard_DBIndex_Done.md",
+        "new": "Dashboard_IndexDebug_New.md",
+        "inprogress": "Dashboard_IndexDebug_InProgress.md",
+        "done": "Dashboard_IndexDebug_Done.md",
     }[args.preset]
-    output_path = Path(args.output) if args.output else (backlog_root / "views" / output_name)
+    output_path = (
+        Path(args.output)
+        if args.output
+        else (backlog_root / "views" / "_debug" / output_name)
+    )
     if not output_path.is_absolute():
         output_path = (repo_root / output_path).resolve()
     output_root = ensure_under_allowed(output_path, allowed_roots, "output")

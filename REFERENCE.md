@@ -31,7 +31,7 @@ Backlog scripts:
 Indexing scripts:
 - `scripts/indexing/build_sqlite_index.py`: build a rebuildable SQLite index for file-first backlog items
 - `scripts/indexing/query_sqlite_index.py`: read-only query helper for the SQLite index (presets + safe --sql)
-- `scripts/indexing/render_db_view.py`: generate Markdown dashboard views from SQLite index queries (DB remains gitignored)
+- `scripts/indexing/render_db_view.py`: render debug/report views from SQLite (canonical dashboards use `scripts/backlog/generate_view.py --source auto`)
 
 Filesystem scripts:
 - `scripts/fs/cp_file.py`: copy a file inside the repo
