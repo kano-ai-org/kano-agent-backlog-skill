@@ -57,6 +57,15 @@ Use this skill to:
   for manual re-plans where parent state should stay put.
 - Add Obsidian `[[wikilink]]` references in the body (e.g., a `## Links` section) so Graph/backlinks work; frontmatter alone does not create graph edges.
 
+## Owner & Agent Assignment
+
+- **Initial Owner**: When a human or agent creates a new work item, that creator becomes the initial owner (recorded in frontmatter `owner` field).
+- **Owner Transfer**: If an agent (other than the initial owner) decides to work on an item, the agent should:
+  1. Ask the human (user) whether to reassign ownership to the current agent.
+  2. If approved, update the `owner` field to the current agent's identity (e.g., `copilot`, `cursor`, `antigravity`).
+  3. Append a Worklog entry recording the reassignment: `[timestamp] [agent=<current>] Transferred ownership from <previous_owner>; beginning work.`
+- **Agent Identity**: Use your real product name/identity in the owner field and Worklog entries; never use placeholders.
+
 ## First-run bootstrap (enable the backlog system)
 
 When this skill is present but the backlog scaffold is missing (no `_kano/backlog/` or no `_kano/backlog/_config/config.json`):
