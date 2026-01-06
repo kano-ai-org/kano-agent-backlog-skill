@@ -252,29 +252,26 @@ def extract_product_from_path(source_path: str, platform_root: Optional[Path] = 
     
     Path patterns:
     - "products/kano-agent-backlog-skill/items/..." -> "kano-agent-backlog-skill"
+    - "_kano/backlog/products/kano-agent-backlog-skill/items/..." -> "kano-agent-backlog-skill"
     - "sandboxes/test-skill/items/..." -> "test-skill"
+    - "_kano/backlog/sandboxes/test-skill/items/..." -> "test-skill"
     - "items/..." (legacy) -> "kano-agent-backlog-skill" (default)
+    - "_kano/backlog/items/..." (legacy) -> "kano-agent-backlog-skill" (default)
     
     Args:
         source_path: Normalized path (forward slashes, relative).
         platform_root: Not used, kept for compatibility.
-    
+        
     Returns:
-        Product name.
+        Product name extracted from path.
     """
     parts = source_path.split("/")
-    
-    # Check for products/ or sandboxes/ at start
-    if len(parts) >= 2:
-        if parts[0] == "products":
-            return parts[1]
-        elif parts[0] == "sandboxes":
-            return parts[1]
-    
-    # Legacy: items at root level
-    if len(parts) > 0 and parts[0] in ("items", "decisions", "views"):
-        return "kano-agent-backlog-skill"
-    
+    for i, part in enumerate(parts):
+        if part == "products" and i + 1 < len(parts):
+            return parts[i + 1]
+        elif part == "sandboxes" and i + 1 < len(parts):
+            return parts[i + 1]
+    # Legacy: items/ without products/ or sandboxes/ parent
     return "kano-agent-backlog-skill"
 
 

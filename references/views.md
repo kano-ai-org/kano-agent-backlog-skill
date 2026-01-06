@@ -71,9 +71,6 @@ python scripts/backlog/view_generate.py --source sqlite --groups "New,InProgress
 Or use the dedicated generator (preferred):
 `python scripts/backlog/view_generate_demo.py --backlog-root _kano/backlog --agent <agent-name>`
 
-In the demo host repo, a convenience wrapper is also available:
-`python _kano/backlog/tools/view_generate_demo.py --backlog-root _kano/backlog --agent <agent-name>`
-
 If you only want a tag view:
 
 ```bash

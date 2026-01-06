@@ -165,14 +165,12 @@ Logging scripts:
 - `scripts/logging/audit_logger.py`: JSONL audit log writer + redaction
 - `scripts/logging/run_with_audit.py`: run a command and append an audit log entry
 
-If the repo keeps its own `_kano/backlog/tools` wrappers, keep arguments consistent with these scripts.
-
 Audit logging requires running these scripts directly; do not perform ad-hoc file
 operations outside the script layer when working on backlog/skill artifacts.
 
 ## State update helper
 
-- Use `scripts/backlog/workitem_update_state.py` (or `_kano/backlog/tools/update_state.py` in the demo repo) to update state + append Worklog.
+- Use `scripts/backlog/workitem_update_state.py` to update state + append Worklog.
 - Prefer `--action` for common transitions (`start`, `ready`, `review`, `done`, `block`, `drop`).
 - When moving to Ready, it validates required sections unless `--force` is set.
 
