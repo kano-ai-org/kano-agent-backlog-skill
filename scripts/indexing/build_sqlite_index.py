@@ -425,27 +425,28 @@ def upsert_item(conn: sqlite3.Connection, item: IndexedItem, known_ids: Optional
         ),
     )
 
-    conn.execute("DELETE FROM item_tags WHERE item_id = ?", (item.item_id,))
-    conn.execute("DELETE FROM item_links WHERE item_id = ?", (item.item_id,))
-    conn.execute("DELETE FROM item_decisions WHERE item_id = ?", (item.item_id,))
-    conn.execute("DELETE FROM worklog_entries WHERE item_id = ?", (item.item_id,))
+    conn.execute("DELETE FROM item_tags WHERE product = ? AND item_id = ?", (item.product, item.item_id))
+    conn.execute("DELETE FROM item_links WHERE product = ? AND item_id = ?", (item.product, item.item_id))
+    conn.execute("DELETE FROM item_decisions WHERE product = ? AND item_id = ?", (item.product, item.item_id))
+    conn.execute("DELETE FROM worklog_entries WHERE product = ? AND item_id = ?", (item.product, item.item_id))
 
     conn.executemany(
-        "INSERT OR IGNORE INTO item_tags(item_id, tag) VALUES(?, ?)",
-        [(item.item_id, tag) for tag in item.tags],
+        "INSERT OR IGNORE INTO item_tags(product, item_id, tag) VALUES(?, ?, ?)",
+        [(item.product, item.item_id, tag) for tag in item.tags],
     )
     conn.executemany(
-        "INSERT OR IGNORE INTO item_links(item_id, relation, target) VALUES(?, ?, ?)",
-        [(item.item_id, rel, tgt) for rel, tgt in item.links],
+        "INSERT OR IGNORE INTO item_links(product, item_id, relation, target) VALUES(?, ?, ?, ?)",
+        [(item.product, item.item_id, rel, tgt) for rel, tgt in item.links],
     )
     conn.executemany(
-        "INSERT OR IGNORE INTO item_decisions(item_id, decision_ref) VALUES(?, ?)",
-        [(item.item_id, ref) for ref in item.decisions],
+        "INSERT OR IGNORE INTO item_decisions(product, item_id, decision_ref) VALUES(?, ?, ?)",
+        [(item.product, item.item_id, ref) for ref in item.decisions],
     )
     conn.executemany(
-        "INSERT INTO worklog_entries(item_id, occurred_at, agent, message, raw_line) VALUES(?, ?, ?, ?, ?)",
+        "INSERT INTO worklog_entries(product, item_id, occurred_at, agent, message, raw_line) VALUES(?, ?, ?, ?, ?, ?)",
         [
             (
+                item.product,
                 item.item_id,
                 e.get("occurred_at"),
                 e.get("agent"),

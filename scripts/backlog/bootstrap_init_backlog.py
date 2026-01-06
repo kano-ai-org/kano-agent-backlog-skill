@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import sys
 import json
+import re
 from pathlib import Path
 from typing import Optional
 
@@ -17,7 +18,7 @@ from audit_runner import run_with_audit  # noqa: E402
 COMMON_DIR = Path(__file__).resolve().parents[1] / "common"
 if str(COMMON_DIR) not in sys.path:
     sys.path.insert(0, str(COMMON_DIR))
-from config_loader import default_config  # noqa: E402
+from config_loader import default_config, merge_defaults  # noqa: E402
 from context import (  # noqa: E402
     find_repo_root,
     find_platform_root,
@@ -44,6 +45,14 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--agent",
         help="Agent identifier for audit logging (e.g. copilot, cursor).",
+    )
+    parser.add_argument(
+        "--process-profile",
+        help="Process profile ID (e.g. builtin/azure-boards-agile). Overrides defaults.",
+    )
+    parser.add_argument(
+        "--process-path",
+        help="Process profile JSON path (relative to repo root or absolute). Overrides defaults.",
     )
     parser.add_argument(
         "--force",
@@ -74,6 +83,93 @@ def make_dir(path: Path, dry_run: bool) -> None:
         print(f"[DRY] mkdir {path}")
         return
     path.mkdir(parents=True, exist_ok=True)
+
+
+def load_existing_config(config_path: Path) -> dict:
+    if not config_path.exists():
+        return {}
+    try:
+        data = json.loads(config_path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        return {}
+    if not isinstance(data, dict):
+        return {}
+    return data
+
+
+def normalize_slug(value: str) -> str:
+    cleaned = re.sub(r"[^a-z0-9]+", "", value.lower())
+    return cleaned
+
+
+def pluralize_slug(slug: str) -> str:
+    if slug.endswith("y") and len(slug) > 1 and slug[-2] not in "aeiou":
+        return slug[:-1] + "ies"
+    if slug.endswith("s"):
+        return slug + "es"
+    return slug + "s"
+
+
+def resolve_process_definition(
+    process_cfg: dict,
+    repo_root: Path,
+    skill_root: Path,
+) -> Optional[dict]:
+    path_value = process_cfg.get("path")
+    profile = process_cfg.get("profile")
+    if path_value:
+        path = Path(path_value)
+        if not path.is_absolute():
+            path = (repo_root / path).resolve()
+        if path.exists():
+            try:
+                data = json.loads(path.read_text(encoding="utf-8"))
+                if isinstance(data, dict):
+                    return data
+            except json.JSONDecodeError:
+                return None
+        return None
+    if isinstance(profile, str) and profile.startswith("builtin/"):
+        name = profile.split("/", 1)[1]
+        path = skill_root / "references" / "processes" / f"{name}.json"
+        if path.exists():
+            try:
+                data = json.loads(path.read_text(encoding="utf-8"))
+                if isinstance(data, dict):
+                    return data
+            except json.JSONDecodeError:
+                return None
+    return None
+
+
+def derive_item_folders(process_def: Optional[dict]) -> list[str]:
+    fallback = ["epics", "features", "userstories", "tasks", "bugs"]
+    if not process_def:
+        return fallback
+    work_item_types = process_def.get("work_item_types")
+    if not isinstance(work_item_types, list):
+        return fallback
+    folders: list[str] = []
+    seen = set()
+    for entry in work_item_types:
+        if not isinstance(entry, dict):
+            continue
+        raw = entry.get("slug") or entry.get("type") or ""
+        if not isinstance(raw, str):
+            continue
+        slug = normalize_slug(raw)
+        if not slug:
+            continue
+        folder = pluralize_slug(slug)
+        if folder in seen:
+            continue
+        seen.add(folder)
+        folders.append(folder)
+    return folders or fallback
+
+
+def format_item_folders(folders: list[str]) -> list[str]:
+    return [f"- `items/{folder}/`" for folder in folders]
 
 
 def main() -> int:
@@ -119,40 +215,47 @@ def main() -> int:
         print(f"Error: {e}", file=sys.stderr)
         return 1
 
+    config_path = backlog_root / "_config" / "config.json"
+    baseline = merge_defaults(default_config(), load_existing_config(config_path))
+    if args.process_profile:
+        baseline.setdefault("process", {})
+        baseline["process"]["profile"] = args.process_profile
+        baseline["process"]["path"] = None
+    if args.process_path:
+        baseline.setdefault("process", {})
+        baseline["process"]["path"] = args.process_path
+        baseline["process"]["profile"] = None
+
+    skill_root = Path(__file__).resolve().parents[2]
+    process_def = resolve_process_definition(baseline.get("process", {}), repo_root, skill_root)
+    item_folders = derive_item_folders(process_def)
+
     dirs = [
         backlog_root / "_config",
         backlog_root / "_meta",
         backlog_root / "decisions",
-        backlog_root / "items" / "epics",
-        backlog_root / "items" / "features",
-        backlog_root / "items" / "userstories",
-        backlog_root / "items" / "tasks",
-        backlog_root / "items" / "bugs",
         backlog_root / "views",
     ]
+    for folder in item_folders:
+        dirs.append(backlog_root / "items" / folder)
     for path in dirs:
         make_dir(path, args.dry_run)
 
     readme_path = backlog_root / "README.md"
-    readme_content = "\n".join(
-        [
-            f"# {backlog_root.name} Backlog",
-            "",
-            "Local-first project backlog (file-based).",
-            "",
-            "## Structure",
-            "",
-            "- `_meta/`: schema and conventions",
-            "- `items/epics/`",
-            "- `items/features/`",
-            "- `items/userstories/`",
-            "- `items/tasks/`",
-            "- `items/bugs/`",
-            "- `decisions/`: ADRs",
-            "- `views/`: dashboards",
-            "",
-        ]
-    )
+    readme_lines = [
+        f"# {backlog_root.name} Backlog",
+        "",
+        "Local-first project backlog (file-based).",
+        "",
+        "## Structure",
+        "",
+        "- `_meta/`: schema and conventions",
+        *format_item_folders(item_folders),
+        "- `decisions/`: ADRs",
+        "- `views/`: dashboards",
+        "",
+    ]
+    readme_content = "\n".join(readme_lines)
     write_file(readme_path, readme_content, args.force, args.dry_run)
 
     index_path = backlog_root / "_meta" / "indexes.md"
@@ -167,10 +270,7 @@ def main() -> int:
     )
     write_file(index_path, index_content, args.force, args.dry_run)
 
-    config_path = backlog_root / "_config" / "config.json"
-    
     # Load baseline defaults and customize for this product
-    baseline = default_config()
     baseline["project"]["name"] = product_name
     
     # Optionally derive prefix from product name (simple heuristic)
@@ -195,8 +295,7 @@ def main() -> int:
             "- Generated outputs: `Dashboard_PlainMarkdown_{Active,New,Done}.md`",
             "",
             "Refresh generated dashboards:",
-            "# ToDo: Update this command to be product-aware",
-            f"- `python skills/kano-agent-backlog-skill/scripts/backlog/view_refresh_dashboards.py --product {args.product or 'PRODUCT'} --agent <agent-name>`",
+            f"- `python skills/kano-agent-backlog-skill/scripts/backlog/view_refresh_dashboards.py --product {product_name} --agent <agent-name>`",
             "",
             "## Optional: SQLite index",
             "",

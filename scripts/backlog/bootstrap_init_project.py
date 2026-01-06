@@ -90,6 +90,19 @@ def parse_args() -> argparse.Namespace:
         help="Whether to refresh dashboards after init (default: yes).",
     )
     parser.add_argument(
+        "--process-profile",
+        help="Process profile ID (e.g. builtin/azure-boards-agile). Overrides defaults.",
+    )
+    parser.add_argument(
+        "--process-path",
+        help="Process profile JSON path (relative to repo root or absolute). Overrides defaults.",
+    )
+    parser.add_argument(
+        "--force-process",
+        action="store_true",
+        help="Overwrite existing config process.profile/path values.",
+    )
+    parser.add_argument(
         "--dry-run",
         action="store_true",
         help="Print actions without writing files.",
@@ -225,7 +238,12 @@ def main() -> int:
 
     init_backlog = Path(__file__).resolve().parent / "bootstrap_init_backlog.py"
     python = sys.executable
-    run_cmd([python, str(init_backlog), "--backlog-root", str(backlog_root)], args.dry_run)
+    init_cmd = [python, str(init_backlog), "--backlog-root", str(backlog_root)]
+    if args.process_profile:
+        init_cmd.extend(["--process-profile", args.process_profile])
+    if args.process_path:
+        init_cmd.extend(["--process-path", args.process_path])
+    run_cmd(init_cmd, args.dry_run)
 
     # Ensure baseline config exists and inject project fields.
     config_path = backlog_root / "_config" / "config.json"
@@ -245,6 +263,15 @@ def main() -> int:
     if args.force_project or not get_config_value(config, "project.prefix"):
         config.setdefault("project", {})
         config["project"]["prefix"] = prefix
+    if args.process_profile or args.process_path:
+        if args.force_process or not get_config_value(config, "process.profile") and not get_config_value(config, "process.path"):
+            config.setdefault("process", {})
+            if args.process_profile:
+                config["process"]["profile"] = args.process_profile
+                config["process"]["path"] = None
+            if args.process_path:
+                config["process"]["path"] = args.process_path
+                config["process"]["profile"] = None
 
     rendered_config = json.dumps(config, indent=2, ensure_ascii=True) + "\n"
     if config_path.exists() and not args.dry_run:

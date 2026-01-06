@@ -11,7 +11,7 @@ metadata:
 
 Use this skill to:
 - Plan new work by creating backlog items before code changes.
-- Maintain Epic -> Feature -> UserStory -> Task/Bug hierarchy via parent links.
+- Maintain work item hierarchy via parent links as defined by the active process profile.
 - Record decisions with ADRs and link them to items.
 - Keep a durable, append-only worklog for project evolution.
 
@@ -99,6 +99,9 @@ If the user declines, do not create any files; continue with read-only guidance.
 
 ## Recommended layout
 
+Folder names should mirror the work item types in the active process profile.
+Defaults shown below are for the built-in profiles.
+
 - `_kano/backlog/_meta/` (schema, conventions, config)
 - `_kano/backlog/items/epics/`
 - `_kano/backlog/items/features/`
@@ -118,7 +121,7 @@ If the user declines, do not create any files; continue with read-only guidance.
 
 ## Index/MOC files
 
-- For Epic, create an adjacent index file:
+- For top-level items (e.g., Epic in built-in profiles), create an adjacent index file:
   - `<ID>_<slug>.index.md`
 - Index files should render a tree using Dataview/DataviewJS and rely on `parent` links.
 - Track epic index files in `_kano/backlog/_meta/indexes.md` (type, item_id, index_file, updated, notes).
