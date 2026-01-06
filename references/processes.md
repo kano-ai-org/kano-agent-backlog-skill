@@ -67,6 +67,9 @@ These semantics apply to built-ins that use the default KABSD state set:
 Use `process.profile` and `process.path` in `_kano/backlog/_config/config.json`
 to choose a built-in profile or a custom file.
 
+Use `scripts/backlog/process_linter.py` to verify item folders match the active
+process profile and optionally create missing folders.
+
 ## Built-in profiles
 
 - `references/processes/azure-boards-agile.json` -> `builtin/azure-boards-agile`

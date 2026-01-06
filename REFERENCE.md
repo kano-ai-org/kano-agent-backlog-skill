@@ -20,6 +20,7 @@ The `references/` folder is intentionally split into multiple small files so an 
 Backlog scripts:
 - `scripts/backlog/bootstrap_init_backlog.py`: initialize `_kano/backlog` scaffold (folders + `_meta/indexes.md` + backlog `README.md`); respects `process.profile` / `process.path` for item folders
 - `scripts/backlog/bootstrap_init_project.py`: first-run bootstrap (scaffold + baseline config + dashboards + optional agent guides)
+- `scripts/backlog/process_linter.py`: validate item folders against active process profile (optionally create missing)
 - `scripts/backlog/workitem_create.py`: create a backlog work item from template (ID + bucket + optional Epic index)
 - `scripts/backlog/workitem_update_state.py`: update `state` + `updated` and append Worklog
 - `scripts/backlog/workitem_validate_ready.py`: check Ready gate sections

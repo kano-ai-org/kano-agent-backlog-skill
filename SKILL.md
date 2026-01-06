@@ -142,6 +142,7 @@ If the backlog structure is missing, propose creation and wait for user approval
 Backlog scripts:
 - `scripts/backlog/bootstrap_init_backlog.py`: initialize `_kano/backlog` scaffold
 - `scripts/backlog/bootstrap_init_project.py`: first-run bootstrap (scaffold + config + dashboards + optional guide templates)
+- `scripts/backlog/process_linter.py`: validate item folders against the active process profile (optionally create missing folders)
 - `scripts/backlog/workitem_create.py`: create a new backlog work item with ID + bucket (Epic can also create an index file)
 - `scripts/backlog/workitem_update_state.py`: update `state` + `updated` and append Worklog
 - `scripts/backlog/workitem_validate_ready.py`: check Ready gate sections

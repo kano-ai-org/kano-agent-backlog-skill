@@ -4,9 +4,7 @@ from __future__ import annotations
 import argparse
 import sys
 import json
-import re
 from pathlib import Path
-from typing import Optional
 
 sys.dont_write_bytecode = True
 
@@ -25,6 +23,11 @@ from context import (  # noqa: E402
     resolve_product_name,
     get_product_root,
     get_sandbox_root_or_none,
+)
+from process_linter import (  # noqa: E402
+    derive_item_folders,
+    format_item_folders,
+    resolve_process_definition,
 )
 
 
@@ -95,81 +98,6 @@ def load_existing_config(config_path: Path) -> dict:
     if not isinstance(data, dict):
         return {}
     return data
-
-
-def normalize_slug(value: str) -> str:
-    cleaned = re.sub(r"[^a-z0-9]+", "", value.lower())
-    return cleaned
-
-
-def pluralize_slug(slug: str) -> str:
-    if slug.endswith("y") and len(slug) > 1 and slug[-2] not in "aeiou":
-        return slug[:-1] + "ies"
-    if slug.endswith("s"):
-        return slug + "es"
-    return slug + "s"
-
-
-def resolve_process_definition(
-    process_cfg: dict,
-    repo_root: Path,
-    skill_root: Path,
-) -> Optional[dict]:
-    path_value = process_cfg.get("path")
-    profile = process_cfg.get("profile")
-    if path_value:
-        path = Path(path_value)
-        if not path.is_absolute():
-            path = (repo_root / path).resolve()
-        if path.exists():
-            try:
-                data = json.loads(path.read_text(encoding="utf-8"))
-                if isinstance(data, dict):
-                    return data
-            except json.JSONDecodeError:
-                return None
-        return None
-    if isinstance(profile, str) and profile.startswith("builtin/"):
-        name = profile.split("/", 1)[1]
-        path = skill_root / "references" / "processes" / f"{name}.json"
-        if path.exists():
-            try:
-                data = json.loads(path.read_text(encoding="utf-8"))
-                if isinstance(data, dict):
-                    return data
-            except json.JSONDecodeError:
-                return None
-    return None
-
-
-def derive_item_folders(process_def: Optional[dict]) -> list[str]:
-    fallback = ["epics", "features", "userstories", "tasks", "bugs"]
-    if not process_def:
-        return fallback
-    work_item_types = process_def.get("work_item_types")
-    if not isinstance(work_item_types, list):
-        return fallback
-    folders: list[str] = []
-    seen = set()
-    for entry in work_item_types:
-        if not isinstance(entry, dict):
-            continue
-        raw = entry.get("slug") or entry.get("type") or ""
-        if not isinstance(raw, str):
-            continue
-        slug = normalize_slug(raw)
-        if not slug:
-            continue
-        folder = pluralize_slug(slug)
-        if folder in seen:
-            continue
-        seen.add(folder)
-        folders.append(folder)
-    return folders or fallback
-
-
-def format_item_folders(folders: list[str]) -> list[str]:
-    return [f"- `items/{folder}/`" for folder in folders]
 
 
 def main() -> int:
@@ -323,7 +251,7 @@ def main() -> int:
     )
     write_file(plain_dashboard_path, plain_dashboard_content, args.force, args.dry_run)
     
-    print(f"\n✓ Backlog initialized successfully at {backlog_root}")
+    print(f"\nBacklog initialized successfully at {backlog_root}")
     if args.agent:
         print(f"  Run this to refresh dashboards: python ... view_refresh_dashboards.py --product {product_name} --agent {args.agent}")
     
