@@ -167,22 +167,36 @@ def parse_frontmatter(path: Path) -> Dict[str, str]:
 def collect_items(
     root: Path,
     allowed_groups: List[str],
-) -> Dict[str, Dict[str, List[Tuple[str, str, Path]]]]:
-    groups: Dict[str, Dict[str, List[Tuple[str, str, Path]]]] = {}
+) -> Dict[str, Dict[str, List[Tuple[str, str, Path, Dict[str, List[str]]]]]]:
+    groups: Dict[str, Dict[str, List[Tuple[str, str, Path, Dict[str, List[str]]]]]] = {}
     for path in root.rglob("*.md"):
         if path.name == "README.md" or path.name.endswith(".index.md"):
             continue
-        data = parse_frontmatter(path)
-        item_id = data.get("id", "").strip()
-        item_type = data.get("type", "").strip()
-        state = data.get("state", "").strip()
-        title = data.get("title", "").strip()
+        # Use full YAML parser to get links properly if available
+        try:
+            from lib.utils import parse_frontmatter as parse_fm
+            content = path.read_text(encoding="utf-8")
+            data, _, _ = parse_fm(content)
+        except Exception:
+            # Fallback to simple parser
+            data = parse_frontmatter(path)
+            
+        item_id = str(data.get("id", "")).strip()
+        item_type = str(data.get("type", "")).strip()
+        state = str(data.get("state", "")).strip()
+        title = str(data.get("title", "")).strip()
         if not item_id or not item_type or not state:
             continue
         group = STATE_GROUPS.get(state)
         if group not in allowed_groups:
             continue
-        groups.setdefault(group, {}).setdefault(item_type, []).append((item_id, title, path))
+            
+        links = data.get("links", {})
+        link_summary = {
+            "blocks": links.get("blocks", []) if isinstance(links, dict) else [],
+            "blocked_by": links.get("blocked_by", []) if isinstance(links, dict) else []
+        }
+        groups.setdefault(group, {}).setdefault(item_type, []).append((item_id, title, path, link_summary))
     return groups
 
 
@@ -200,10 +214,16 @@ def collect_items_from_sqlite(
     repo_root: Path,
     db_path: Path,
     allowed_groups: List[str],
-) -> Dict[str, Dict[str, List[Tuple[str, str, Path]]]]:
-    groups: Dict[str, Dict[str, List[Tuple[str, str, Path]]]] = {}
+) -> Dict[str, Dict[str, List[Tuple[str, str, Path, Dict[str, List[str]]]]]]:
+    groups: Dict[str, Dict[str, List[Tuple[str, str, Path, Dict[str, List[str]]]]]] = {}
     with open_readonly(db_path) as conn:
         rows = conn.execute("SELECT id, type, state, title, source_path FROM items").fetchall()
+        # Fetch all links in one go for efficiency
+        links_rows = conn.execute("SELECT item_id, relation, target FROM item_links WHERE relation IN ('blocks', 'blocked_by')").fetchall()
+        item_links: Dict[str, Dict[str, List[str]]] = {}
+        for mid, rel, tgt in links_rows:
+            item_links.setdefault(mid, {}).setdefault(rel, []).append(tgt)
+            
     for item_id, item_type, state, title, source_path in rows:
         item_id = str(item_id or "").strip()
         item_type = str(item_type or "").strip()
@@ -216,7 +236,9 @@ def collect_items_from_sqlite(
             continue
         source = Path(str(source_path or "").replace("\\", "/"))
         path = (repo_root / source).resolve()
-        groups.setdefault(group, {}).setdefault(item_type, []).append((item_id, title, path))
+        
+        link_summary = item_links.get(item_id, {"blocks": [], "blocked_by": []})
+        groups.setdefault(group, {}).setdefault(item_type, []).append((item_id, title, path, link_summary))
     return groups
 
 
@@ -229,7 +251,7 @@ def pluralize_label(item_type: str) -> str:
 
 
 def format_items(
-    groups: Dict[str, Dict[str, List[Tuple[str, str, Path]]]],
+    groups: Dict[str, Dict[str, List[Tuple[str, str, Path, Dict[str, List[str]]]]]],
     output_path: Path,
     title: str,
     allowed_groups: List[str],
@@ -262,10 +284,26 @@ def format_items(
             label = pluralize_label(item_type)
             lines.append(f"### {label}")
             lines.append("")
-            for item_id, title, path in sorted(items, key=lambda item: item[0]):
-                text = f"{item_id} {title}".strip()
+            for item_id, item_title, path, links in sorted(items, key=lambda item: item[0]):
+                display_text = f"{item_id} {item_title}".strip()
+                
+                # Dependency indicators
+                indicators = []
+                blocked_by = links.get("blocked_by", [])
+                blocks = links.get("blocks", [])
+                
+                if blocked_by:
+                    refs = ", ".join(blocked_by)
+                    indicators.append(f"🔴 Blocked by: {refs}")
+                if blocks:
+                    refs = ", ".join(blocks)
+                    indicators.append(f"⛓️ Blocks: {refs}")
+                
+                if indicators:
+                    display_text += " [" + " | ".join(indicators) + "]"
+                
                 rel = os.path.relpath(path, out_dir).replace("\\", "/")
-                lines.append(f"- [{text}]({rel})")
+                lines.append(f"- [{display_text}]({rel})")
             lines.append("")
     return lines
 

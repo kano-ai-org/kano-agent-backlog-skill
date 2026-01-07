@@ -21,6 +21,8 @@ if str(COMMON_DIR) not in sys.path:
     sys.path.insert(0, str(COMMON_DIR))
 from config_loader import get_config_value, load_config_with_defaults, validate_config  # noqa: E402
 from product_args import add_product_arguments, get_product_and_sandbox_flags  # noqa: E402
+from context import get_context  # noqa: E402
+from lib.utils import parse_frontmatter as parse_fm_yaml  # noqa: E402
 
 
 def allowed_roots_for_repo(repo_root: Path) -> List[Path]:
@@ -117,11 +119,13 @@ def should_auto_refresh(config: dict) -> bool:
     return bool(get_config_value(config, "views.auto_refresh", True))
 
 
-def refresh_dashboards(backlog_root: Path, agent: str, config_path: Optional[str]) -> None:
+def refresh_dashboards(backlog_root: Path, agent: str, config_path: Optional[str], product: Optional[str] = None) -> None:
     refresh_script = Path(__file__).resolve().parent / "view_refresh_dashboards.py"
     cmd = [sys.executable, str(refresh_script), "--backlog-root", str(backlog_root), "--agent", agent]
     if config_path:
         cmd.extend(["--config", config_path])
+    if product:
+        cmd.extend(["--product", product])
     result = subprocess.run(cmd, text=True, capture_output=True)
     if result.returncode != 0:
         raise SystemExit(result.stderr.strip() or result.stdout.strip() or "Failed to refresh dashboards.")
@@ -226,11 +230,74 @@ def section_has_content(lines: List[str]) -> bool:
 
 def validate_ready(lines: List[str]) -> List[str]:
     sections = section_map(lines)
+    data = parse_frontmatter(lines)
     missing = []
+
+    # Check parent (required for non-Epic items)
+    parent = data.get("parent", "").strip()
+    item_type = data.get("type", "").strip()
+    if item_type != "Epic" and (not parent or parent.lower() == "null"):
+        missing.append("parent field (must not be null for non-Epic items)")
+
     for name in READY_SECTIONS:
         if name not in sections or not section_has_content(sections[name]):
-            missing.append(name)
+            missing.append(f"Section: {name}")
     return missing
+
+
+def check_blocked_by(item_path: Path, backlog_root: Path, product_name: Optional[str] = None) -> List[str]:
+    content = item_path.read_text(encoding="utf-8")
+    fm, _, _ = parse_fm_yaml(content)
+
+    links = fm.get("links", {})
+    if not isinstance(links, dict):
+        return []
+
+    blocked_by = links.get("blocked_by", [])
+    if not blocked_by:
+        return []
+
+    if isinstance(blocked_by, str):
+        blocked_by = [blocked_by]
+
+    index = BacklogIndex(backlog_root)
+    blocking_items = []
+
+    # We consider Done/Closed/Dropped/Completed as resolved
+    resolved_states = {"Done", "Closed", "Dropped", "Completed"}
+
+    for ref in blocked_by:
+        # Decide resolution strategy based on ref format
+        is_full_uid = len(ref) == 36 and "-" in ref
+        is_id_uidshort = "@" in ref
+
+        # For collision-safe refs (uid/id@uidshort), allow cross-product resolution
+        if is_full_uid or is_id_uidshort:
+            matches = resolve_ref(ref, index, product=None)
+        else:
+            # Display IDs resolve within current product by default
+            matches = resolve_ref(ref, index, product=product_name)
+        if not matches:
+            hint = (
+                "use id@uidshort or full uid for cross-product references"
+                if (product_name is not None)
+                else "ensure the display ID exists"
+            )
+            blocking_items.append(f"{ref} (not found; {hint})")
+            continue
+
+        # Ambiguous reference: suggest id@uidshort options
+        if len(matches) > 1:
+            suggestions = ", ".join(f"{m.id}@{m.uidshort}" for m in matches if m.uidshort)
+            blocking_items.append(f"{ref} (ambiguous; try {suggestions})")
+            # Skip checking states for ambiguous refs; require disambiguation first
+            continue
+
+        for match in matches:
+            if match.state not in resolved_states:
+                blocking_items.append(f"{match.id} ({match.state})")
+
+    return blocking_items
 
 
 def ensure_worklog(lines: List[str]) -> List[str]:
@@ -411,6 +478,31 @@ def main() -> int:
     frontmatter = parse_frontmatter(lines)
     current_state = frontmatter.get("state", "").strip()
     current_owner = frontmatter.get("owner", "").strip()
+    # Validate parent resolution within current product to avoid ID collisions
+    item_type = frontmatter.get("type", "").strip()
+    parent_ref = frontmatter.get("parent", "").strip()
+    if not args.force and item_type and item_type != "Epic" and parent_ref and parent_ref.lower() != "null":
+        ctx = get_context(product_arg=args.product, repo_root=repo_root)
+        platform_root = ctx["platform_root"]
+        product_name = ctx["product_name"]
+        index = BacklogIndex(platform_root)
+        matches = resolve_ref(parent_ref, index, product=product_name)
+        if not matches:
+            raise SystemExit(
+                (
+                    "Parent not found in current product. Parent is intended to be intra-product. "
+                    "If you need a cross-product relationship, use links.relates/blocks/blocked_by "
+                    "with a collision-safe ref (id@uidshort or full uid)."
+                )
+            )
+        if len(matches) > 1:
+            raise SystemExit(
+                (
+                    "Ambiguous parent reference (multiple items share this display ID in the current product). "
+                    "Keep parent intra-product and use a unique parent id; for cross-product relationships, use links.* "
+                    "with id@uidshort or full uid."
+                )
+            )
     
     # Conflict guard: if item is InProgress and owned by someone else, reject
     if current_state == "InProgress" and current_owner and current_owner.lower() != "null":
@@ -433,6 +525,19 @@ def main() -> int:
         # (we already checked above), but handle gracefully
         else:
             owner_to_set = current_owner
+
+    if target_state == "InProgress" and not args.force:
+        # Resolve backlog_root for index
+        ctx = get_context(product_arg=args.product, repo_root=repo_root)
+        platform_root = ctx["platform_root"]
+        product_name = ctx["product_name"]
+
+        blocking = check_blocked_by(item_path, platform_root, product_name)
+        if blocking:
+            print("Error: Work item is blocked by the following incomplete items:")
+            for b in blocking:
+                print(f"  - {b}")
+            raise SystemExit("Aborting state transition due to unresolved dependencies. Use --force to override.")
 
     if target_state == "Ready" and not args.force:
         missing = validate_ready(lines)
@@ -463,10 +568,15 @@ def main() -> int:
                 sync_parent_chain(children_map, items_by_id, child, args.agent)
 
     if not args.no_refresh and should_auto_refresh(config):
-        items_root = find_items_root(item_path)
-        if items_root:
-            backlog_root = items_root.parent
-            refresh_dashboards(backlog_root=backlog_root, agent=args.agent, config_path=args.config)
+        ctx = get_context(product_arg=args.product, repo_root=repo_root)
+        platform_root = ctx["platform_root"]
+        product_name = ctx["product_name"]
+        refresh_dashboards(
+            backlog_root=platform_root,
+            agent=args.agent,
+            config_path=args.config,
+            product=product_name,
+        )
     return 0
 
 

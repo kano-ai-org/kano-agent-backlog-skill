@@ -114,3 +114,21 @@ Baseline config lives at `_kano/backlog/_config/config.json` and defaults to:
   - `KANO_AUDIT_LOG_MAX_BYTES`
   - `KANO_AUDIT_LOG_MAX_FILES`
 
+## Parent reference format (collision-safe)
+
+- Same-product parent: use the display ID in `parent` (e.g., `KABSD-FTR-0002`).
+- Parent is intentionally **intra-product**: it powers hierarchy and parent state sync; cross-product “parent” relationships are usually not desired.
+- Cross-product relationships should be expressed via `links.relates`, `links.blocks`, `links.blocked_by` instead of `parent`.
+  - For collision-safe references in links/content, use `id@uidshort` (e.g., `KABSD-FTR-0002@019b8f52`) or full `uid` (`019b8f52-9fde-7162-bd19-e9b8310526fc`).
+
+### Validation
+
+- The `workitem_update_state.py` script validates that `parent` resolves uniquely within the current product.
+- If unresolved or ambiguous, the script aborts with guidance to keep parent intra-product and use `links.*` (with `id@uidshort` / full `uid`) for cross-product relationships.
+
+### Rationale
+
+- Display IDs are human-friendly and stable for day-to-day work within a product.
+- Parent drives hierarchy and state propagation; limiting it to a product keeps behavior predictable.
+- Cross-product collisions are expected in a multi-product platform; disambiguated refs in links ensure correctness without sacrificing readability in the common case.
+

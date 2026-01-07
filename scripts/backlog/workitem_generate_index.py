@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import subprocess
 import datetime
 import sys
 from dataclasses import dataclass
@@ -17,6 +18,7 @@ COMMON_DIR = Path(__file__).resolve().parents[1] / "common"
 if str(COMMON_DIR) not in sys.path:
     sys.path.insert(0, str(COMMON_DIR))
 from product_args import add_product_arguments  # noqa: E402
+from config_loader import get_config_value, load_config_with_defaults, resolve_allowed_root, validate_config  # noqa: E402
 
 
 TYPE_ORDER = ["Feature", "UserStory", "Task", "Bug"]
@@ -92,6 +94,19 @@ def parse_args() -> argparse.Namespace:
         "--dry-run",
         action="store_true",
         help="Print output to stdout instead of writing the file.",
+    )
+    parser.add_argument(
+        "--agent",
+        help="Agent identity (used for audit and optional dashboard refresh).",
+    )
+    parser.add_argument(
+        "--config",
+        help="Optional config path override for auto-refresh behavior.",
+    )
+    parser.add_argument(
+        "--no-refresh",
+        action="store_true",
+        help="Disable automatic dashboard refresh after writing index.",
     )
     add_product_arguments(parser)
     return parser.parse_args()
@@ -309,6 +324,41 @@ def main() -> int:
     index_path.parent.mkdir(parents=True, exist_ok=True)
     index_path.write_text(output_text, encoding="utf-8")
     print(f"Updated index: {index_path}")
+    # Optional: refresh dashboards if enabled
+    if not args.no_refresh:
+        # Load config to check auto-refresh
+        config = load_config_with_defaults(repo_root=repo_root, config_path=args.config)
+        errors = validate_config(config)
+        if errors:
+            print("Invalid config:\n- " + "\n- ".join(errors))
+            return 0
+        if bool(get_config_value(config, "views.auto_refresh", True)):
+            # Determine backlog root: prefer explicit arg; else use platform root
+            backlog_root = None
+            if args.backlog_root:
+                backlog_root = Path(args.backlog_root)
+                if not backlog_root.is_absolute():
+                    backlog_root = (repo_root / backlog_root).resolve()
+            else:
+                # Default to platform root
+                backlog_root = (repo_root / "_kano" / "backlog").resolve()
+            if backlog_root is not None:
+                # Ensure under allowed roots
+                if resolve_allowed_root(backlog_root, allowed_roots) is None:
+                    print(f"Skip refresh: backlog root not under allowed: {backlog_root}")
+                else:
+                    refresh_script = Path(__file__).resolve().parents[1] / "backlog" / "view_refresh_dashboards.py"
+                    cmd = [sys.executable, str(refresh_script), "--backlog-root", str(backlog_root)]
+                    if args.agent:
+                        cmd.extend(["--agent", args.agent])
+                    else:
+                        cmd.extend(["--agent", "system"])
+                    if args.config:
+                        cmd.extend(["--config", args.config])
+                    result = subprocess.run(cmd, text=True, capture_output=True)
+                    if result.returncode != 0:
+                        err = result.stderr.strip() or result.stdout.strip() or "Failed to refresh dashboards."
+                        print(err)
     return 0
 
 

@@ -15,6 +15,7 @@ COMMON_DIR = Path(__file__).resolve().parents[1] / "common"
 if str(COMMON_DIR) not in sys.path:
     sys.path.insert(0, str(COMMON_DIR))
 from config_loader import get_config_value, load_config_with_defaults, validate_config  # noqa: E402
+from context import get_context  # noqa: E402
 
 LOGGING_DIR = Path(__file__).resolve().parents[1] / "logging"
 if str(LOGGING_DIR) not in sys.path:
@@ -259,6 +260,19 @@ def refresh_dashboards(backlog_root: Path, agent: str, config_path: Optional[str
         raise SystemExit(result.stderr.strip() or result.stdout.strip() or "Failed to refresh dashboards.")
 
 
+def refresh_parent_index(items_root: Path, backlog_root: Path, parent_id: str, agent: str) -> None:
+    index_script = Path(__file__).resolve().parent / "workitem_generate_index.py"
+    cmd = [
+        sys.executable, str(index_script),
+        "--root-id", parent_id,
+        "--items-root", str(items_root),
+        "--backlog-root", str(backlog_root),
+        "--agent", agent
+    ]
+    # Silently attempt refresh; parent might not have an index file or might be external
+    subprocess.run(cmd, text=True, capture_output=True)
+
+
 def update_index_registry(path: Path, item_id: str, index_file: str, updated: str, notes: str) -> None:
     if not path.exists():
         return
@@ -378,28 +392,24 @@ def main() -> int:
     type_label, type_code, type_folder = TYPE_MAP[type_key]
 
     repo_root = Path.cwd().resolve()
-    config = load_config_with_defaults(repo_root=repo_root, config_path=args.config)
+    ctx = get_context(product_arg=args.product, repo_root=repo_root)
+    product_root = ctx["product_root"]
+    product_name = ctx["product_name"]
+    backlog_root = ctx["platform_root"]
+
+    config_path = args.config
+    if not config_path:
+        default_config = product_root / "_config" / "config.json"
+        if default_config.exists():
+            config_path = str(default_config)
+
+    config = load_config_with_defaults(repo_root=repo_root, config_path=config_path)
     errors = validate_config(config)
     if errors:
         raise SystemExit("Invalid config:\n- " + "\n- ".join(errors))
     allowed_roots = allowed_roots_for_repo(repo_root)
 
-    items_root = Path(args.items_root)
-    if not items_root.is_absolute():
-        items_root = (repo_root / items_root).resolve()
-    items_root_root = ensure_under_allowed(items_root, allowed_roots, "items-root")
-
-    backlog_root = None
-    if args.backlog_root:
-        backlog_root = Path(args.backlog_root)
-        if not backlog_root.is_absolute():
-            backlog_root = (repo_root / backlog_root).resolve()
-    elif items_root.name == "items":
-        backlog_root = items_root.parent
-    if backlog_root:
-        backlog_root_root = ensure_under_allowed(backlog_root, allowed_roots, "backlog-root")
-        if backlog_root_root != items_root_root:
-            raise SystemExit("items-root and backlog-root must share the same root.")
+    # Context already resolved above
 
     prefix = args.prefix
     if not prefix:
@@ -407,17 +417,18 @@ def main() -> int:
         if isinstance(config_prefix, str) and config_prefix.strip():
             prefix = config_prefix.strip()
         else:
-            config_project_name = get_config_value(config, "project.name")
-            project_name = args.project_name or (config_project_name if isinstance(config_project_name, str) else None)
+            project_name = args.project_name or get_config_value(config, "project.name")
             project_name = project_name or read_project_name(Path("config/profile.env"))
             if not project_name:
-                raise SystemExit("PROJECT_NAME not found. Provide --project-name or --prefix.")
+                # Use product_name as fallback for deriving prefix
+                project_name = product_name
             prefix = derive_prefix(project_name)
 
     parent = normalize_nullable(args.parent)
     if type_label != "Epic" and parent == "null":
         print("Warning: non-Epic item without --parent.")
 
+    items_root = product_root / "items"
     next_number = find_next_number(items_root / type_folder, prefix, type_code)
     bucket = (next_number // 100) * 100
     bucket_str = f"{bucket:04d}"
@@ -464,22 +475,21 @@ def main() -> int:
     create_index = args.create_index or (type_label == "Epic" and not args.no_index)
     if type_label == "Epic" and create_index:
         index_path = item_path.with_suffix(".index.md")
-        backlog_label = "_kano/backlog"
-        if backlog_root:
-            try:
-                backlog_label = backlog_root.relative_to(Path.cwd()).as_posix()
-            except ValueError:
-                backlog_label = backlog_root.as_posix()
+        backlog_label = f"_kano/backlog/products/{product_name}"
+        try:
+            backlog_label = product_root.relative_to(repo_root).as_posix()
+        except ValueError:
+            pass
         index_body = render_index(item_id, args.title, date, backlog_label)
         index_path.write_text(index_body, encoding="utf-8")
         print(f"Created index: {index_path}")
 
-        registry_path = build_index_registry_path(backlog_root, args.index_registry)
+        registry_path = product_root / "_meta" / "indexes.md"
         if registry_path:
             registry_path = registry_path.resolve()
             index_rel = index_path
             try:
-                index_rel = index_path.relative_to(Path.cwd())
+                index_rel = index_path.relative_to(repo_root)
             except ValueError:
                 pass
             update_index_registry(
@@ -492,6 +502,8 @@ def main() -> int:
 
     if backlog_root and not args.no_refresh and should_auto_refresh(config):
         refresh_dashboards(backlog_root=backlog_root, agent=args.agent, config_path=args.config)
+        if parent and parent != "null":
+            refresh_parent_index(items_root=items_root, backlog_root=product_root, parent_id=parent, agent=args.agent)
 
     return 0
 

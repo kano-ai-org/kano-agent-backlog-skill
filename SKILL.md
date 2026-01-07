@@ -15,6 +15,11 @@ Use this skill to:
 - Record decisions with ADRs and link them to items.
 - Keep a durable, append-only worklog for project evolution.
 
+## Out of Scope
+
+- **Commit Message Conventions**: Formatting and linting of commit messages (see `kano-commit-convention-skill`).
+- **Code Linting/Formatting**: Validating the codebase itself (outside of backlog items).
+
 ## Non-negotiables
 
 - Planning before coding: create/update items and meet the Ready gate before making code changes.
@@ -115,9 +120,11 @@ Defaults shown below are for the built-in profiles.
 
 - Store items under `_kano/backlog/items/<type>/<bucket>/`.
 - Bucket names use 4 digits for the lower bound of each 100 range.
-  - Example: `0000`, `0100`, `0200`, `0300`, ...
+  - Example: `0000`, `0100`, `0200`, `0300`, ..., `9900` (capacity: 10,000 items).
+  - Bucket formula: `bucket = (next_number // 100) * 100`, formatted as `f"{bucket:04d}"`.
 - Example path:
   - `_kano/backlog/items/tasks/0000/KABSD-TSK-0007_define-secret-provider-validation.md`
+- Note: If item count exceeds 9,999, bucket folders will automatically expand to 5+ digits (e.g., `10000/`, `10100/`). This is not expected to occur for decades at typical project growth rates.
 
 ## Index/MOC files
 
@@ -153,7 +160,15 @@ Backlog scripts:
 - `scripts/backlog/workitem_generate_index.py`: generate item index (MOC) with task state labels (Epic/Feature/UserStory)
 - `scripts/backlog/workitem_resolve_ref.py`: resolve id/uid references (with disambiguation)
 - `scripts/backlog/workitem_collision_report.py`: report duplicate display IDs
+- `scripts/backlog/link_disambiguation_report.py`: list ambiguous/invalid link refs; suggests `id@uidshort`/`uid`
+- `scripts/backlog/link_disambiguation_fix.py`: auto-fix link refs to `id@uidshort` when uniquely resolvable (prefer same product)
+- `scripts/backlog/maintenance_links_refresh.py`: one-shot run: link autofix -> index rebuild -> dashboard refresh
 - `scripts/backlog/workitem_attach_artifact.py`: copy artifacts and link them to items
+- `scripts/backlog/workset_init.py`: initialize workset cache (plan/notes/deliverables)
+- `scripts/backlog/workset_next.py`: show plan checklist from workset
+- `scripts/backlog/workset_refresh.py`: refresh workset metadata timestamp
+- `scripts/backlog/workset_promote.py`: promote deliverables to artifacts + worklog
+- `scripts/backlog/workset_detect_adr.py`: scan notes for Decision: markers; suggest ADR creation
 - `scripts/backlog/migration_add_uid.py`: add uid fields to existing items
 - `scripts/backlog/bootstrap_seed_demo.py`: seed demo items and views
 - `scripts/backlog/version_show.py`: show skill version metadata
@@ -177,4 +192,53 @@ operations outside the script layer when working on backlog/skill artifacts.
 - Use `scripts/backlog/workitem_update_state.py` to update state + append Worklog.
 - Prefer `--action` for common transitions (`start`, `ready`, `review`, `done`, `block`, `drop`).
 - When moving to Ready, it validates required sections unless `--force` is set.
+
+## Workset (Execution Layer) – Model Capability Equalizer
+
+**Purpose**: Local work cache that equalizes execution quality across different-sized models.
+
+**Problem it solves**:
+- Strong models (Claude Opus/Sonnet, GPT-4) have built-in planning + reasoning chains.
+- Weak models (GPT-3.5, small open-source) lack structured execution and drift without external scaffolding.
+- Workset provides **forced plan-first structure** so weak models execute consistently, while strong models use it as overflow memory.
+
+**Key Iron Law**:
+- Cache is discardable: `_kano/backlog/sandboxes/.cache/<uid>/` is gitignored and rebuildable.
+- Canonical promotion is mandatory: decisions, state changes, and deliverables MUST be written back to item/ADR/worklog.
+
+**Scripts**:
+- `workset_init.py`: Initialize cache with `plan.md` (checklist), `notes.md`, `deliverables/`
+- `workset_next.py`: Show plan checklist (agent should read this before executing)
+- `workset_refresh.py`: Update cache metadata timestamp
+- `workset_promote.py`: Promote deliverables to artifacts + append worklog summary
+- `workset_detect_adr.py`: Scan `notes.md` for Decision: markers; suggest ADR creation
+
+**Workflow**:
+1. Agent starts work: `workset_init.py --item <id> --agent <name>`
+2. Agent reads plan: `workset_next.py --item <id>` → get checklist
+3. Agent works in `.cache/<uid>/`, writes notes/deliverables
+4. Agent detects decisions: `workset_detect_adr.py --item <id>` → prompt for ADR
+5. Agent promotes: `workset_promote.py --item <id> --agent <name>` → attach artifacts + worklog
+
+**Multi-model strategy**:
+- Weak models: workset is **execution framework** (mandatory plan → verify cycle)
+- Strong models: workset is **backup memory** (avoid context overflow drift)
+- Result: mixed-model teams execute with consistent quality
+
+## Routine maintenance (links + index + dashboards)
+
+- One-command maintenance（含自動修正、重建索引、刷新看板）:
+
+  ```bash
+  python skills/backlog/maintenance_links_refresh.py \
+    --backlog-root _kano/backlog \
+    --agent <agent> \
+    --product kano-agent-backlog-skill
+  ```
+
+- 若只想預覽修正，不寫入：加上 `--dry-run-fix`
+- 內部步驟：
+  1) `link_disambiguation_fix.py`（僅 links，唯一解析時才改為 `id@uidshort`；不動 parent）
+  2) `build_sqlite_index.py --mode rebuild`（寫入 `target_uid`）
+  3) `view_refresh_dashboards.py`（可選 product）
 

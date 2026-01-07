@@ -16,10 +16,14 @@ CREATE TABLE IF NOT EXISTS schema_meta (
   value TEXT NOT NULL
 );
 
+-- Initialize schema version to 0 (baseline; migrations will upgrade)
+INSERT OR IGNORE INTO schema_meta(key, value) VALUES('schema_version', '0');
+
 -- Backlog items (Epic/Feature/UserStory/Task/Bug, plus any process-defined types).
 CREATE TABLE IF NOT EXISTS items (
   id TEXT NOT NULL,
   product TEXT NOT NULL,
+  uid TEXT,
   type TEXT NOT NULL,
   title TEXT NOT NULL,
   state TEXT,
@@ -61,12 +65,14 @@ CREATE TABLE IF NOT EXISTS item_links (
   item_id TEXT NOT NULL,
   relation TEXT NOT NULL, -- e.g. relates, blocks, blocked_by, parent, external
   target TEXT NOT NULL,   -- item id or external key/url
+  target_uid TEXT,        -- canonical UID when resolvable (nullable)
   PRIMARY KEY(product, item_id, relation, target),
   FOREIGN KEY(product, item_id) REFERENCES items(product, id) ON DELETE CASCADE
 );
 
 CREATE INDEX IF NOT EXISTS idx_item_links_relation ON item_links(relation);
 CREATE INDEX IF NOT EXISTS idx_item_links_target ON item_links(target);
+CREATE INDEX IF NOT EXISTS idx_item_links_target_uid ON item_links(target_uid);
 
 -- Decisions/ADRs: we store decision references (links) from item frontmatter.
 -- The decision_ref can be a wiki-link target, filename, or URL.

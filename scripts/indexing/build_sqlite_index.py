@@ -29,6 +29,7 @@ from config_loader import (  # noqa: E402
     resolve_allowed_root,
     validate_config,
 )
+from context import find_platform_root, resolve_product_name  # noqa: E402
 
 
 def parse_args() -> argparse.Namespace:
@@ -222,6 +223,7 @@ def parse_worklog_entries(lines: List[str]) -> List[Dict[str, Optional[str]]]:
 @dataclass(frozen=True)
 class IndexedItem:
     item_id: str
+    product: str
     item_type: str
     title: str
     state: Optional[str]
@@ -232,8 +234,8 @@ class IndexedItem:
     owner: Optional[str]
     created: Optional[str]
     updated: Optional[str]
+    uid: Optional[str]
     source_path: str
-    product: str
     content_sha256: str
     frontmatter_json: str
     tags: List[str]
@@ -278,6 +280,7 @@ def extract_product_from_path(source_path: str, platform_root: Optional[Path] = 
 def extract_item(
     repo_root: Path,
     path: Path,
+    product: str,
 ) -> Optional[IndexedItem]:
     content = path.read_text(encoding="utf-8")
     lines = content.splitlines()
@@ -335,11 +338,12 @@ def extract_item(
 
     worklog_entries = parse_worklog_entries(lines)
     source_path = normalize_path(repo_root, path)
-    product = extract_product_from_path(source_path)
+    uid = fm.get("uid")
     frontmatter_json = json.dumps(fm, ensure_ascii=False, sort_keys=True)
 
     return IndexedItem(
         item_id=item_id,
+        product=product,
         item_type=item_type,
         title=title,
         state=str(state).strip() if state is not None else None,
@@ -350,8 +354,8 @@ def extract_item(
         owner=str(owner).strip() if owner is not None else None,
         created=str(created).strip() if created is not None else None,
         updated=str(updated).strip() if updated is not None else None,
+        uid=str(uid).strip() if uid is not None else None,
         source_path=source_path,
-        product=product,
         content_sha256=sha256_text(content),
         frontmatter_json=frontmatter_json,
         tags=tags,
@@ -367,9 +371,56 @@ def load_schema_sql() -> str:
     return schema_path.read_text(encoding="utf-8")
 
 
+def get_current_version(conn: sqlite3.Connection) -> int:
+    """Return current schema version (0 if fresh DB or no version set)."""
+    try:
+        row = conn.execute(
+            "SELECT value FROM schema_meta WHERE key='schema_version'"
+        ).fetchone()
+        return int(row[0]) if row else 0
+    except sqlite3.OperationalError:
+        # schema_meta table doesn't exist yet (fresh DB)
+        return 0
+
+
+def apply_migrations(conn: sqlite3.Connection) -> None:
+    """Apply pending migrations from references/migrations/ in order."""
+    skill_root = Path(__file__).resolve().parents[2]
+    migration_dir = skill_root / "references" / "migrations"
+    
+    if not migration_dir.exists():
+        # No migrations directory = stay at baseline version
+        return
+    
+    current_version = get_current_version(conn)
+    migrations = sorted(migration_dir.glob("*.sql"))
+    
+    for migration_file in migrations:
+        # Extract version number from filename (e.g., "001_add_target_uid.sql" -> 1)
+        try:
+            version = int(migration_file.stem.split("_")[0])
+        except (ValueError, IndexError):
+            print(f"Warning: Skipping invalid migration filename: {migration_file.name}")
+            continue
+        
+        if version > current_version:
+            print(f"Applying migration {version}: {migration_file.name}")
+            conn.executescript(migration_file.read_text(encoding="utf-8"))
+            conn.execute(
+                "INSERT OR REPLACE INTO schema_meta(key, value) VALUES(?, ?)",
+                ("schema_version", str(version))
+            )
+            conn.commit()
+            current_version = version
+
+
 def apply_schema(conn: sqlite3.Connection) -> None:
+    """Apply base schema and run pending migrations."""
+    # 1. Apply base schema (creates tables including schema_meta with version=0)
     conn.executescript(load_schema_sql())
-    conn.execute("INSERT OR REPLACE INTO schema_meta(key, value) VALUES(?, ?)", ("schema_version", "1"))
+    
+    # 2. Apply migrations (upgrade to latest version)
+    apply_migrations(conn)
 
 
 def clear_all(conn: sqlite3.Connection) -> None:
@@ -380,7 +431,14 @@ def clear_all(conn: sqlite3.Connection) -> None:
     conn.execute("DELETE FROM items")
 
 
-def upsert_item(conn: sqlite3.Connection, item: IndexedItem, known_ids: Optional[set[str]] = None) -> None:
+def upsert_item(
+    conn: sqlite3.Connection,
+    item: IndexedItem,
+    known_ids: Optional[set[str]] = None,
+    items_by_product_id: Optional[Dict[Tuple[str, str], IndexedItem]] = None,
+    items_by_id: Optional[Dict[str, List[IndexedItem]]] = None,
+    items_by_uid: Optional[Dict[str, IndexedItem]] = None,
+) -> None:
     parent_id = item.parent_id
     if known_ids is not None and parent_id and parent_id not in known_ids:
         parent_id = None
@@ -388,9 +446,9 @@ def upsert_item(conn: sqlite3.Connection, item: IndexedItem, known_ids: Optional
         """
         INSERT INTO items(
           id, product, type, title, state, priority, parent_id, area, iteration, owner,
-          created, updated, source_path, content_sha256, frontmatter_json
+          created, updated, source_path, content_sha256, frontmatter_json, uid
         )
-        VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(product, id) DO UPDATE SET
           type=excluded.type,
           title=excluded.title,
@@ -402,6 +460,7 @@ def upsert_item(conn: sqlite3.Connection, item: IndexedItem, known_ids: Optional
           owner=excluded.owner,
           created=excluded.created,
           updated=excluded.updated,
+          uid=excluded.uid,
           source_path=excluded.source_path,
           content_sha256=excluded.content_sha256,
           frontmatter_json=excluded.frontmatter_json
@@ -422,6 +481,7 @@ def upsert_item(conn: sqlite3.Connection, item: IndexedItem, known_ids: Optional
             item.source_path,
             item.content_sha256,
             item.frontmatter_json,
+            item.uid,
         ),
     )
 
@@ -434,9 +494,34 @@ def upsert_item(conn: sqlite3.Connection, item: IndexedItem, known_ids: Optional
         "INSERT OR IGNORE INTO item_tags(product, item_id, tag) VALUES(?, ?, ?)",
         [(item.product, item.item_id, tag) for tag in item.tags],
     )
+    def resolve_target_uid(rel: str, tgt: str) -> Optional[str]:
+        # Full UID
+        if len(tgt) == 36 and "-" in tgt and items_by_uid is not None:
+            return tgt if tgt in items_by_uid else None
+        # id@uidshort
+        if "@" in tgt and items_by_id is not None:
+            did, short = tgt.split("@", 1)
+            candidates = items_by_id.get(did, [])
+            for c in candidates:
+                if c.uid and c.uid.replace("-", "").startswith(short):
+                    return c.uid
+            return None
+        # Display ID: for parent, prefer same-product resolution; for links, attempt same-product
+        if items_by_product_id is not None:
+            key = (item.product, tgt)
+            cand = items_by_product_id.get(key)
+            if cand and cand.uid:
+                return cand.uid
+        return None
+
+    link_rows = []
+    for rel, tgt in item.links:
+        tuid = resolve_target_uid(rel, tgt)
+        link_rows.append((item.product, item.item_id, rel, tgt, tuid))
+
     conn.executemany(
-        "INSERT OR IGNORE INTO item_links(product, item_id, relation, target) VALUES(?, ?, ?, ?)",
-        [(item.product, item.item_id, rel, tgt) for rel, tgt in item.links],
+        "INSERT OR IGNORE INTO item_links(product, item_id, relation, target, target_uid) VALUES(?, ?, ?, ?, ?)",
+        link_rows,
     )
     conn.executemany(
         "INSERT OR IGNORE INTO item_decisions(product, item_id, decision_ref) VALUES(?, ?, ?)",
@@ -458,10 +543,10 @@ def upsert_item(conn: sqlite3.Connection, item: IndexedItem, known_ids: Optional
     )
 
 
-def collect_indexable_items(repo_root: Path, md_files: Sequence[Path]) -> List[IndexedItem]:
+def collect_indexable_items(repo_root: Path, md_files_with_product: Iterable[Tuple[Path, str]]) -> List[IndexedItem]:
     items: List[IndexedItem] = []
-    for path in md_files:
-        item = extract_item(repo_root, path)
+    for path, product in md_files_with_product:
+        item = extract_item(repo_root, path, product)
         if item is None:
             continue
         items.append(item)
@@ -507,13 +592,13 @@ def read_existing_hashes(conn: sqlite3.Connection) -> Dict[str, str]:
     return {str(row[0]): str(row[1] or "") for row in rows}
 
 
-def delete_missing(conn: sqlite3.Connection, current_paths: Iterable[str]) -> int:
-    current = set(current_paths)
-    rows = conn.execute("SELECT id, source_path FROM items").fetchall()
+def delete_missing(conn: sqlite3.Connection, current_states: Iterable[Tuple[str, str]]) -> int:
+    current = set(current_states)
+    rows = conn.execute("SELECT product, id FROM items").fetchall()
     removed = 0
-    for item_id, source_path in rows:
-        if str(source_path) not in current:
-            conn.execute("DELETE FROM items WHERE id = ?", (item_id,))
+    for product, item_id in rows:
+        if (product, item_id) not in current:
+            conn.execute("DELETE FROM items WHERE product = ? AND id = ?", (product, item_id))
             removed += 1
     return removed
 
@@ -561,12 +646,36 @@ def main() -> int:
 
     process_profile = str(get_config_value(config, "process.profile") or get_config_value(config, "process.path") or "")
 
-    md_files = sorted(
-        p for p in items_root.rglob("*.md") if p.name != "README.md" and not p.name.endswith(".index.md")
-    )
+    platform_root = find_platform_root(repo_root)
+    products_dir = platform_root / "products"
+    
+    md_files_with_product: List[Tuple[Path, str]] = []
+    
+    # Discovery in products
+    if products_dir.exists():
+        for prod_dir in products_dir.iterdir():
+            if not prod_dir.is_dir(): continue
+            item_dir = prod_dir / "items"
+            if item_dir.exists():
+                for p in item_dir.rglob("*.md"):
+                    if p.name != "README.md" and not p.name.endswith(".index.md"):
+                        md_files_with_product.append((p, prod_dir.name))
+    
+    # Discovery in sandboxes
+    sandbox_dir = platform_root / "sandboxes"
+    if sandbox_dir.exists():
+        for sbox_dir in sandbox_dir.iterdir():
+            if not sbox_dir.is_dir(): continue
+            item_dir = sbox_dir / "items"
+            if item_dir.exists():
+                for p in item_dir.rglob("*.md"):
+                    if p.name != "README.md" and not p.name.endswith(".index.md"):
+                        # Sandbox items still belong to the product context
+                        md_files_with_product.append((p, sbox_dir.name))
 
     print(f"Backlog root: {backlog_root}")
-    print(f"Items: {items_root} ({len(md_files)} files)")
+    print(f"Indexed products: {sorted(list(set(p for _, p in md_files_with_product)))}")
+    print(f"Items: {len(md_files_with_product)} files")
     print(f"DB path: {db_path}")
     print(f"Mode: {mode}")
     if not bool(get_config_value(config, "index.enabled", False)) and args.db_path is None:
@@ -591,31 +700,61 @@ def main() -> int:
         conn.execute("INSERT OR REPLACE INTO schema_meta(key, value) VALUES(?, ?)", ("process_profile", process_profile))
 
         if mode == "rebuild":
-            items = collect_indexable_items(repo_root, md_files)
+            items = collect_indexable_items(repo_root, md_files_with_product)
             warn_missing_parents(items)
             ordered = order_items_for_fk(items)
             known_ids = {item.item_id for item in ordered}
+            # Build resolvers
+            items_by_product_id = {(it.product, it.item_id): it for it in ordered}
+            items_by_id: Dict[str, List[IndexedItem]] = {}
+            items_by_uid: Dict[str, IndexedItem] = {}
+            for it in ordered:
+                items_by_id.setdefault(it.item_id, []).append(it)
+                if it.uid:
+                    items_by_uid[it.uid] = it
             with conn:
                 clear_all(conn)
                 for item in ordered:
-                    upsert_item(conn, item, known_ids=known_ids)
+                    upsert_item(
+                        conn,
+                        item,
+                        known_ids=known_ids,
+                        items_by_product_id=items_by_product_id,
+                        items_by_id=items_by_id,
+                        items_by_uid=items_by_uid,
+                    )
             print(f"Indexed items: {conn.execute('SELECT COUNT(*) FROM items').fetchone()[0]}")
             return 0
 
         existing_hashes = read_existing_hashes(conn)
-        items = collect_indexable_items(repo_root, md_files)
+        items = collect_indexable_items(repo_root, md_files_with_product)
         warn_missing_parents(items)
         ordered = order_items_for_fk(items)
         known_ids = {item.item_id for item in ordered}
-        current_paths = [item.source_path for item in ordered]
+        current_states = [(item.product, item.item_id) for item in ordered]
         changed = 0
+        # Build resolvers
+        items_by_product_id = {(it.product, it.item_id): it for it in ordered}
+        items_by_id: Dict[str, List[IndexedItem]] = {}
+        items_by_uid: Dict[str, IndexedItem] = {}
+        for it in ordered:
+            items_by_id.setdefault(it.item_id, []).append(it)
+            if it.uid:
+                items_by_uid[it.uid] = it
         with conn:
             for item in ordered:
                 if existing_hashes.get(item.source_path) == item.content_sha256:
                     continue
-                upsert_item(conn, item, known_ids=known_ids)
+                upsert_item(
+                    conn,
+                    item,
+                    known_ids=known_ids,
+                    items_by_product_id=items_by_product_id,
+                    items_by_id=items_by_id,
+                    items_by_uid=items_by_uid,
+                )
                 changed += 1
-            removed = delete_missing(conn, current_paths)
+            removed = delete_missing(conn, current_states)
         print(f"Updated items: {changed}, removed: {removed}")
         print(f"Indexed items: {conn.execute('SELECT COUNT(*) FROM items').fetchone()[0]}")
         return 0

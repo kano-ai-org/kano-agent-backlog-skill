@@ -47,7 +47,7 @@ class BacklogIndex:
         conn = sqlite3.connect(db_path)
         cur = conn.cursor()
         try:
-            cur.execute("SELECT uid, id, type, title, state, path, created, updated, product, frontmatter FROM items")
+            cur.execute("SELECT uid, id, type, title, state, source_path, created, updated, product, frontmatter_json FROM items")
             for row in cur.fetchall():
                 uid, did, type_, title, state, rel_path, created, updated, product, fm_json = row
                 

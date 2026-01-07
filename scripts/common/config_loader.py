@@ -124,7 +124,8 @@ def resolve_config_path(
     # If product_name provided, try to get product-specific config
     if product_name:
         try:
-            return get_config_file(product_name=product_name, repo_root=root)
+            platform_root = find_platform_root(root)
+            return get_config_file(product_name=product_name, platform_root=platform_root)
         except FileNotFoundError:
             # Product root doesn't exist; fall back to legacy path
             pass
