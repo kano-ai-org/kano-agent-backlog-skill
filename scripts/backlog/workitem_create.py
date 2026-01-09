@@ -414,7 +414,9 @@ def main() -> int:
     ctx = get_context(product_arg=args.product, repo_root=repo_root)
     product_root = ctx["product_root"]
     product_name = ctx["product_name"]
-    backlog_root = ctx["platform_root"]
+    # For view rendering we must refresh the product backlog root (not the platform root),
+    # otherwise generated dashboards under `products/<product>/views` won't update.
+    backlog_root = product_root
 
     config_path = args.config
     if not config_path:

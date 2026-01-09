@@ -101,7 +101,7 @@ def main() -> int:
     # 5. Update Item Worklog
     # Calculate relative path for Markdown link
     # From item file to artifact
-    # Item: _kano/backlog/items/features/0000/ID.md
+    # Item: _kano/backlog/items/feature/0000/ID.md
     # Artifact: _kano/backlog/artifacts/ID/file.ext
     # Relative: ../../../artifacts/ID/file.ext
     

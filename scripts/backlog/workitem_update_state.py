@@ -572,13 +572,13 @@ def main() -> int:
 
     if not args.no_refresh and should_auto_refresh(config):
         ctx = get_context(product_arg=args.product, repo_root=repo_root)
-        platform_root = ctx["platform_root"]
         product_name = ctx["product_name"]
+        product_root = ctx["product_root"]
         refresh_dashboards(
-            backlog_root=platform_root,
+            backlog_root=product_root,
             agent=args.agent,
             config_path=args.config,
-            product=product_name,
+            product=None,
         )
     return 0
 

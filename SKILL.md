@@ -88,7 +88,7 @@ Within each backlog root:
 - Bucket names use 4 digits for the lower bound of each 100 range.
   - Example: `0000`, `0100`, `0200`, `0300`, ...
 - Example path:
-  - `_kano/backlog/items/tasks/0000/KABSD-TSK-0007_define-secret-provider-validation.md`
+  - `_kano/backlog/items/task/0000/KABSD-TSK-0007_define-secret-provider-validation.md`
 
 ## Index/MOC files
 

@@ -17,8 +17,9 @@ from audit_runner import run_with_audit  # noqa: E402
 COMMON_DIR = Path(__file__).resolve().parents[1] / "common"
 if str(COMMON_DIR) not in sys.path:
     sys.path.insert(0, str(COMMON_DIR))
-from product_args import add_product_arguments  # noqa: E402
+from product_args import add_product_arguments, get_product_and_sandbox_flags  # noqa: E402
 from config_loader import get_config_value, load_config_with_defaults, resolve_allowed_root, validate_config  # noqa: E402
+from context import get_context  # noqa: E402
 
 
 TYPE_ORDER = ["Feature", "UserStory", "Task", "Bug"]
@@ -260,14 +261,27 @@ def main() -> int:
     repo_root = Path.cwd().resolve()
     allowed_roots = allowed_roots_for_repo(repo_root)
 
+    product_name, use_sandbox = get_product_and_sandbox_flags(args)
+    if use_sandbox and not product_name:
+        raise SystemExit("--sandbox requires --product.")
+
     root_id = args.root_id
     root_path_arg = args.root_path
     if not root_id and not root_path_arg:
         raise SystemExit("Provide --root-id or --root-path.")
 
-    items_root = Path(args.items_root)
-    if not items_root.is_absolute():
-        items_root = (repo_root / items_root).resolve()
+    items_root_arg = (args.items_root or "").strip() or "_kano/backlog/items"
+    items_root: Path
+    if product_name and items_root_arg == "_kano/backlog/items":
+        ctx = get_context(product_arg=product_name, repo_root=repo_root)
+        product_root = ctx["sandbox_root"] if use_sandbox else ctx["product_root"]
+        if product_root is None:
+            raise SystemExit(f"Sandbox root not found for product: {product_name}")
+        items_root = (Path(product_root) / "items").resolve()
+    else:
+        items_root = Path(items_root_arg)
+        if not items_root.is_absolute():
+            items_root = (repo_root / items_root).resolve()
     items_root_root = ensure_under_allowed(items_root, allowed_roots, "items-root")
 
     backlog_root = None
@@ -275,6 +289,8 @@ def main() -> int:
         backlog_root = Path(args.backlog_root)
         if not backlog_root.is_absolute():
             backlog_root = (repo_root / backlog_root).resolve()
+    elif product_name and items_root.name == "items":
+        backlog_root = items_root.parent
 
     backlog_label = resolve_backlog_label(repo_root, backlog_root, items_root)
     items = collect_items(items_root)
@@ -327,38 +343,32 @@ def main() -> int:
     # Optional: refresh dashboards if enabled
     if not args.no_refresh:
         # Load config to check auto-refresh
-        config = load_config_with_defaults(repo_root=repo_root, config_path=args.config)
+        config_path = args.config
+        if not config_path and backlog_root is not None:
+            candidate = backlog_root / "_config" / "config.json"
+            if candidate.exists():
+                config_path = str(candidate)
+        config = load_config_with_defaults(repo_root=repo_root, config_path=config_path)
         errors = validate_config(config)
         if errors:
             print("Invalid config:\n- " + "\n- ".join(errors))
             return 0
         if bool(get_config_value(config, "views.auto_refresh", True)):
-            # Determine backlog root: prefer explicit arg; else use platform root
-            backlog_root = None
-            if args.backlog_root:
-                backlog_root = Path(args.backlog_root)
-                if not backlog_root.is_absolute():
-                    backlog_root = (repo_root / backlog_root).resolve()
-            else:
-                # Default to platform root
+            if backlog_root is None:
                 backlog_root = (repo_root / "_kano" / "backlog").resolve()
-            if backlog_root is not None:
-                # Ensure under allowed roots
-                if resolve_allowed_root(backlog_root, allowed_roots) is None:
-                    print(f"Skip refresh: backlog root not under allowed: {backlog_root}")
-                else:
-                    refresh_script = Path(__file__).resolve().parents[1] / "backlog" / "view_refresh_dashboards.py"
-                    cmd = [sys.executable, str(refresh_script), "--backlog-root", str(backlog_root)]
-                    if args.agent:
-                        cmd.extend(["--agent", args.agent])
-                    else:
-                        cmd.extend(["--agent", "system"])
-                    if args.config:
-                        cmd.extend(["--config", args.config])
-                    result = subprocess.run(cmd, text=True, capture_output=True)
-                    if result.returncode != 0:
-                        err = result.stderr.strip() or result.stdout.strip() or "Failed to refresh dashboards."
-                        print(err)
+            if resolve_allowed_root(backlog_root, allowed_roots) is None:
+                print(f"Skip refresh: backlog root not under allowed: {backlog_root}")
+                return 0
+
+            refresh_script = Path(__file__).resolve().parents[1] / "backlog" / "view_refresh_dashboards.py"
+            cmd = [sys.executable, str(refresh_script), "--backlog-root", str(backlog_root)]
+            cmd.extend(["--agent", args.agent or "system"])
+            if config_path:
+                cmd.extend(["--config", config_path])
+            result = subprocess.run(cmd, text=True, capture_output=True)
+            if result.returncode != 0:
+                err = result.stderr.strip() or result.stdout.strip() or "Failed to refresh dashboards."
+                print(err)
     return 0
 
 
