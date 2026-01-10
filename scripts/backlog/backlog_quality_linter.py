@@ -56,6 +56,11 @@ def parse_args() -> argparse.Namespace:
         help="Run link disambiguation report and fail on ambiguous/missing references.",
     )
     parser.add_argument(
+        "--check-placement",
+        action="store_true",
+        help="Ensure all backlog items are in correct product/type folders.",
+    )
+    parser.add_argument(
         "--ignore",
         action="append",
         default=[],
@@ -204,6 +209,71 @@ def run_link_check(platform_root: Path, product: str) -> Tuple[int, str]:
         return 0, ""
 
 
+def run_placement_check(platform_root: Path, product_root: Path) -> List[Violation]:
+    violations: List[Violation] = []
+    backlog_root = platform_root / "_kano" / "backlog"
+
+    # 1. Global scan for misplaced files outside products/
+    for f in backlog_root.glob("*.md"):
+        if f.name == "README.md" or f.name.endswith(".index.md"):
+            continue
+        violations.append(
+            Violation(path=f, line_no=0, message="File located outside product directory", excerpt=str(f.relative_to(platform_root)))
+        )
+    
+    decisions_dir = backlog_root / "decisions"
+    if decisions_dir.exists():
+        for f in decisions_dir.rglob("*.md"):
+            if f.name == "README.md" or f.name.endswith(".index.md"):
+                continue
+            violations.append(
+                Violation(path=f, line_no=0, message="File located in legacy decisions directory", excerpt=str(f.relative_to(platform_root)))
+            )
+
+    # 2. Per-product structure check
+    type_map = {
+        "epic": "Epic",
+        "feature": "Feature",
+        "userstory": "UserStory",
+        "task": "Task",
+        "bug": "Bug",
+    }
+
+    items_dir = product_root / "items"
+    if items_dir.exists():
+        for type_dir_name, expected_type in type_map.items():
+            dir_path = items_dir / type_dir_name
+            if not dir_path.exists():
+                continue
+            for f in dir_path.rglob("*.md"):
+                if f.name == "README.md" or f.name.endswith(".index.md"):
+                    continue
+                try:
+                    content = f.read_text(encoding="utf-8")
+                    if f"type: {expected_type}" not in content:
+                         violations.append(
+                            Violation(path=f, line_no=0, message=f"Item type mismatch: folder is '{type_dir_name}', but 'type: {expected_type}' not found in frontmatter", excerpt="")
+                        )
+                except Exception:
+                    continue
+
+    decisions_dir = product_root / "decisions"
+    if decisions_dir.exists():
+        for f in decisions_dir.rglob("*.md"):
+            if f.name == "README.md" or f.name.endswith(".index.md"):
+                continue
+            try:
+                content = f.read_text(encoding="utf-8")
+                if "type: Decision" not in content and "type: ADR" not in content:
+                     violations.append(
+                        Violation(path=f, line_no=0, message="ADR type mismatch: 'type: Decision' or 'type: ADR' not found in frontmatter", excerpt="")
+                    )
+            except Exception:
+                continue
+
+    return violations
+
+
 def main() -> int:
     args = parse_args()
     ctx = get_context(product_arg=args.product)
@@ -216,9 +286,10 @@ def main() -> int:
 
     # If no specific checks requested, default to language-only
     checks = {
-        "language": args.check_language or (not args.check_ready and not args.check_links),
+        "language": args.check_language or (not args.check_ready and not args.check_links and not args.check_placement),
         "ready": args.check_ready,
         "links": args.check_links,
+        "placement": args.check_placement,
     }
 
     lang_violations: List[Violation] = []
@@ -238,7 +309,11 @@ def main() -> int:
     if checks["links"]:
         link_failures, link_output = run_link_check(platform_root, product_name)
 
-    total_failures = len(lang_violations) + ready_failures + link_failures
+    placement_violations: List[Violation] = []
+    if checks["placement"]:
+        placement_violations = run_placement_check(platform_root, product_root)
+
+    total_failures = len(lang_violations) + ready_failures + link_failures + len(placement_violations)
 
     if lang_violations:
         print("Language Guard Report")
@@ -262,6 +337,14 @@ def main() -> int:
         print("Link Integrity Report")
         print("=====================")
         print(link_output)
+        print()
+
+    if placement_violations:
+        print("Placement Check Report")
+        print("======================")
+        print(f"Violations: {len(placement_violations)}")
+        for v in placement_violations:
+            print(f"- {v.path}: {v.message}")
         print()
 
     if total_failures:

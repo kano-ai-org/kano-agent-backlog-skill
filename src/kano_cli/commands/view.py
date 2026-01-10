@@ -19,35 +19,37 @@ def refresh(
     config: str | None = typer.Option(None, "--config", help="Config file path"),
 ):
     """Refresh all dashboards (views) in the backlog."""
-    ensure_core_on_path()
-    
-    backlog_path = Path(backlog_root)
-    if not backlog_path.exists():
-        typer.echo(f"❌ Backlog root not found: {backlog_path}", err=True)
+    try:
+        # Import ops layer
+        sys.path.insert(0, str(Path(__file__).resolve().parents[2]))  # Add src/ to path
+        from kano_backlog_ops.view import refresh_dashboards as ops_refresh
+        
+        backlog_path = Path(backlog_root)
+        if not backlog_path.exists():
+            typer.echo(f"❌ Backlog root not found: {backlog_path}", err=True)
+            raise typer.Exit(1)
+        
+        # Call ops layer
+        typer.echo("Refreshing views...")
+        config_path = Path(config) if config else None
+        result = ops_refresh(
+            product=product,
+            agent=agent,
+            backlog_root=backlog_path,
+            config_path=config_path,
+        )
+        
+        # Report results
+        typer.echo(f"✓ Refreshed {len(result.views_refreshed)} dashboards")
+        if result.summaries_refreshed:
+            typer.echo(f"  + {len(result.summaries_refreshed)} summaries")
+        if result.reports_refreshed:
+            typer.echo(f"  + {len(result.reports_refreshed)} reports")
+        
+    except RuntimeError as e:
+        typer.echo(f"❌ {e}", err=True)
         raise typer.Exit(1)
-    
-    # Find and invoke the view_refresh_dashboards.py script
-    skill_root = Path(__file__).resolve().parents[3]  # src/kano_cli/commands/view.py -> skills/kano-agent-backlog-skill
-    script_path = skill_root / "scripts" / "backlog" / "view_refresh_dashboards.py"
-    
-    if not script_path.exists():
-        typer.echo(f"❌ Script not found: {script_path}", err=True)
-        raise typer.Exit(1)
-    
-    # Build command
-    cmd = [sys.executable, str(script_path), "--backlog-root", backlog_root, "--agent", agent]
-    
-    if product:
-        cmd.extend(["--product", product])
-    if config:
-        cmd.extend(["--config", config])
-    
-    # Run the script
-    typer.echo(f"🔄 Refreshing views in {backlog_root}...")
-    result = subprocess.run(cmd, capture_output=False, text=True)
-    
-    if result.returncode == 0:
-        typer.echo("✓ Views refreshed successfully")
-    else:
-        typer.echo("❌ Failed to refresh views", err=True)
-        raise typer.Exit(result.returncode)
+    except Exception as e:
+        typer.echo(f"❌ Unexpected error: {e}", err=True)
+        raise typer.Exit(2)
+

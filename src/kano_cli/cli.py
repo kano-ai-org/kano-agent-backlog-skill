@@ -19,11 +19,13 @@ from .commands import item as item_cmd  # noqa: E402
 from .commands import state as state_cmd  # noqa: E402
 from .commands import worklog as worklog_cmd  # noqa: E402
 from .commands import view as view_cmd  # noqa: E402
+from .commands.doctor import doctor as doctor_fn  # noqa: E402
 
 app.add_typer(item_cmd.app, name="item", help="Item operations")
 app.add_typer(state_cmd.app, name="state", help="State transitions")
 app.add_typer(worklog_cmd.app, name="worklog", help="Worklog operations")
 app.add_typer(view_cmd.app, name="view", help="View and dashboard operations")
+app.command(name="doctor")(doctor_fn)
 
 
 def main():

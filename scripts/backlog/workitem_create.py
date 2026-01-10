@@ -27,6 +27,11 @@ if str(COMMON_DIR) not in sys.path:
     sys.path.insert(0, str(COMMON_DIR))
 from product_args import add_product_arguments, get_product_and_sandbox_flags  # noqa: E402
 
+LIB_DIR = Path(__file__).resolve().parent / "lib"
+if str(LIB_DIR) not in sys.path:
+    sys.path.insert(0, str(LIB_DIR))
+from deprecation import warn_deprecated_script  # noqa: E402
+
 
 TYPE_MAP = {
     "epic": ("Epic", "EPIC", ("epic", "epics")),
@@ -403,6 +408,7 @@ def render_index(item_id: str, title: str, updated: str, backlog_root_label: str
 
 
 def main() -> int:
+    warn_deprecated_script("workitem_create.py", "kano item create")
     args = parse_args()
     type_key = args.type.strip().lower()
     if type_key not in TYPE_MAP:

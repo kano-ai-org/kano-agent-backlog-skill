@@ -23,6 +23,7 @@ from config_loader import get_config_value, load_config_with_defaults, validate_
 from product_args import add_product_arguments, get_product_and_sandbox_flags  # noqa: E402
 from context import get_context  # noqa: E402
 from lib.utils import parse_frontmatter as parse_fm_yaml  # noqa: E402
+from lib.deprecation import warn_deprecated_script  # noqa: E402
 
 
 def allowed_roots_for_repo(repo_root: Path) -> List[Path]:
@@ -438,6 +439,7 @@ def sync_parent_chain(
 
 
 def main() -> int:
+    warn_deprecated_script("workitem_update_state.py", "kano item update-state")
     args = parse_args()
     repo_root = Path.cwd().resolve()
     config = load_config_with_defaults(repo_root=repo_root, config_path=args.config)

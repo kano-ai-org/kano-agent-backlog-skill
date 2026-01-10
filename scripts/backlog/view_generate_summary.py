@@ -347,7 +347,7 @@ def main() -> int:
         if not backlog_root.is_absolute():
             backlog_root = (repo_root / backlog_root).resolve()
 
-        if product_name and str(args.backlog_root).strip() == "_kano/backlog":
+        if product_name and (args.backlog_root is None or str(args.backlog_root).strip() == "_kano/backlog"):
             platform_root = find_platform_root(repo_root)
             resolved = resolve_product_name(product_name, platform_root=platform_root)
             backlog_root = (

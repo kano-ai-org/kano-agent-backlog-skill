@@ -28,6 +28,11 @@ from config_loader import (  # noqa: E402
 from context import find_platform_root, get_product_root, get_sandbox_root_or_none  # noqa: E402
 from product_args import add_product_arguments, get_product_and_sandbox_flags  # noqa: E402
 
+LIB_DIR = Path(__file__).resolve().parent / "lib"
+if str(LIB_DIR) not in sys.path:
+    sys.path.insert(0, str(LIB_DIR))
+from deprecation import warn_deprecated_script  # noqa: E402
+
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
@@ -76,6 +81,14 @@ def parse_args() -> argparse.Namespace:
         "--all-products",
         action="store_true",
         help="Aggregate across all products under the platform root.",
+    )
+    parser.add_argument(
+        "--all-personas",
+        action="store_true",
+        help=(
+            "Generate persona views for all personas (developer/pm/qa). "
+            "When enabled, also generates derived analysis templates from each report."
+        ),
     )
     add_product_arguments(parser)
     return parser.parse_args()
@@ -142,6 +155,7 @@ def list_all_products(platform_root: Path) -> List[str]:
 
 
 def main() -> int:
+    warn_deprecated_script("view_refresh_dashboards.py", "kano view refresh")
     args = parse_args()
     agent = args.agent
 
@@ -178,6 +192,11 @@ def main() -> int:
     persona = str(get_config_value(config, "mode.persona") or "developer").strip().lower()
     if persona not in {"developer", "pm", "qa"}:
         persona = "developer"
+
+    llm_analysis_enabled = bool(get_config_value(config, "analysis.llm.enabled", False))
+
+    personas: List[str] = ["developer", "pm", "qa"] if args.all_personas else [persona]
+    analysis_enabled_for_run = llm_analysis_enabled or args.all_personas
 
     refresh = args.refresh_index
 
@@ -271,30 +290,82 @@ def main() -> int:
             cmd.extend(["--config", args.config])
         run_cmd(cmd, args.dry_run)
 
-    # Persona-aware summary (deterministic, non-LLM).
-    summary = scripts_root / "backlog" / "view_generate_summary.py"
-    summary_output = views_root / f"Summary_{persona}.md"
-    cmd = [
-        python,
-        str(summary),
-        "--source",
-        args.source,
-        "--items-root",
-        str(items_root),
-        "--backlog-root",
-        str(backlog_root),
-        "--persona",
-        persona,
-        "--output",
-        str(summary_output),
-    ]
-    if products:
-        cmd.extend(["--products", ",".join(products)])
-    if use_sandbox:
-        cmd.append("--sandbox")
-    if args.config:
-        cmd.extend(["--config", args.config])
-    run_cmd(cmd, args.dry_run)
+    for persona_value in personas:
+        # Persona-aware summary (deterministic, non-LLM).
+        summary = scripts_root / "backlog" / "view_generate_summary.py"
+        summary_output = views_root / f"Summary_{persona_value}.md"
+        cmd = [
+            python,
+            str(summary),
+            "--source",
+            args.source,
+            "--items-root",
+            str(items_root),
+            "--backlog-root",
+            str(backlog_root),
+            "--persona",
+            persona_value,
+            "--output",
+            str(summary_output),
+        ]
+        if products:
+            cmd.extend(["--products", ",".join(products)])
+        elif product_name:
+            cmd.extend(["--product", product_name])
+        if use_sandbox:
+            cmd.append("--sandbox")
+        if args.config:
+            cmd.extend(["--config", args.config])
+        run_cmd(cmd, args.dry_run)
+
+        # Persona-aware narrative report (deterministic, non-LLM).
+        report = scripts_root / "backlog" / "view_generate_report.py"
+        report_output = views_root / f"Report_{persona_value}.md"
+        cmd = [
+            python,
+            str(report),
+            "--source",
+            args.source,
+            "--items-root",
+            str(items_root),
+            "--backlog-root",
+            str(backlog_root),
+            "--persona",
+            persona_value,
+            "--output",
+            str(report_output),
+        ]
+        if products:
+            cmd.extend(["--products", ",".join(products)])
+        elif product_name:
+            cmd.extend(["--product", product_name])
+        if use_sandbox:
+            cmd.append("--sandbox")
+        if args.config:
+            cmd.extend(["--config", args.config])
+        run_cmd(cmd, args.dry_run)
+
+        # Derived: analysis template (and optional auto-generation if KANO_LLM_COMMAND is set).
+        if analysis_enabled_for_run:
+            analysis = scripts_root / "backlog" / "view_generate_report_analysis.py"
+            analysis_dir = views_root / "_analysis"
+            analysis_output = analysis_dir / f"Report_{persona_value}_LLM.md"
+            prompt_output = analysis_dir / f"Report_{persona_value}_analysis_prompt.md"
+            cmd = [
+                python,
+                str(analysis),
+                "--report",
+                str(report_output),
+                "--persona",
+                persona_value,
+                "--output",
+                str(analysis_output),
+                "--prompt-output",
+                str(prompt_output),
+            ]
+            if args.dry_run:
+                cmd.append("--dry-run")
+            run_cmd(cmd, args.dry_run)
 
     return 0
 

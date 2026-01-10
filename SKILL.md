@@ -50,6 +50,7 @@ Use this skill to:
 - Hierarchy is in frontmatter links, not folder nesting; avoid moving files to reflect scope changes.
 - Filenames stay stable; use ASCII slugs.
 - Never include secrets in backlog files or logs.
+- Language: backlog and documentation content must be English-only (no CJK), to keep parsing and cross-agent collaboration deterministic.
 - Agent Identity: In Worklog and audit logs, use your own identity (e.g., `[agent=antigravity]`), never copy `[agent=codex]` blindly.
 - Worklog-writing scripts require an explicit `--agent` value; there is no default.
 - **Agent Identity Protocol**: Supply `--agent <ID>` with your real product name (e.g., `cursor`, `copilot`, `windsurf`, `antigravity`).
@@ -59,7 +60,8 @@ Use this skill to:
 - Skill scripts only operate on paths under `_kano/backlog/` or `_kano/backlog_sandbox/`;
   refuse other paths.
 - After modifying backlog items, refresh the plain Markdown views immediately using
-  `scripts/backlog/view_refresh_dashboards.py` so the demo dashboards stay current (includes a persona-aware summary).
+  `scripts/backlog/view_refresh_dashboards.py` so the demo dashboards stay current (includes persona-aware summary + report).
+  - Tip: add `--all-personas` to regenerate developer/pm/qa summaries + reports (and derived analysis templates) in one run.
 - `scripts/backlog/workitem_update_state.py` auto-syncs parent states forward-only by default; use `--no-sync-parent`
   for manual re-plans where parent state should stay put.
 - Add Obsidian `[[wikilink]]` references in the body (e.g., a `## Links` section) so Graph/backlinks work; frontmatter alone does not create graph edges.
@@ -86,6 +88,22 @@ If the backlog structure is missing, propose the bootstrap commands and wait for
   - `mode.persona`: optional string describing the primary human persona (e.g. `developer`, `pm`, `qa`), used only for human-facing summaries/views.
 - **Secondary**: agent guide files (e.g., `AGENTS.md` / `CLAUDE.md`) can document expectations, but are agent-specific and not script-readable.
 
+### Skill developer gate (architecture compliance)
+
+**If `mode.skill_developer=true`**, before writing any skill code (in `scripts/` or `src/`), you **must**:
+1. Read **ADR-0013** ("Codebase Architecture and Module Boundaries") in the product decisions folder.
+2. Follow the folder rules defined in ADR-0013:
+   - `scripts/` is **executable-only**: no reusable module code.
+   - `src/` is **import-only**: core logic lives here, never executed directly.
+   - All agent-callable operations go through `scripts/kano` CLI.
+3. Place new code in the correct package:
+   - Models/config/errors → `src/kano_backlog_core/`
+   - Use-cases (create/update/view) → `src/kano_backlog_ops/`
+   - Storage backends → `src/kano_backlog_adapters/`
+   - CLI commands → `src/kano_cli/commands/`
+
+Violating these boundaries will be flagged in code review.
+
 ### Prerequisite install (Python)
 
 Detect:
@@ -108,6 +126,25 @@ Bootstrap:
 
 For platform-only scaffold (no guide file updates), you may use:
 - `python skills/kano-agent-backlog-skill/scripts/backlog/bootstrap_init_backlog.py --product <product> --agent <agent-id>`
+
+## Optional LLM analysis over deterministic reports
+
+This skill can optionally append an LLM-generated analysis to a deterministic report.
+The deterministic report is the SSOT; analysis is treated as a derived artifact.
+
+- Deterministic report: `views/Report_<persona>.md`
+- Derived LLM output: `views/_analysis/Report_<persona>_LLM.md` (gitignored by default)
+- Deterministic prompt artifact: `views/_analysis/Report_<persona>_analysis_prompt.md`
+
+Enable by config (per product):
+- `analysis.llm.enabled = true`
+
+Execution:
+- The **default workflow** is: generate the deterministic report → use it as SSOT → fill in the analysis template.
+  - The skill generates a deterministic prompt file to guide the analysis, and a derived markdown file with placeholder headings.
+- Optional automation: set `KANO_LLM_COMMAND` to a local CLI that reads prompt from stdin and writes Markdown to stdout
+  (so analysis is auto-generated into the derived file).
+- Never pass API keys as CLI args; keep secrets in env vars to avoid leaking into audit logs.
 
 ## ID prefix derivation
 
@@ -173,6 +210,8 @@ Backlog scripts:
 - `scripts/backlog/workitem_validate_ready.py`: check Ready gate sections
 - `scripts/backlog/view_generate.py`: generate plain Markdown views
 - `scripts/backlog/view_generate_summary.py`: generate a persona-aware Markdown summary (developer/pm/qa)
+- `scripts/backlog/view_generate_report.py`: generate a persona-aware narrative status report (developer/pm/qa)
+- `scripts/backlog/view_generate_report_analysis.py`: optional LLM analysis appended to the deterministic report (derived output)
 - `scripts/backlog/view_refresh_dashboards.py`: refresh dashboards (and rebuild index if enabled)
 - `scripts/backlog/workitem_generate_index.py`: generate an index/MOC for an item (Epic/Feature/UserStory)
 
