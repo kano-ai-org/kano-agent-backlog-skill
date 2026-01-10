@@ -17,6 +17,10 @@ from context import (
 
 DEFAULT_CONFIG_PATH = "_kano/backlog/_config/config.json"
 DEFAULT_CONFIG = {
+    "mode": {
+        "skill_developer": False,
+        "persona": "developer",
+    },
     "project": {
         "name": None,
         "prefix": None,
@@ -52,7 +56,8 @@ def allowed_roots_for_repo(repo_root: Path) -> List[Path]:
     - Product roots: _kano/backlog/products/<product>/
     - Sandboxes: _kano/backlog/sandboxes/<product>/
     """
-    platform_root = find_platform_root(repo_root)
+    # Do not require the platform root to exist; bootstrap scripts may create it.
+    platform_root = (repo_root / "_kano" / "backlog")
     return [
         platform_root.resolve(),
         (platform_root / "products").resolve(),
@@ -220,6 +225,18 @@ def validate_config(config: Dict[str, Any]) -> List[str]:
     errors: List[str] = []
     if not isinstance(config, dict):
         return ["Config must be a JSON object."]
+
+    mode_cfg = config.get("mode", {})
+    if mode_cfg is not None and not isinstance(mode_cfg, dict):
+        errors.append("mode must be an object.")
+    else:
+        skill_developer = mode_cfg.get("skill_developer") if isinstance(mode_cfg, dict) else None
+        if skill_developer is not None and not isinstance(skill_developer, bool):
+            errors.append("mode.skill_developer must be a boolean.")
+
+        persona = mode_cfg.get("persona") if isinstance(mode_cfg, dict) else None
+        if persona is not None and not isinstance(persona, str):
+            errors.append("mode.persona must be a string or null.")
 
     project_cfg = config.get("project", {})
     if project_cfg is not None and not isinstance(project_cfg, dict):

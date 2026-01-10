@@ -3,6 +3,7 @@ name: kano-agent-backlog-skill
 description: Local-first backlog workflow. Use when planning work, creating/updating backlog items, writing ADRs, enforcing Ready gate, generating views, or maintaining derived indexes (SQLite/FTS/embeddings).
 metadata:
   short-description: Local backlog system
+
 ---
 
 # Kano Agent Backlog Skill (local-first)
@@ -14,6 +15,13 @@ Use this skill to:
 - Maintain hierarchy and relationships via `parent` links, as defined by the active process profile.
 - Record decisions with ADRs and link them to items.
 - Keep a durable, append-only worklog for project evolution.
+
+## Agent compatibility: read the whole skill
+
+- Always load the entire `SKILL.md` before acting; some agent shells only fetch the first ~100 lines by default.
+- If your client truncates, fetch in chunks (e.g., lines 1-200, 200-400, …) until you see the footer marker `END_OF_SKILL_SENTINEL`.
+- If you cannot confirm the footer marker, stop and ask for help; do not proceed with partial rules.
+- When generating per-agent guides, preserve this read-all requirement so downstream agents stay in sync.
 
 ## Non-negotiables
 
@@ -51,10 +59,55 @@ Use this skill to:
 - Skill scripts only operate on paths under `_kano/backlog/` or `_kano/backlog_sandbox/`;
   refuse other paths.
 - After modifying backlog items, refresh the plain Markdown views immediately using
-  `scripts/backlog/view_generate.py` so the demo dashboards stay current.
+  `scripts/backlog/view_refresh_dashboards.py` so the demo dashboards stay current (includes a persona-aware summary).
 - `scripts/backlog/workitem_update_state.py` auto-syncs parent states forward-only by default; use `--no-sync-parent`
   for manual re-plans where parent state should stay put.
 - Add Obsidian `[[wikilink]]` references in the body (e.g., a `## Links` section) so Graph/backlinks work; frontmatter alone does not create graph edges.
+
+## Agent compatibility: read the whole skill
+
+- Always load the entire `SKILL.md` before acting; some agent shells only fetch the first ~100 lines by default.
+- If your client truncates, fetch in chunks (e.g., lines 1-200, 200-400, …) until you see the footer marker `END_OF_SKILL_SENTINEL`.
+- If you cannot confirm the footer marker, stop and ask for help; do not proceed with partial rules.
+- When generating per-agent guides, preserve this read-all requirement so downstream agents stay in sync.
+
+## First-run bootstrap (prereqs + initialization)
+
+Before using this skill in a repo, the agent must confirm:
+1) Python prerequisites are available (or install them), and
+2) the backlog scaffold exists for the target product/root.
+
+If the backlog structure is missing, propose the bootstrap commands and wait for user approval before writing files.
+
+### Developer vs user mode (where to declare it)
+
+- **Preferred source of truth**: product config in `_kano/backlog/products/<product>/_config/config.json`.
+  - `mode.skill_developer`: `true` when this repo actively develops the skill itself (this demo repo).
+  - `mode.persona`: optional string describing the primary human persona (e.g. `developer`, `pm`, `qa`), used only for human-facing summaries/views.
+- **Secondary**: agent guide files (e.g., `AGENTS.md` / `CLAUDE.md`) can document expectations, but are agent-specific and not script-readable.
+
+### Prerequisite install (Python)
+
+Detect:
+- If `kano` CLI is expected: run `kano --help`.
+- Otherwise (script-only usage): run `python -c "import pydantic, frontmatter, typer, rich"`.
+
+If missing, install once (recommended):
+- **Default**: `python skills/kano-agent-backlog-skill/scripts/bootstrap/install_prereqs.py`
+- **Skill contributors**: add `--dev`
+- Optional (heavy / platform-dependent): add `--with-embeddings` for FAISS/sentence-transformers indexing scripts.
+
+### Backlog initialization (file scaffold + config + dashboards)
+
+Detect (multi-product / platform layout):
+- Product initialized if `_kano/backlog/products/<product>/_config/config.json` exists.
+
+Bootstrap:
+- `python skills/kano-agent-backlog-skill/scripts/backlog/bootstrap_init_project.py --agent <agent-id> --backlog-root _kano/backlog/products/<product> --write-guides create`
+  - Also supports `--write-guides append|update` when guide files already exist.
+
+For platform-only scaffold (no guide file updates), you may use:
+- `python skills/kano-agent-backlog-skill/scripts/backlog/bootstrap_init_backlog.py --product <product> --agent <agent-id>`
 
 ## ID prefix derivation
 
@@ -119,6 +172,7 @@ Backlog scripts:
 - `scripts/backlog/workitem_update_state.py`: update `state` + `updated` and append Worklog
 - `scripts/backlog/workitem_validate_ready.py`: check Ready gate sections
 - `scripts/backlog/view_generate.py`: generate plain Markdown views
+- `scripts/backlog/view_generate_summary.py`: generate a persona-aware Markdown summary (developer/pm/qa)
 - `scripts/backlog/view_refresh_dashboards.py`: refresh dashboards (and rebuild index if enabled)
 - `scripts/backlog/workitem_generate_index.py`: generate an index/MOC for an item (Epic/Feature/UserStory)
 
@@ -132,6 +186,10 @@ Logging scripts:
 - `scripts/logging/audit_logger.py`: JSONL audit log writer + redaction
 - `scripts/logging/run_with_audit.py`: run a command and append an audit log entry
 
+Bootstrap/install scripts:
+- `scripts/bootstrap/install_prereqs.py`: user-facing venv + dependency installer
+- `scripts/dev/install_prereqs.py`: developer-leaning installer (convenience for working on the skill)
+
 Audit logging requires running these scripts directly; do not perform ad-hoc file
 operations outside the script layer when working on backlog/skill artifacts.
 
@@ -140,3 +198,5 @@ operations outside the script layer when working on backlog/skill artifacts.
 - Use `scripts/backlog/workitem_update_state.py` to update state + append Worklog.
 - Prefer `--action` for common transitions (`start`, `ready`, `review`, `done`, `block`, `drop`).
 - When moving to Ready, it validates required sections unless `--force` is set.
+---
+END_OF_SKILL_SENTINEL

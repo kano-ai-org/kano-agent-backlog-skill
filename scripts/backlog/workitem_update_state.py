@@ -551,7 +551,7 @@ def main() -> int:
     lines = update_frontmatter(lines, target_state, updated_date, owner=owner_to_set)
 
     message = args.message or f"State -> {target_state}."
-    lines = append_worklog(lines, message, args.agent, model=args.model)
+    lines = append_worklog(lines, message, args.agent, model=None)
 
     write_lines(item_path, lines)
 

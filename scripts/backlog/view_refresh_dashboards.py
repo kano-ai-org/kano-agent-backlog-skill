@@ -175,6 +175,10 @@ def main() -> int:
     if errors:
         raise SystemExit("Invalid config:\n- " + "\n- ".join(errors))
 
+    persona = str(get_config_value(config, "mode.persona") or "developer").strip().lower()
+    if persona not in {"developer", "pm", "qa"}:
+        persona = "developer"
+
     refresh = args.refresh_index
 
     python = sys.executable
@@ -266,6 +270,31 @@ def main() -> int:
         if args.config:
             cmd.extend(["--config", args.config])
         run_cmd(cmd, args.dry_run)
+
+    # Persona-aware summary (deterministic, non-LLM).
+    summary = scripts_root / "backlog" / "view_generate_summary.py"
+    summary_output = views_root / f"Summary_{persona}.md"
+    cmd = [
+        python,
+        str(summary),
+        "--source",
+        args.source,
+        "--items-root",
+        str(items_root),
+        "--backlog-root",
+        str(backlog_root),
+        "--persona",
+        persona,
+        "--output",
+        str(summary_output),
+    ]
+    if products:
+        cmd.extend(["--products", ",".join(products)])
+    if use_sandbox:
+        cmd.append("--sandbox")
+    if args.config:
+        cmd.extend(["--config", args.config])
+    run_cmd(cmd, args.dry_run)
 
     return 0
 

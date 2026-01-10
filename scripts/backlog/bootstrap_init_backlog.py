@@ -38,6 +38,13 @@ def parse_args() -> argparse.Namespace:
         epilog="Example: python bootstrap_init_backlog.py --product test-skill --agent copilot"
     )
     parser.add_argument(
+        "--backlog-root",
+        help=(
+            "Explicit backlog root path to initialize (relative to repo root or absolute). "
+            "When provided, overrides --product/--sandbox resolution."
+        ),
+    )
+    parser.add_argument(
         "--product",
         help="Product name to initialize (e.g. kano-agent-backlog-skill). Defaults to BACKLOG_PRODUCT env or defaults.json.",
     )
@@ -105,9 +112,8 @@ def main() -> int:
     args = parse_args()
     
     try:
-        # Discover platform root and resolve product name
         repo_root = find_repo_root()
-        platform_root = find_platform_root(repo_root)
+        platform_root = (repo_root / "_kano" / "backlog")
         product_name = get_product_name(args.product)
         
         print(f"Repository root: {repo_root}")
@@ -115,17 +121,16 @@ def main() -> int:
         print(f"Target product: {product_name}")
         print(f"Target sandbox: {args.sandbox}")
         
-        # Resolve backlog root (product or sandbox)
-        if args.sandbox:
-            try:
-                backlog_root = get_sandbox_root_or_none(product_name, platform_root) or (platform_root / "sandboxes" / product_name)
-            except FileNotFoundError:
-                backlog_root = platform_root / "sandboxes" / product_name
+        # Resolve backlog root (explicit path, or product/sandbox).
+        if args.backlog_root:
+            backlog_root = Path(args.backlog_root)
+            if not backlog_root.is_absolute():
+                backlog_root = (repo_root / backlog_root).resolve()
         else:
-            try:
-                backlog_root = get_product_root(product_name, platform_root)
-            except FileNotFoundError:
-                backlog_root = platform_root / "products" / product_name
+            if args.sandbox:
+                backlog_root = (platform_root / "sandboxes" / product_name).resolve()
+            else:
+                backlog_root = (platform_root / "products" / product_name).resolve()
         
         print(f"Initializing backlog at: {backlog_root}")
         
@@ -143,6 +148,10 @@ def main() -> int:
     except FileNotFoundError as e:
         print(f"Error: {e}", file=sys.stderr)
         return 1
+
+    # Ensure platform root exists (bootstrap-friendly).
+    if not args.dry_run:
+        platform_root.mkdir(parents=True, exist_ok=True)
 
     config_path = backlog_root / "_config" / "config.json"
     baseline = merge_defaults(default_config(), load_existing_config(config_path))
