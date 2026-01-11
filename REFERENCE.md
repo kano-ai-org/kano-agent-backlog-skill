@@ -20,16 +20,27 @@ The `references/` folder is intentionally split into multiple small files so an 
 
 `scripts/` now ships a single entrypoint (`scripts/kano`). Subcommands map 1:1 to the ops layer:
 
+### Core commands
 - `kano doctor`: verify Python prerequisites and backlog initialization
 - `kano backlog init`: scaffold a product backlog (directories, `_config/config.json`, dashboards)
+- `kano view refresh`: regenerate dashboards (Active/New/Done)
+
+### Item operations
 - `kano item read|validate`: inspect canonical records
 - `kano item create`: create items with Ready-gate aware defaults (alias `create-v2` for compatibility)
 - `kano item update-state`: state transitions + worklog append + optional dashboard refresh
+
+### State and worklog
 - `kano state transition`: declarative workflow actions (`start`, `ready`, `review`, `done`, `block`, `drop`)
 - `kano worklog append`: structured worklog writes with agent/model attribution
-- `kano view refresh`: regenerate dashboards (Active/New/Done) and, in future, persona summaries/reports
 
-Upcoming CLI work will add demo generators, persona reporters, and filesystem helpers—no new standalone scripts will be added under `scripts/`.
+### Backlog administration (nested under `backlog`)
+- `kano backlog index build|refresh`: build/refresh SQLite index from markdown items
+- `kano backlog demo seed`: seed demo data (1 epic → 1 feature → 3 tasks) for testing
+- `kano backlog persona summary|report`: generate persona activity summaries/reports
+- `kano backlog sandbox init`: scaffold isolated sandbox environments for experimentation
+
+No new standalone scripts will be added under `scripts/`; all operations flow through the unified CLI.
 
 ## Related (demo repo convention)
 
