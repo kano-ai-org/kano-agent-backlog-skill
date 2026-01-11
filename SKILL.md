@@ -61,7 +61,7 @@ Use this skill to:
   refuse other paths.
 - After modifying backlog items, refresh the plain Markdown views immediately using
   `python skills/kano-agent-backlog-skill/scripts/kano view refresh --agent <agent-id> --backlog-root <path>` so the dashboards stay current.
-  - Persona-aware summaries/reports will return to the CLI once the native implementation lands.
+  - Persona summaries/reports are available via `python skills/kano-agent-backlog-skill/scripts/kano backlog persona summary|report ...`.
 - `python skills/kano-agent-backlog-skill/scripts/kano item update-state ...` auto-syncs parent states forward-only by default; use `--no-sync-parent`
   for manual re-plans where parent state should stay put.
 - Add Obsidian `[[wikilink]]` references in the body (e.g., a `## Links` section) so Graph/backlinks work; frontmatter alone does not create graph edges.

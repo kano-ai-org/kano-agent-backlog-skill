@@ -2,6 +2,7 @@
 
 import re
 import sys
+import uuid
 from pathlib import Path
 from typing import List, Optional, Dict, Any
 from datetime import date
@@ -282,15 +283,20 @@ class CanonicalStore:
 
         # Validate ID format
         if item.id:
-            id_pattern = r"^KABSD-(EPIC|FTR|US|TSK|BUG)-\d{4}$"
+            # Allow multi-product prefixes; keep type codes stable.
+            # Examples: KABSD-TSK-0001, KCCS-USR-0018
+            id_pattern = r"^[A-Z][A-Z0-9]{1,15}-(EPIC|FTR|USR|TSK|BUG)-\d{4}$"
             if not re.match(id_pattern, item.id):
-                errors.append(f"Invalid id format: {item.id} (expected KABSD-<TYPE>-<NNNN>)")
+                errors.append(
+                    f"Invalid id format: {item.id} (expected <PREFIX>-(EPIC|FTR|USR|TSK|BUG)-<NNNN>)"
+                )
 
-        # Validate UID format (UUIDv7)
+        # Validate UID format (accept UUIDv4/v7; prefer UUIDv7 going forward)
         if item.uid:
-            uuid_pattern = r"^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
-            if not re.match(uuid_pattern, item.uid):
-                errors.append(f"Invalid uid format: {item.uid} (expected UUIDv7)")
+            try:
+                uuid.UUID(str(item.uid))
+            except Exception:
+                errors.append(f"Invalid uid format: {item.uid} (expected UUID)")
 
         # Validate dates (ISO format)
         date_pattern = r"^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$"

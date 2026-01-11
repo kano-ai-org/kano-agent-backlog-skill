@@ -11,9 +11,14 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import List, Optional
 from datetime import datetime
+import sys
 import uuid
 
 from kano_backlog_core.models import BacklogItem, ItemType, ItemState
+if sys.version_info >= (3, 12):
+    from uuid import uuid7  # type: ignore
+else:
+    from uuid6 import uuid7  # type: ignore
 from kano_backlog_core.config import BacklogContext, ConfigLoader
 
 from . import item_utils
@@ -134,7 +139,7 @@ def create_item(
     items_root = backlog_root / "items"
     next_id = item_utils.find_next_number(items_root, prefix, type_code)
     item_id = f"{prefix}-{type_code}-{next_id:04d}"
-    uid = str(uuid.uuid4())
+    uid = str(uuid7())
     
     # Calculate storage path
     bucket = item_utils.calculate_bucket(next_id)

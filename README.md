@@ -39,6 +39,8 @@ Goal: convert “evaporating context” into **searchable, linkable, auditable**
 - `src/kano_backlog_ops`: use-cases (create/update/view)
 - `src/kano_cli`: CLI wiring (commands + utilities)
 
+Note: backlog administration commands are grouped under `kano backlog ...` (index/demo/persona/sandbox). The legacy alias `kano init ...` remains for compatibility.
+
 Optionally, create `_kano/backlog/` in your project repo to store items, ADRs, views, and helper scripts as the system of record.
 
 ## Quick start (see value in ~5 minutes)
