@@ -99,26 +99,30 @@ def create_item(
     iteration = iteration or "backlog"
     product = product or "demo"  # Default for testing
     
-    # Initialize backlog root
+    # Resolve context (backlog root + product root + prefix)
     if backlog_root is None:
-        # Try to use ConfigLoader, but fall back to finding _kano/backlog
         try:
             ctx = ConfigLoader.from_path(Path.cwd(), product=product)
-            backlog_root = ctx.backlog_root
-        except:
-            # Fallback: find _kano/backlog starting from cwd
-            current = Path.cwd()
-            while current != current.parent:
-                backlog_check = current / "_kano" / "backlog"
-                if backlog_check.exists():
-                    backlog_root = backlog_check
-                    break
-                current = current.parent
-            if backlog_root is None:
-                raise ValueError("Cannot find backlog root; please specify backlog_root explicitly")
+            backlog_root = ctx.product_root  # Use product root, not platform root
+            # Read prefix from product config
+            config_path = backlog_root / "_config" / "config.json"
+            if config_path.exists():
+                import json
+                config_data = json.loads(config_path.read_text(encoding="utf-8"))
+                prefix = config_data.get("project", {}).get("prefix") or item_utils.derive_prefix(product)
+            else:
+                prefix = item_utils.derive_prefix(product)
+        except Exception as e:
+            raise ValueError(
+                f"Cannot resolve backlog context for product '{product}'. "
+                f"Ensure the product is initialized via 'kano backlog init --product {product}'. "
+                f"Error: {e}"
+            )
+    else:
+        # Explicit backlog_root provided; use it directly and derive prefix
+        prefix = item_utils.derive_prefix(product)
     
     # Generate IDs
-    prefix = item_utils.derive_prefix(product)
     type_code_map = {
         ItemType.EPIC: "EPIC",
         ItemType.FEATURE: "FTR",

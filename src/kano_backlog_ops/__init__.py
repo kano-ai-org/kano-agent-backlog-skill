@@ -15,7 +15,7 @@ Modules:
     index: SQLite index operations
 """
 
-from .init import init_backlog, check_initialized
+from .init import InitBacklogResult, init_backlog, check_initialized
 from .workitem import (
     create_item,
     update_state,
@@ -27,9 +27,11 @@ from .adr import create_adr, list_adrs
 from .view import refresh_dashboards, generate_view
 from .workset import init_workset, refresh_workset, get_next_item, promote_item
 from .index import build_index, refresh_index
+from .demo import seed_demo, DemoSeedResult
 
 __all__ = [
     # init
+    "InitBacklogResult",
     "init_backlog",
     "check_initialized",
     # workitem
@@ -52,4 +54,7 @@ __all__ = [
     # index
     "build_index",
     "refresh_index",
+    # demo
+    "seed_demo",
+    "DemoSeedResult",
 ]

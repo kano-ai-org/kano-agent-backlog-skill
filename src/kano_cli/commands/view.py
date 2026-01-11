@@ -1,12 +1,10 @@
 from __future__ import annotations
 
-import subprocess
-import sys
 from pathlib import Path
 
 import typer
 
-from ..util import ensure_core_on_path, resolve_product_root
+from ..util import ensure_core_on_path
 
 app = typer.Typer()
 
@@ -20,8 +18,7 @@ def refresh(
 ):
     """Refresh all dashboards (views) in the backlog."""
     try:
-        # Import ops layer
-        sys.path.insert(0, str(Path(__file__).resolve().parents[2]))  # Add src/ to path
+        ensure_core_on_path()
         from kano_backlog_ops.view import refresh_dashboards as ops_refresh
         
         backlog_path = Path(backlog_root)

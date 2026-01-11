@@ -1,3 +1,29 @@
+Metadata-Version: 2.4
+Name: kano-agent-backlog-skill
+Version: 0.2.0
+Summary: Local-first backlog system with audit trail for AI agent collaboration, including core domain library and CLI facade
+Author: Kano Team
+License: MIT
+Classifier: Development Status :: 3 - Alpha
+Classifier: Intended Audience :: Developers
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Requires-Python: >=3.10
+Description-Content-Type: text/markdown
+Requires-Dist: pydantic>=2.0.0
+Requires-Dist: python-frontmatter>=1.0.0
+Requires-Dist: uuid6>=2024.1.12; python_version < "3.12"
+Requires-Dist: typer>=0.12
+Requires-Dist: rich>=13
+Provides-Extra: dev
+Requires-Dist: pytest>=7.0.0; extra == "dev"
+Requires-Dist: pytest-cov>=4.0.0; extra == "dev"
+Requires-Dist: black>=23.0.0; extra == "dev"
+Requires-Dist: mypy>=1.0.0; extra == "dev"
+Requires-Dist: ruff>=0.1.0; extra == "dev"
+
 # kano-agent-backlog-skill
 
 **Local-first backlog + decision trail for agent collaboration.**  

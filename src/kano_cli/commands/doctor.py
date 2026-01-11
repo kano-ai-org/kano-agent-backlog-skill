@@ -87,7 +87,10 @@ def check_backlog_initialized(
             name="Backlog Initialized",
             passed=False,
             message="Backlog root not found",
-            details="Run: python scripts/backlog/bootstrap_init_backlog.py --product <name>",
+            details=(
+                "Initialize the backlog with 'python skills/kano-agent-backlog-skill/scripts/kano backlog "
+                "init --product <name> --agent <id>' or follow SKILL.md for manual scaffolding."
+            ),
         )
     
     # Check for products directory
@@ -124,7 +127,10 @@ def check_backlog_initialized(
             name="Backlog Initialized",
             passed=False,
             message="No products found",
-            details=f"Create one with: python scripts/backlog/bootstrap_init_backlog.py --product <name>",
+            details=(
+                "Create one with 'python skills/kano-agent-backlog-skill/scripts/kano backlog init --product <name> "
+                "--agent <id>' or follow SKILL.md for manual scaffolding."
+            ),
         )
     
     return CheckResult(

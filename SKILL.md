@@ -55,14 +55,14 @@ Use this skill to:
 - Worklog-writing scripts require an explicit `--agent` value; there is no default.
 - **Agent Identity Protocol**: Supply `--agent <ID>` with your real product name (e.g., `cursor`, `copilot`, `windsurf`, `antigravity`).
   - **Forbidden (Placeholders)**: `auto`, `user`, `assistant`, `<AGENT_NAME>`, `$AGENT_NAME`.
-- File operations for backlog/skill artifacts must go through skill scripts
-  (`scripts/backlog/*` or `scripts/fs/*`) so audit logs capture the action.
+- File operations for backlog/skill artifacts must go through the `kano` CLI
+  (`python skills/kano-agent-backlog-skill/scripts/kano <command>`) so audit logs capture the action.
 - Skill scripts only operate on paths under `_kano/backlog/` or `_kano/backlog_sandbox/`;
   refuse other paths.
 - After modifying backlog items, refresh the plain Markdown views immediately using
-  `scripts/backlog/view_refresh_dashboards.py` so the demo dashboards stay current (includes persona-aware summary + report).
-  - Tip: add `--all-personas` to regenerate developer/pm/qa summaries + reports (and derived analysis templates) in one run.
-- `scripts/backlog/workitem_update_state.py` auto-syncs parent states forward-only by default; use `--no-sync-parent`
+  `python skills/kano-agent-backlog-skill/scripts/kano view refresh --agent <agent-id> --backlog-root <path>` so the dashboards stay current.
+  - Persona-aware summaries/reports will return to the CLI once the native implementation lands.
+- `python skills/kano-agent-backlog-skill/scripts/kano item update-state ...` auto-syncs parent states forward-only by default; use `--no-sync-parent`
   for manual re-plans where parent state should stay put.
 - Add Obsidian `[[wikilink]]` references in the body (e.g., a `## Links` section) so Graph/backlinks work; frontmatter alone does not create graph edges.
 
@@ -107,25 +107,22 @@ Violating these boundaries will be flagged in code review.
 ### Prerequisite install (Python)
 
 Detect:
-- If `kano` CLI is expected: run `kano --help`.
-- Otherwise (script-only usage): run `python -c "import pydantic, frontmatter, typer, rich"`.
+- Run `python skills/kano-agent-backlog-skill/scripts/kano doctor --format plain`.
 
-If missing, install once (recommended):
-- **Default**: `python skills/kano-agent-backlog-skill/scripts/bootstrap/install_prereqs.py`
-- **Skill contributors**: add `--dev`
-- Optional (heavy / platform-dependent): add `--with-embeddings` for FAISS/sentence-transformers indexing scripts.
+If packages are missing, install once (recommended):
+- **Default**: `python -m pip install -e skills/kano-agent-backlog-skill`
+- **Skill contributors**: `python -m pip install -e skills/kano-agent-backlog-skill[dev]`
+- Optional heavy dependencies (FAISS, sentence-transformers) should be installed manually per platform requirements before running the CLI against embedding features.
 
 ### Backlog initialization (file scaffold + config + dashboards)
 
 Detect (multi-product / platform layout):
-- Product initialized if `_kano/backlog/products/<product>/_config/config.json` exists.
+- Product initialized if `_kano/backlog/products/<product>/_config/config.json` exists (or confirm via `python skills/kano-agent-backlog-skill/scripts/kano doctor --product <product>`).
 
 Bootstrap:
-- `python skills/kano-agent-backlog-skill/scripts/backlog/bootstrap_init_project.py --agent <agent-id> --backlog-root _kano/backlog/products/<product> --write-guides create`
-  - Also supports `--write-guides append|update` when guide files already exist.
-
-For platform-only scaffold (no guide file updates), you may use:
-- `python skills/kano-agent-backlog-skill/scripts/backlog/bootstrap_init_backlog.py --product <product> --agent <agent-id>`
+- Run `python skills/kano-agent-backlog-skill/scripts/kano backlog init --product <product> --agent <agent-id> [--backlog-root <path>]` to scaffold `_kano/backlog/products/<product>/` (items/, decisions/, views/, `_config/`, `_meta/`, `_index/`).
+- The init command derives a project prefix, writes `_config/config.json`, and refreshes dashboards so views exist immediately after initialization.
+- Manual fallback (only if automation is unavailable): follow `_kano/backlog/README.md` to copy the template scaffold, then refresh views via `kano view refresh`.
 
 ## Optional LLM analysis over deterministic reports
 
@@ -199,43 +196,31 @@ Within each backlog root:
 
 If the backlog structure is missing, propose creation and wait for user approval before writing files.
 
-## Scripts (optional automation)
+## Kano CLI entrypoints (current surface)
 
-Backlog scripts:
-- `scripts/backlog/bootstrap_init_backlog.py`: initialize backlog scaffold
-- `scripts/backlog/bootstrap_init_project.py`: first-run bootstrap (scaffold + config + dashboards + agent guide templates)
-- `scripts/backlog/process_linter.py`: validate folder scaffold against the active process profile
-- `scripts/backlog/workitem_create.py`: create a new work item with ID + bucket (Epic can also create an index file)
-- `scripts/backlog/workitem_update_state.py`: update `state` + `updated` and append Worklog
-- `scripts/backlog/workitem_validate_ready.py`: check Ready gate sections
-- `scripts/backlog/view_generate.py`: generate plain Markdown views
-- `scripts/backlog/view_generate_summary.py`: generate a persona-aware Markdown summary (developer/pm/qa)
-- `scripts/backlog/view_generate_report.py`: generate a persona-aware narrative status report (developer/pm/qa)
-- `scripts/backlog/view_generate_report_analysis.py`: optional LLM analysis appended to the deterministic report (derived output)
-- `scripts/backlog/view_refresh_dashboards.py`: refresh dashboards (and rebuild index if enabled)
-- `scripts/backlog/workitem_generate_index.py`: generate an index/MOC for an item (Epic/Feature/UserStory)
+`scripts/` now exposes a single executable: `scripts/kano`. All supported operations flow through that Typer CLI:
 
-Filesystem scripts:
-- `scripts/fs/cp_file.py`: copy a file inside the repo
-- `scripts/fs/mv_file.py`: move a file inside the repo
-- `scripts/fs/rm_file.py`: delete a file inside the repo
-- `scripts/fs/trash_item.py`: move to trash then optionally delete
+- `python skills/kano-agent-backlog-skill/scripts/kano doctor [--product <name>] [--backlog-root <path>]`
+  - Verifies Python prerequisites, backlog scaffold, and CLI importability.
+- `python skills/kano-agent-backlog-skill/scripts/kano view refresh --agent <id> [--product <name>] [--backlog-root <path>]`
+  - Regenerates canonical dashboards (Active/New/Done) and persona outputs once implemented.
+- `python skills/kano-agent-backlog-skill/scripts/kano item read|validate --product <name> <item-id>`
+  - Reads or validates a single work item directly from the canonical store.
+- `python skills/kano-agent-backlog-skill/scripts/kano item create --agent <id> --type task --title "..." [options]`
+  - Creates a new work item using the ops layer (alias `item create-v2` kept for compatibility).
+- `python skills/kano-agent-backlog-skill/scripts/kano item update-state <item-ref> --state Ready --agent <id> [--message ...]`
+  - Updates state, syncs parents, and refreshes dashboards in one call.
+- `python skills/kano-agent-backlog-skill/scripts/kano state transition <item-id> --action start --agent <id>`
+  - Runs declarative state-machine transitions (`propose`, `ready`, `start`, etc.).
+- `python skills/kano-agent-backlog-skill/scripts/kano worklog append <item-id> --message "..." --agent <id>`
+  - Appends a structured worklog entry (with optional model attribution) and persists it.
 
-Logging scripts:
-- `scripts/logging/audit_logger.py`: JSONL audit log writer + redaction
-- `scripts/logging/run_with_audit.py`: run a command and append an audit log entry
-
-Bootstrap/install scripts:
-- `scripts/bootstrap/install_prereqs.py`: user-facing venv + dependency installer
-- `scripts/dev/install_prereqs.py`: developer-leaning installer (convenience for working on the skill)
-
-Audit logging requires running these scripts directly; do not perform ad-hoc file
-operations outside the script layer when working on backlog/skill artifacts.
+Additional subcommands will land here (e.g., backlog initialization, summaries) instead of new standalone scripts.
 
 ## State update helper
 
-- Use `scripts/backlog/workitem_update_state.py` to update state + append Worklog.
-- Prefer `--action` for common transitions (`start`, `ready`, `review`, `done`, `block`, `drop`).
-- When moving to Ready, it validates required sections unless `--force` is set.
+- Use `python skills/kano-agent-backlog-skill/scripts/kano item update-state ...` to update state + append Worklog.
+- Prefer `--action` on `kano state transition` for the common transitions (`start`, `ready`, `review`, `done`, `block`, `drop`).
+- When moving to Ready, the CLI validates required sections unless `--force` is set.
 ---
 END_OF_SKILL_SENTINEL

@@ -1,1 +1,0 @@
-# VCS adapter package

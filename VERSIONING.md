@@ -5,7 +5,7 @@ This skill uses **Git tags** as the source of truth for released versions: `vX.Y
 ## Where to check the current version
 
 - File: `VERSION` (the intended version for the next release tag)
-- Command: `python scripts/backlog/version_show.py --agent <agent-name>`
+- Command: `python -c "import pathlib; print((pathlib.Path('skills/kano-agent-backlog-skill') / 'VERSION').read_text().strip())"`
 - Release notes: `CHANGELOG.md`
 
 ## Pre-1.0 policy
@@ -37,7 +37,7 @@ Non-exhaustive examples:
 ## Release checklist (minimum)
 
 - Docs reflect current behavior (`README*`, `REFERENCE.md`, `references/*`)
-- Canonical scripts run end-to-end:
-  - `scripts/backlog/view_refresh_dashboards.py`
-  - `scripts/backlog/workitem_update_state.py`
+- Canonical CLI commands run end-to-end:
+  - `python skills/kano-agent-backlog-skill/scripts/kano view refresh --agent <id>`
+  - `python skills/kano-agent-backlog-skill/scripts/kano item update-state <item> --state Done --agent <id>`
 - Demo views are regenerated

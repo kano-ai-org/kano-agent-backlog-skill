@@ -1,0 +1,2 @@
+[console_scripts]
+kano = kano_cli.cli:main

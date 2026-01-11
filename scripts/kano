@@ -11,7 +11,7 @@ Usage:
     kano item update-state ...         # Update item state
     kano item validate ...             # Validate Ready gate
     kano view refresh ...              # Refresh dashboards
-    kano init backlog ...              # Initialize backlog
+    kano backlog init ...              # Initialize backlog
     ...
 
 For full help:

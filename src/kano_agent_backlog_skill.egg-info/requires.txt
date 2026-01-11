@@ -1,0 +1,14 @@
+pydantic>=2.0.0
+python-frontmatter>=1.0.0
+typer>=0.12
+rich>=13
+
+[:python_version < "3.12"]
+uuid6>=2024.1.12
+
+[dev]
+pytest>=7.0.0
+pytest-cov>=4.0.0
+black>=23.0.0
+mypy>=1.0.0
+ruff>=0.1.0
