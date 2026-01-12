@@ -1,0 +1,2 @@
+[console_scripts]
+kano-backlog = kano_backlog_cli.cli:main

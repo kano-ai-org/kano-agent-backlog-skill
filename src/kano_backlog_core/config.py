@@ -4,22 +4,37 @@ This module resolves platform/product roots and provides an "effective config"
 view by layering config sources.
 
 Layer order (later wins):
-1) _kano/backlog/_shared/defaults.json
-2) _kano/backlog/products/<product>/_config/config.json
-3) _kano/backlog/.cache/worksets/topics/<topic>/config.json (optional)
-4) _kano/backlog/.cache/worksets/items/<item_id>/config.json (optional)
+1) _kano/backlog/_shared/defaults.json (or defaults.toml)
+2) _kano/backlog/products/<product>/_config/config.json (or config.toml)
+3) _kano/backlog/.cache/worksets/topics/<topic>/config.json (or config.toml) (optional)
+4) _kano/backlog/.cache/worksets/items/<item_id>/config.json (or config.toml) (optional)
+
+TOML files take precedence over JSON at the same layer. JSON support is deprecated.
 
 Topic selection is agent-scoped via active topic marker:
 _kano/backlog/.cache/worksets/active_topic.<agent>.txt
 """
 
 import json
+import logging
+import warnings
 from pathlib import Path
 from typing import Any, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
 from .errors import ConfigError
+
+# Conditional TOML import: stdlib tomllib (3.11+) or fallback tomli (<3.11)
+try:
+    import tomllib  # Python 3.11+
+except ImportError:
+    try:
+        import tomli as tomllib  # type: ignore
+    except ImportError:
+        tomllib = None  # type: ignore
+
+logger = logging.getLogger(__name__)
 
 
 class BacklogContext(BaseModel):
@@ -63,6 +78,11 @@ class ConfigLoader:
                 data = json.load(f)
             if not isinstance(data, dict):
                 raise ConfigError(f"Config JSON must be an object: {path}")
+            warnings.warn(
+                f"JSON config is deprecated; migrate to TOML: {path}",
+                DeprecationWarning,
+                stacklevel=3,
+            )
             return data
         except json.JSONDecodeError as e:
             raise ConfigError(f"Invalid JSON in {path}: {e}")
@@ -70,6 +90,35 @@ class ConfigLoader:
             raise
         except Exception as e:
             raise ConfigError(f"Failed to load config from {path}: {e}")
+
+    @staticmethod
+    def _read_toml_optional(path: Path) -> dict[str, Any]:
+        """Read TOML config file; return {} if not found."""
+        if not path.exists():
+            return {}
+        if tomllib is None:
+            logger.warning("tomllib/tomli not available; install tomli for TOML support")
+            return {}
+        try:
+            with open(path, "rb") as f:
+                data = tomllib.load(f)
+            if not isinstance(data, dict):
+                raise ConfigError(f"Config TOML must be a table: {path}")
+            return data
+        except Exception as e:
+            raise ConfigError(f"Failed to load TOML from {path}: {e}")
+
+    @staticmethod
+    def _read_config_optional(base_path: Path, filename_stem: str) -> dict[str, Any]:
+        """Read config from .toml (preferred) or .json (deprecated); return {} if neither exists."""
+        toml_path = base_path / f"{filename_stem}.toml"
+        json_path = base_path / f"{filename_stem}.json"
+
+        toml_data = ConfigLoader._read_toml_optional(toml_path)
+        if toml_data:
+            return toml_data
+
+        return ConfigLoader._read_json_optional(json_path)
 
     @staticmethod
     def _normalize_product_name(product: str) -> str:
@@ -116,7 +165,7 @@ class ConfigLoader:
 
     @staticmethod
     def load_product_config(product_root: Path) -> dict[str, Any]:
-        return ConfigLoader._read_json_optional(product_root / "_config" / "config.json")
+        return ConfigLoader._read_config_optional(product_root / "_config", "config")
 
     @staticmethod
     def load_topic_overrides(
@@ -128,13 +177,13 @@ class ConfigLoader:
         topic_name = (topic or "").strip() or (ConfigLoader.get_active_topic(backlog_root, agent or "") or "")
         if not topic_name:
             return {}
-        return ConfigLoader._read_json_optional(ConfigLoader.get_topic_path(backlog_root, topic_name) / "config.json")
+        return ConfigLoader._read_config_optional(ConfigLoader.get_topic_path(backlog_root, topic_name), "config")
 
     @staticmethod
     def load_workset_overrides(backlog_root: Path, *, item_id: Optional[str] = None) -> dict[str, Any]:
         if not item_id:
             return {}
-        return ConfigLoader._read_json_optional(ConfigLoader.get_workset_path(backlog_root, item_id) / "config.json")
+        return ConfigLoader._read_config_optional(ConfigLoader.get_workset_path(backlog_root, item_id), "config")
 
     @staticmethod
     def _resolve_product_name(
@@ -266,25 +315,15 @@ class ConfigLoader:
     @staticmethod
     def load_defaults(backlog_root: Path) -> dict:
         """
-        Load default configuration from _kano/backlog/_shared/defaults.json
+        Load default configuration from _kano/backlog/_shared/defaults.toml (preferred) or defaults.json (deprecated)
 
         Args:
             backlog_root: Backlog root path
 
         Returns:
-            Dictionary with defaults (empty if file not found)
+            Dictionary with defaults (empty if neither file exists)
         """
-        defaults_path = backlog_root / "_shared" / "defaults.json"
-        if not defaults_path.exists():
-            return {}
-
-        try:
-            with open(defaults_path, "r", encoding="utf-8") as f:
-                return json.load(f)
-        except json.JSONDecodeError as e:
-            raise ConfigError(f"Invalid JSON in {defaults_path}: {e}")
-        except Exception as e:
-            raise ConfigError(f"Failed to load defaults from {defaults_path}: {e}")
+        return ConfigLoader._read_config_optional(backlog_root / "_shared", "defaults")
 
     @staticmethod
     def load_effective_config(

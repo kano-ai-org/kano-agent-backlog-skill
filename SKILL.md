@@ -258,6 +258,114 @@ For testing, prototyping, or demos without affecting production backlog:
 - Use `python skills/kano-agent-backlog-skill/scripts/kano-backlog workitem update-state ...` to update state + append Worklog.
 - Prefer `--action` on `kano-backlog state transition` for the common transitions (`start`, `ready`, `review`, `done`, `block`, `drop`).
 - Use `python skills/kano-agent-backlog-skill/scripts/kano-backlog workitem validate <item-id>` to check the Ready gate explicitly.
+
+## Topic and Workset workflow (context management)
+
+### When to use Topics
+
+**Topics** are shareable context buffers for multi-step work that spans multiple work items or requires exploratory research before creating formal backlog items.
+
+Use Topics when:
+- Exploring a complex problem that may result in multiple work items
+- Collecting code snippets, logs, and materials across multiple sessions
+- Collaborating across agents/sessions with a shared context
+- Refactoring work that requires tracking multiple code locations
+
+**Topic lifecycle**:
+1. **Create**: `python skills/kano-agent-backlog-skill/scripts/kano-backlog topic create <topic-name> --agent <id>`
+   - Creates `_kano/backlog/topics/<topic>/` with `manifest.json`, `brief.md`, `notes.md`, and `materials/` subdirectories
+2. **Collect materials**:
+   - Add items: `topic add <topic-name> --item <ITEM_ID>`
+   - Add code snippets: `topic add-snippet <topic-name> --file <path> --start <line> --end <line> --agent <id>`
+   - Pin docs: `topic pin <topic-name> --doc <path>`
+3. **Distill**: `python skills/kano-agent-backlog-skill/scripts/kano-backlog topic distill <topic-name>`
+   - Generates/updates deterministic `brief.md` from collected materials
+4. **Switch context**: `python skills/kano-agent-backlog-skill/scripts/kano-backlog topic switch <topic-name> --agent <id>`
+   - Sets active topic (affects config overlays and workset behavior)
+5. **Close**: `python skills/kano-agent-backlog-skill/scripts/kano-backlog topic close <topic-name> --agent <id>`
+   - Marks topic as closed; eligible for TTL cleanup
+6. **Cleanup**: `python skills/kano-agent-backlog-skill/scripts/kano-backlog topic cleanup --ttl-days <N> [--dry-run]`
+   - Removes raw materials from closed topics older than TTL
+
+**Topic structure**:
+```
+_kano/backlog/topics/<topic>/
+  manifest.json          # refs to items/docs/snippets, status, timestamps
+  brief.md               # deterministic distilled summary (can be versioned)
+  notes.md               # freeform notes (backward compat)
+  materials/             # raw collection (gitignored by default)
+    clips/               # code snippet refs + cached text
+    links/               # urls / notes
+    extracts/            # extracted paragraphs
+    logs/                # build logs / command outputs
+  synthesis/             # intermediate drafts
+  publish/               # prepared write-backs (patches/ADRs)
+  config.toml            # optional topic-specific config overrides
+```
+
+### When to use Worksets
+
+**Worksets** are per-item working directories (cached, derived data) for a single backlog item.
+
+Use Worksets when:
+- Starting work on a specific Task/Bug/UserStory
+- Need scratch space for deliverables (patches, test artifacts, etc.)
+- Want item-specific config overrides (rare)
+
+**Workset lifecycle**:
+1. **Initialize**: `python skills/kano-agent-backlog-skill/scripts/kano-backlog workset init <ITEM_ID> --agent <id> [--ttl-hours <N>]`
+   - Creates `_kano/backlog/.cache/worksets/items/<ITEM_ID>/` with `meta.json`, `plan.md`, `notes.md`, `deliverables/`
+2. **Work**: Store scratch files in `deliverables/` (patches, test outputs, etc.)
+3. **Refresh**: `python skills/kano-agent-backlog-skill/scripts/kano-backlog workset refresh <ITEM_ID> --agent <id>`
+   - Updates `refreshed_at` timestamp
+4. **Cleanup**: `python skills/kano-agent-backlog-skill/scripts/kano-backlog workset cleanup --ttl-hours <N> [--dry-run]`
+   - Removes stale worksets older than TTL
+
+**Workset structure**:
+```
+_kano/backlog/.cache/worksets/items/<ITEM_ID>/
+  meta.json              # workset metadata (item_id, agent, timestamps, ttl)
+  plan.md                # execution plan template
+  notes.md               # work notes with Decision: marker guidance
+  deliverables/          # scratch outputs (patches, logs, test artifacts)
+  config.toml            # optional item-specific config overrides
+```
+
+### Topic vs Workset decision guide
+
+| Scenario | Use Topic | Use Workset |
+|----------|-----------|-------------|
+| Exploring before creating items | ✅ Yes | ❌ No |
+| Multi-item refactor | ✅ Yes | ❌ No |
+| Collecting code snippets across files | ✅ Yes | ❌ No |
+| Shared context for collaboration | ✅ Yes | ❌ No |
+| Single item scratch space | ❌ No | ✅ Yes |
+| Item-specific deliverables | ❌ No | ✅ Yes |
+| Version-controlled distillation | ✅ Yes (brief.md) | ❌ No |
+
+**Best practice**: Start exploration in a Topic, create work items as scope clarifies, then use Worksets for individual item execution.
+
+### Active topic and config overlays
+
+- Active topic is per-agent: `_kano/backlog/.cache/worksets/active_topic.<agent>.txt`
+- When an agent has an active topic, config resolution includes topic overrides:
+  - Layer order: defaults → product → **topic** → workset → runtime
+  - Topic config: `_kano/backlog/topics/<topic>/config.toml`
+  - Use for temporary overrides (e.g., switch `default_product` during exploration)
+- Get active topic: `python skills/kano-agent-backlog-skill/scripts/kano-backlog topic show --agent <id>`
+
+### Materials buffer (Topic-specific)
+
+- **Reference-first snippet collection**: Avoid large copy-paste; store file+line+hash+optional snapshot
+- **Snippet refs** include:
+  - `file`: relative path from workspace root
+  - `lines`: `[start, end]` (1-based inclusive)
+  - `hash`: `sha256:...` of content for staleness check
+  - `cached_text`: optional snapshot (use `--snapshot` to include)
+  - `revision`: git commit hash if available
+- **Staleness detection**: Compare current file hash with stored hash to detect if code changed
+- **Distillation**: `topic distill` generates deterministic `brief.md` with materials index (items, docs, snippets sorted for repeatability)
+
 ---
 END_OF_SKILL_SENTINEL
 
