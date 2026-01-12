@@ -15,7 +15,7 @@ class BacklogContext(BaseModel):
     backlog_root: Path = Field(..., description="e.g., platform_root / _kano/backlog")
     product_root: Path = Field(..., description="e.g., backlog_root / products / <product>")
     sandbox_root: Optional[Path] = Field(
-        None, description="e.g., backlog_root / sandboxes / <sandbox>"
+        None, description="e.g., backlog_root.parent / backlog_sandbox / <sandbox>"
     )
     product_name: str = Field(..., description="Product name")
     is_sandbox: bool = Field(default=False, description="True if operating in sandbox mode")
@@ -69,7 +69,7 @@ class ConfigLoader:
         sandbox_root = None
         is_sandbox = False
         if sandbox:
-            sandbox_root = backlog_root / "sandboxes" / sandbox
+            sandbox_root = backlog_root.parent / "backlog_sandbox" / sandbox
             is_sandbox = True
 
         return BacklogContext(

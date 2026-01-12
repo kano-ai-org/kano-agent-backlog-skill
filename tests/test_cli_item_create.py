@@ -20,7 +20,7 @@ scripts_dir = test_dir.parent / "scripts"
 sys.path.insert(0, str(src_dir))
 sys.path.insert(0, str(scripts_dir))
 
-from kano_cli.cli import app
+from kano_backlog_cli.cli import app
 
 
 class TestCLIItemCreate:
@@ -47,7 +47,7 @@ class TestCLIItemCreate:
         self.items_root = self.test_product / "items"
         
         # Create directory structure
-        for item_type in ["epics", "features", "userstories", "tasks", "bugs"]:
+        for item_type in ["epic", "feature", "userstory", "task", "bug"]:
             (self.items_root / item_type / "0000").mkdir(parents=True, exist_ok=True)
         
         # Create required product directories for configuration validation
@@ -798,7 +798,7 @@ class TestCLIItemCreate:
         
         # Set up the test product structure
         test_items_root = test_product_path / "items"
-        for item_type_dir in ["epics", "features", "userstories", "tasks", "bugs"]:
+        for item_type_dir in ["epic", "feature", "userstory", "task", "bug"]:
             (test_items_root / item_type_dir / "0000").mkdir(parents=True, exist_ok=True)
         
         # Create required product directories
@@ -942,7 +942,7 @@ class TestCLIItemCreate:
         # Set up basic structure for most scenarios
         if error_scenario != "nonexistent_product":
             test_items_root = test_product_path / "items"
-            for item_type_dir in ["epics", "features", "userstories", "tasks", "bugs"]:
+            for item_type_dir in ["epic", "feature", "userstory", "task", "bug"]:
                 (test_items_root / item_type_dir / "0000").mkdir(parents=True, exist_ok=True)
             
             for required_dir in ["decisions", "views", "_meta"]:
@@ -1019,7 +1019,7 @@ class TestCLIItemCreate:
         if test_product_path.exists():
             test_items_root = test_product_path / "items"
             if test_items_root.exists():
-                for item_type_dir in ["epics", "features", "userstories", "tasks", "bugs"]:
+                for item_type_dir in ["epic", "feature", "userstory", "task", "bug"]:
                     type_dir = test_items_root / f"{item_type_dir}" / "0000"
                     if type_dir.exists():
                         # Should not have any .md files (no partial creation)
@@ -1109,7 +1109,7 @@ class TestCLIItemCreate:
         
         # Set up test product structure
         test_items_root = test_product_path / "items"
-        for item_type_dir in ["epics", "features", "userstories", "tasks", "bugs"]:
+        for item_type_dir in ["epic", "feature", "userstory", "task", "bug"]:
             (test_items_root / item_type_dir / "0000").mkdir(parents=True, exist_ok=True)
         
         for required_dir in ["decisions", "views", "_meta"]:
@@ -1127,7 +1127,7 @@ class TestCLIItemCreate:
         
         # Set up audit log directory
         test_backlog_root = test_product_path.parent.parent  # Go up to _kano/backlog
-        audit_log_dir = test_backlog_root / "_logs" / "agent_tools"
+        audit_log_dir = test_backlog_root / "_shared" / "logs" / "agent_tools"
         audit_log_dir.mkdir(parents=True, exist_ok=True)
         audit_log_file = audit_log_dir / "tool_invocations.jsonl"
         
@@ -1139,7 +1139,7 @@ class TestCLIItemCreate:
         original_env = {}
         test_env = {
             "KANO_AUDIT_LOG_DISABLED": "false",
-            "KANO_AUDIT_LOG_ROOT": str(test_backlog_root / "_logs"),
+            "KANO_AUDIT_LOG_ROOT": str(test_backlog_root / "_shared/logs"),
             "KANO_AUDIT_LOG_FILE": "agent_tools/tool_invocations.jsonl"
         }
         

@@ -38,6 +38,6 @@ Non-exhaustive examples:
 
 - Docs reflect current behavior (`README*`, `REFERENCE.md`, `references/*`)
 - Canonical CLI commands run end-to-end:
-  - `python skills/kano-agent-backlog-skill/scripts/kano view refresh --agent <id>`
-  - `python skills/kano-agent-backlog-skill/scripts/kano item update-state <item> --state Done --agent <id>`
+  - `python skills/kano-agent-backlog-skill/scripts/kano-backlog view refresh --agent <id>`
+  - `python skills/kano-agent-backlog-skill/scripts/kano-backlog workitem update-state <item> --state Done --agent <id>`
 - Demo views are regenerated

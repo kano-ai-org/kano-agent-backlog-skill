@@ -120,7 +120,7 @@ def create_item(
         except Exception as e:
             raise ValueError(
                 f"Cannot resolve backlog context for product '{product}'. "
-                f"Ensure the product is initialized via 'kano backlog init --product {product}'. "
+                f"Ensure the product is initialized via 'kano-backlog admin init --product {product}'. "
                 f"Error: {e}"
             )
     else:
@@ -510,7 +510,7 @@ def _update_index_registry(
     
     if not registry_path.exists():
         # Create basic registry if missing
-        content = "# Index Registry\n\n## Epics\n"
+        content = "# Index Registry\n\n## Epic\n"
         registry_path.parent.mkdir(parents=True, exist_ok=True)
         registry_path.write_text(content, encoding="utf-8")
     

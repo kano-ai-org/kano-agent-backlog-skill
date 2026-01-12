@@ -284,3 +284,50 @@ def update_state_command(
             typer.echo("  Parent state synced")
         if result.dashboards_refreshed:
             typer.echo("  Dashboards refreshed")
+
+
+@app.command(name="attach-artifact")
+def attach_artifact_command(
+    item_id: str = typer.Argument(..., help="Display ID, e.g., KABSD-TSK-0001"),
+    path: str = typer.Option(..., "--path", help="Path to artifact file"),
+    shared: bool = typer.Option(True, "--shared/--no-shared", help="Store under _shared/artifacts when true"),
+    agent: str = typer.Option(..., "--agent", help="Agent name (for audit trail)"),
+    product: str | None = typer.Option(None, "--product", help="Product name"),
+    note: str | None = typer.Option(None, "--note", help="Optional note to include in Worklog"),
+    output_format: str = typer.Option("plain", "--format", help="plain|json"),
+):
+    """Attach an artifact file to a work item and append a Worklog link."""
+    ensure_core_on_path()
+    from kano_backlog_ops.artifacts import attach_artifact as ops_attach
+
+    try:
+        result = ops_attach(
+            item_ref=item_id,
+            artifact_path=path,
+            product=product,
+            shared=shared,
+            agent=agent,
+            note=note,
+        )
+    except FileNotFoundError as exc:
+        typer.echo(f"❌ {exc}", err=True)
+        raise typer.Exit(1)
+    except Exception as exc:
+        typer.echo(f"❌ Unexpected error: {exc}", err=True)
+        raise typer.Exit(2)
+
+    if output_format == "json":
+        payload = {
+            "id": result.id,
+            "source": str(result.source),
+            "destination": str(result.destination),
+            "worklog_appended": result.worklog_appended,
+            "shared": shared,
+        }
+        typer.echo(json.dumps(payload, ensure_ascii=False))
+    else:
+        typer.echo(f"✓ Attached artifact to {result.id}")
+        typer.echo(f"  Source: {result.source.name}")
+        typer.echo(f"  Dest: {result.destination}")
+        if note:
+            typer.echo(f"  Note: {note}")

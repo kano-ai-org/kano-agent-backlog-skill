@@ -30,11 +30,11 @@ STATE_GROUPS = {
 
 TYPE_ORDER = ["Epic", "Feature", "UserStory", "Task", "Bug"]
 TYPE_LABELS = {
-    "Epic": "Epics",
-    "Feature": "Features",
-    "UserStory": "UserStories",
-    "Task": "Tasks",
-    "Bug": "Bugs",
+    "Epic": "Epic",
+    "Feature": "Feature",
+    "UserStory": "UserStory",
+    "Task": "Task",
+    "Bug": "Bug",
 }
 
 DASHBOARD_DEFINITIONS = [

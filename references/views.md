@@ -9,7 +9,7 @@ Avoid encoding hierarchy in folders.
 Queries should target `_kano/backlog/items` to include all item subfolders.
 Hide `Done`/`Dropped` items in views by default (view-level archive).
 
-## Example: List epics
+## Example: List Epic items
 
 ```dataview
 table id, state, priority, iteration

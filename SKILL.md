@@ -55,14 +55,14 @@ Use this skill to:
 - Always provide an explicit `--agent` value for auditability (some commands currently default to `cli`, but do not rely on it).
 - **Agent Identity Protocol**: Supply `--agent <ID>` with your real product name (e.g., `cursor`, `copilot`, `windsurf`, `antigravity`).
   - **Forbidden (Placeholders)**: `auto`, `user`, `assistant`, `<AGENT_NAME>`, `$AGENT_NAME`.
-- File operations for backlog/skill artifacts must go through the `kano` CLI
-  (`python skills/kano-agent-backlog-skill/scripts/kano <command>`) so audit logs capture the action.
+- File operations for backlog/skill artifacts must go through the `kano-backlog` CLI
+  (`python skills/kano-agent-backlog-skill/scripts/kano-backlog <command>`) so audit logs capture the action.
 - Skill scripts only operate on paths under `_kano/backlog/` or `_kano/backlog_sandbox/`;
   refuse other paths.
 - After modifying backlog items, refresh the plain Markdown views immediately using
-  `python skills/kano-agent-backlog-skill/scripts/kano view refresh --agent <agent-id> --backlog-root <path>` so the dashboards stay current.
-  - Persona summaries/reports are available via `python skills/kano-agent-backlog-skill/scripts/kano backlog persona summary|report ...`.
-- `python skills/kano-agent-backlog-skill/scripts/kano item update-state ...` auto-syncs parent states forward-only by default; use `--no-sync-parent`
+  `python skills/kano-agent-backlog-skill/scripts/kano-backlog view refresh --agent <agent-id> --backlog-root <path>` so the dashboards stay current.
+  - Persona summaries/reports are available via `python skills/kano-agent-backlog-skill/scripts/kano-backlog admin persona summary|report ...`.
+- `python skills/kano-agent-backlog-skill/scripts/kano-backlog workitem update-state ...` auto-syncs parent states forward-only by default; use `--no-sync-parent`
   for manual re-plans where parent state should stay put.
 - Add Obsidian `[[wikilink]]` references in the body (e.g., a `## Links` section) so Graph/backlinks work; frontmatter alone does not create graph edges.
 
@@ -95,19 +95,19 @@ If the backlog structure is missing, propose the bootstrap commands and wait for
 2. Follow the folder rules defined in ADR-0013:
    - `scripts/` is **executable-only**: no reusable module code.
    - `src/` is **import-only**: core logic lives here, never executed directly.
-   - All agent-callable operations go through `scripts/kano` CLI.
+   - All agent-callable operations go through `scripts/kano-backlog` CLI.
 3. Place new code in the correct package:
    - Models/config/errors → `src/kano_backlog_core/`
    - Use-cases (create/update/view) → `src/kano_backlog_ops/`
    - Storage backends → `src/kano_backlog_adapters/`
-   - CLI commands → `src/kano_cli/commands/`
+   - CLI commands → `src/kano_backlog_cli/commands/`
 
 Violating these boundaries will be flagged in code review.
 
 ### Prerequisite install (Python)
 
 Detect:
-- Run `python skills/kano-agent-backlog-skill/scripts/kano doctor --format plain`.
+- Run `python skills/kano-agent-backlog-skill/scripts/kano-backlog doctor --format plain`.
 
 If packages are missing, install once (recommended):
 - **Default**: `python -m pip install -e skills/kano-agent-backlog-skill`
@@ -117,12 +117,12 @@ If packages are missing, install once (recommended):
 ### Backlog initialization (file scaffold + config + dashboards)
 
 Detect (multi-product / platform layout):
-- Product initialized if `_kano/backlog/products/<product>/_config/config.json` exists (or confirm via `python skills/kano-agent-backlog-skill/scripts/kano doctor --product <product>`).
+- Product initialized if `_kano/backlog/products/<product>/_config/config.json` exists (or confirm via `python skills/kano-agent-backlog-skill/scripts/kano-backlog doctor --product <product>`).
 
 Bootstrap:
-- Run `python skills/kano-agent-backlog-skill/scripts/kano backlog init --product <product> --agent <agent-id> [--backlog-root <path>]` to scaffold `_kano/backlog/products/<product>/` (items/, decisions/, views/, `_config/`, `_meta/`, `_index/`).
+- Run `python skills/kano-agent-backlog-skill/scripts/kano-backlog admin init --product <product> --agent <agent-id> [--backlog-root <path>]` to scaffold `_kano/backlog/products/<product>/` (items/, decisions/, views/, `_config/`, `_meta/`, `_index/`).
 - The init command derives a project prefix, writes `_config/config.json`, and refreshes dashboards so views exist immediately after initialization.
-- Manual fallback (only if automation is unavailable): follow `_kano/backlog/README.md` to copy the template scaffold, then refresh views via `kano view refresh`.
+- Manual fallback (only if automation is unavailable): follow `_kano/backlog/README.md` to copy the template scaffold, then refresh views via `kano-backlog view refresh`.
 
 ## Optional LLM analysis over deterministic reports
 
@@ -198,17 +198,17 @@ If the backlog structure is missing, propose creation and wait for user approval
 
 ## Kano CLI entrypoints (current surface)
 
-`scripts/` exposes a single executable: `scripts/kano`. The CLI is intentionally organized as nested command groups so agents can discover operations via `--help` on-demand (instead of hard-coding the full command surface into this skill).
+`scripts/` exposes a single executable: `scripts/kano-backlog`. The CLI is intentionally organized as nested command groups so agents can discover operations via `--help` on-demand (instead of hard-coding the full command surface into this skill).
 
 ### Help-driven discovery (preferred)
 
 Run these in order, expanding only what you need:
 
-- `python skills/kano-agent-backlog-skill/scripts/kano --help`
+- `python skills/kano-agent-backlog-skill/scripts/kano-backlog --help`
   - Shows top-level groups (e.g., `backlog`, `item`, `state`, `worklog`, `view`) and global options.
-- `python skills/kano-agent-backlog-skill/scripts/kano <group> --help`
+- `python skills/kano-agent-backlog-skill/scripts/kano-backlog <group> --help`
   - Shows subcommands for that group.
-- `python skills/kano-agent-backlog-skill/scripts/kano <group> <command> --help`
+- `python skills/kano-agent-backlog-skill/scripts/kano-backlog <group> <command> --help`
   - Shows required args/options for that command.
 
 Guideline: do not paste large `--help` output into chat; inspect it locally and run the command.
@@ -216,21 +216,46 @@ Guideline: do not paste large `--help` output into chat; inspect it locally and 
 ### Canonical examples (keep these few memorized)
 
 - Bootstrap:
-  - `python skills/kano-agent-backlog-skill/scripts/kano doctor --format plain`
-  - `python skills/kano-agent-backlog-skill/scripts/kano backlog init --product <name> --agent <id>`
+  - `python skills/kano-agent-backlog-skill/scripts/kano-backlog doctor --format plain`
+  - `python skills/kano-agent-backlog-skill/scripts/kano-backlog admin init --product <name> --agent <id>`
 - Daily workflow:
-  - `python skills/kano-agent-backlog-skill/scripts/kano item create --type task --title "..." --agent <id> --product <name>`
-  - `python skills/kano-agent-backlog-skill/scripts/kano item set-ready <item-id> --context "..." --goal "..." --approach "..." --acceptance-criteria "..." --risks "..." --product <name>`
-  - `python skills/kano-agent-backlog-skill/scripts/kano item validate <item-id> --product <name>`
-  - `python skills/kano-agent-backlog-skill/scripts/kano item update-state <item-ref> --state InProgress --agent <id> --message "..." --product <name>`
-  - `python skills/kano-agent-backlog-skill/scripts/kano view refresh --agent <id> --product <name>`
+  - `python skills/kano-agent-backlog-skill/scripts/kano-backlog workitem create --type task --title "..." --agent <id> --product <name>`
+  - `python skills/kano-agent-backlog-skill/scripts/kano-backlog workitem set-ready <item-id> --context "..." --goal "..." --approach "..." --acceptance-criteria "..." --risks "..." --product <name>`
+  - `python skills/kano-agent-backlog-skill/scripts/kano-backlog workitem validate <item-id> --product <name>`
+  - `python skills/kano-agent-backlog-skill/scripts/kano-backlog workitem update-state <item-ref> --state InProgress --agent <id> --message "..." --product <name>`
+  - `python skills/kano-agent-backlog-skill/scripts/kano-backlog workitem attach-artifact <item-id> --path <file> --shared --agent <id> --product <name> [--note "..."]`
+  - `python skills/kano-agent-backlog-skill/scripts/kano-backlog view refresh --agent <id> --product <name>`
 - Backlog integrity checks:
-  - `python skills/kano-agent-backlog-skill/scripts/kano backlog validate uids --product <name>`
+  - `python skills/kano-agent-backlog-skill/scripts/kano-backlog admin validate uids --product <name>`
+
+### Sandbox workflow (isolated experimentation)
+
+For testing, prototyping, or demos without affecting production backlog:
+- Create: `python skills/kano-agent-backlog-skill/scripts/kano-backlog admin sandbox init <sandbox-name> --product <source-product> --agent <id>`
+- Use: `python skills/kano-agent-backlog-skill/scripts/kano-backlog workitem create --product <sandbox-name> ...` (same CLI, different product)
+- Cleanup: `rm -rf _kano/backlog_sandbox/<sandbox-name>` (git will ignore this directory)
+- Rationale: Sandboxes mirror production structure but live in `_kano/backlog_sandbox/`, so changes never leak into `_kano/backlog/`.
+
+## Artifacts policy (local-first)
+
+- Storage locations:
+  - Shared across products: `_kano/backlog/_shared/artifacts/<ITEM_ID>/` (use `--shared`).
+  - Product-local: `_kano/backlog/products/<product>/artifacts/<ITEM_ID>/` (use `--no-shared`).
+- Usage:
+  - Attach via `workitem attach-artifact` — copies the file and appends a Worklog link.
+  - Prefer lightweight, text-first artifacts (Markdown, Mermaid, small images). Use Git LFS for large binaries if needed.
+- Git policy:
+  - Commit human-readable artifacts that aid review. Avoid committing generated binaries unless justified.
+  - Sandboxes under `_kano/backlog_sandbox/` are gitignored; artifacts there are ephemeral.
+  - For derived analysis, store under `views/_analysis/` (gitignored by default), and keep deterministic reports in `views/`.
+- Linking:
+  - The CLI appends a Markdown link relative to the item file. Optionally add a `## Links` section for richer context.
 
 ## State update helper
 
-- Use `python skills/kano-agent-backlog-skill/scripts/kano item update-state ...` to update state + append Worklog.
-- Prefer `--action` on `kano state transition` for the common transitions (`start`, `ready`, `review`, `done`, `block`, `drop`).
-- Use `python skills/kano-agent-backlog-skill/scripts/kano item validate <item-id>` to check the Ready gate explicitly.
+- Use `python skills/kano-agent-backlog-skill/scripts/kano-backlog workitem update-state ...` to update state + append Worklog.
+- Prefer `--action` on `kano-backlog state transition` for the common transitions (`start`, `ready`, `review`, `done`, `block`, `drop`).
+- Use `python skills/kano-agent-backlog-skill/scripts/kano-backlog workitem validate <item-id>` to check the Ready gate explicitly.
 ---
 END_OF_SKILL_SENTINEL
+

@@ -206,7 +206,7 @@ def _write_config(
         "sandbox": {"root": "_kano/backlog_sandbox"},
         "index": {"enabled": True, "backend": "sqlite", "path": None, "mode": "rebuild"},
         "analysis": {"llm": {"enabled": False}},
-        "_comment": f"Initialized by {agent} via kano backlog init.",
+        "_comment": f"Initialized by {agent} via kano-backlog admin init.",
     }
 
     config_path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")

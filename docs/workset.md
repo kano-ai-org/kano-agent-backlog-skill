@@ -5,7 +5,7 @@ It is not the source of truth: canonical work items and ADRs remain the SSOT.
 
 ## Goals
 
-- Prevent “agent drift” during longer tasks
+- Prevent "agent drift" during longer tasks
 - Provide an execution checklist and a place to capture notes/deliverables
 - Make promotion back to canonical artifacts explicit (worklog, ADRs, attachments)
 
@@ -15,106 +15,166 @@ It is not the source of truth: canonical work items and ADRs remain the SSOT.
 - Git must not track workset files
 - Promote load-bearing information back to canonical items/ADRs
 
-## Directory layout
+## Directory Layout
 
-Recommended (per ADR-0011):
+Per ADR-0011:
 
 ```text
-_kano/backlog/.cache/worksets/<item-id>/
-  meta.json
-  plan.md
-  notes.md
-  deliverables/
+_kano/backlog/.cache/worksets/items/<item-id>/
+  meta.json       # Metadata: agent, timestamps, TTL, source paths
+  plan.md         # Checklist derived from acceptance criteria
+  notes.md        # Working notes (use Decision: markers for ADR promotion)
+  deliverables/   # Files to promote to canonical artifacts
 ```
 
-Note: some scripts may default to a different cache root; use `--cache-root` to override.
+## CLI Commands
 
-## Commands
+All workset commands are accessed via `kano workset <subcommand>`.
 
-### 1) Initialize a workset
+### Initialize a Workset
 
 ```bash
-python skills/kano-agent-backlog-skill/scripts/backlog/workset_init.py \
-  --item <id/uid/id@uidshort> \
-  --agent <agent-name> \
-  [--cache-root <path>]
+kano workset init --item <id> --agent <agent-name> [--ttl-hours 72] [--format plain|json]
 ```
 
-Expected outputs (under the chosen cache root):
+Creates a workset for the specified item:
+- Generates `meta.json` with agent, timestamps, and TTL
+- Creates `plan.md` from item's acceptance criteria
+- Creates `notes.md` with Decision: marker guidance
+- Creates empty `deliverables/` directory
+- Appends worklog entry to source item
 
-- `meta.json`: created/refreshed timestamps, agent, source paths
-- `plan.md`: checklist template
-- `notes.md`: notes template (use `Decision:` markers for ADR promotion)
-- `deliverables/`: files to promote
+If workset already exists, returns existing path (idempotent).
 
-The script appends a Worklog line like `Workset initialized: ...`.
-
-### 2) What’s next (from the plan checklist)
+### Refresh from Canonical
 
 ```bash
-python skills/kano-agent-backlog-skill/scripts/backlog/workset_next.py \
-  --item <id/uid/id@uidshort> \
-  [--cache-root <path>]
+kano workset refresh --item <id> --agent <agent-name> [--format plain|json]
 ```
 
-This reads `plan.md` and prints the next unchecked step.
+Updates workset metadata from canonical files:
+- Verifies source item still exists
+- Updates `refreshed_at` timestamp in `meta.json`
+- Appends worklog entry to source item
 
-### 3) Refresh from canonical
+### Get Next Action
 
 ```bash
-python skills/kano-agent-backlog-skill/scripts/backlog/workset_refresh.py \
-  --item <id/uid/id@uidshort> \
-  --agent <agent-name> \
-  [--cache-root <path>]
+kano workset next --item <id> [--format plain|json]
 ```
 
-This updates `meta.json` and appends a Worklog line like `Workset refreshed: ...`.
+Returns the next unchecked step from `plan.md`:
+- Parses checkbox items (`- [ ]` and `- [x]`)
+- Returns step number and description
+- Returns completion message if all steps are checked
 
-### 4) Promote deliverables back to canonical
+### Promote Deliverables
 
 ```bash
-python skills/kano-agent-backlog-skill/scripts/backlog/workset_promote.py \
-  --item <id/uid/id@uidshort> \
-  --agent <agent-name> \
-  [--cache-root <path>] \
-  [--dry-run]
+kano workset promote --item <id> --agent <agent-name> [--dry-run] [--format plain|json]
 ```
 
-This scans `deliverables/` and attaches artifacts to the work item (and appends a Worklog summary).
+Promotes files from `deliverables/` to canonical artifacts:
+- Copies files to `_kano/backlog/products/<product>/artifacts/<item-id>/`
+- Appends worklog entry summarizing promoted files
+- Use `--dry-run` to preview without making changes
 
-### 5) TTL cleanup
+### Cleanup Expired Worksets
 
 ```bash
-python skills/kano-agent-backlog-skill/scripts/backlog/workset_cleanup.py \
-  --agent <agent-name> \
-  [--cache-root <path>] \
-  [--ttl-hours <N>]
+kano workset cleanup [--ttl-hours 72] [--agent <agent-name>] [--dry-run] [--format plain|json]
 ```
 
-## ADR promotion heuristic
+Deletes worksets older than TTL:
+- Only affects worksets under `.cache/worksets/items/`
+- Reports count and space reclaimed
+- Use `--dry-run` to preview without deleting
 
-Use `workset_detect_adr.py` to scan `notes.md` for `Decision:` markers:
+### List Worksets
 
 ```bash
-python skills/kano-agent-backlog-skill/scripts/backlog/workset_detect_adr.py --item <id>
-python skills/kano-agent-backlog-skill/scripts/backlog/workset_detect_adr.py --item <id> --format json
+kano workset list [--format plain|json]
 ```
 
-When a decision is detected:
+Lists all item worksets with metadata:
+- Item ID and agent
+- Age and size
+- TTL setting
 
-- Extract rationale into an ADR
-- Link the ADR back to the item (`decisions:` frontmatter)
-- Append a Worklog line (append-only)
+### Detect ADR Candidates
 
-## Git ignore
+```bash
+kano workset detect-adr --item <id> [--format plain|json]
+```
 
-Ensure cache paths are ignored, for example:
+Scans `notes.md` for `Decision:` markers:
+- Extracts decision text
+- Suggests ADR title
+- Use `--format json` for automation
+
+## Common Workflows
+
+### Starting Work on a Task
+
+```bash
+# 1. Initialize workset
+kano workset init --item TASK-0042 --agent kiro
+
+# 2. Check what to do first
+kano workset next --item TASK-0042
+
+# 3. Work on the task, updating plan.md as you go
+# 4. Add notes with Decision: markers for important decisions
+```
+
+### Completing a Task
+
+```bash
+# 1. Check all steps are done
+kano workset next --item TASK-0042
+# Output: "✓ All steps complete!"
+
+# 2. Promote any deliverables
+kano workset promote --item TASK-0042 --agent kiro --dry-run
+kano workset promote --item TASK-0042 --agent kiro
+
+# 3. Check for ADR candidates
+kano workset detect-adr --item TASK-0042
+```
+
+### Maintenance
+
+```bash
+# List all worksets
+kano workset list
+
+# Preview cleanup
+kano workset cleanup --ttl-hours 48 --dry-run
+
+# Run cleanup
+kano workset cleanup --ttl-hours 48
+```
+
+## ADR Promotion
+
+When `Decision:` markers are found in `notes.md`:
+
+1. Run `kano workset detect-adr --item <id>` to find candidates
+2. Create ADR using `kano adr create ...`
+3. Link ADR to item via `decisions:` frontmatter
+4. Worklog entry is appended automatically
+
+## Git Ignore
+
+Ensure cache paths are ignored:
 
 ```gitignore
 _kano/**/.cache/
 _kano/backlog/**/.cache/
 ```
 
-## Roadmap
+## Related
 
-Workset is discussed in ADR-0011/ADR-0012 and tracked as features (e.g., execution layer + promote flows).
+- [Topic Context](topic.md) - Higher-level context grouping
+- ADR-0011: Workset vs GraphRAG separation
+- ADR-0012: Workset DB uses canonical schema

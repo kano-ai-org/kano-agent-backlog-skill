@@ -88,7 +88,7 @@ def check_backlog_initialized(
             passed=False,
             message="Backlog root not found",
             details=(
-                "Initialize the backlog with 'python skills/kano-agent-backlog-skill/scripts/kano backlog "
+                "Initialize the backlog with 'python skills/kano-agent-backlog-skill/scripts/kano-backlog admin "
                 "init --product <name> --agent <id>' or follow SKILL.md for manual scaffolding."
             ),
         )
@@ -128,7 +128,7 @@ def check_backlog_initialized(
             passed=False,
             message="No products found",
             details=(
-                "Create one with 'python skills/kano-agent-backlog-skill/scripts/kano backlog init --product <name> "
+                "Create one with 'python skills/kano-agent-backlog-skill/scripts/kano-backlog admin init --product <name> "
                 "--agent <id>' or follow SKILL.md for manual scaffolding."
             ),
         )
@@ -140,10 +140,48 @@ def check_backlog_initialized(
     )
 
 
-def check_kano_cli() -> CheckResult:
-    """Check that kano CLI is available."""
+def check_skill_layout() -> CheckResult:
+    """Detect common repo-layout regressions (developer workflow guardrail)."""
+    cwd = Path.cwd().resolve()
+    skill_root: Optional[Path] = None
+    for parent in [cwd, *cwd.parents]:
+        candidate = parent / "skills" / "kano-agent-backlog-skill"
+        if candidate.exists() and candidate.is_dir():
+            skill_root = candidate
+            break
+
+    if skill_root is None:
+        return CheckResult(
+            name="Skill Layout",
+            passed=True,
+            message="Skill root not found from cwd (skipping layout checks)",
+        )
+
+    legacy_cli_root = skill_root / "src" / "kano_cli"
+    legacy_py_files = list(legacy_cli_root.rglob("*.py")) if legacy_cli_root.exists() else []
+    if legacy_py_files:
+        sample = legacy_py_files[0].as_posix()
+        return CheckResult(
+            name="Skill Layout",
+            passed=False,
+            message="Legacy CLI package reintroduced under src/kano_cli",
+            details=(
+                "Move CLI code under src/kano_backlog_cli instead. "
+                f"Example offending file: {sample}"
+            ),
+        )
+
+    return CheckResult(
+        name="Skill Layout",
+        passed=True,
+        message="OK (no legacy src/kano_cli python files)",
+    )
+
+
+def check_kano_backlog_cli() -> CheckResult:
+    """Check that kano-backlog CLI is available."""
     try:
-        from kano_cli import cli
+        from kano_backlog_cli import cli
         return CheckResult(
             name="Kano CLI",
             passed=True,
@@ -165,8 +203,9 @@ def run_doctor(
     """Run all doctor checks."""
     checks = [
         check_python_prereqs(),
+        check_skill_layout(),
         check_backlog_initialized(product=product, backlog_root=backlog_root),
-        check_kano_cli(),
+        check_kano_backlog_cli(),
     ]
     
     all_passed = all(c.passed for c in checks)

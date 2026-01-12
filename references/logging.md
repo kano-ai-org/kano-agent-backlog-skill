@@ -2,7 +2,7 @@
 
 ## Log location (default)
 
-- Root: `_kano/backlog/_logs/agent_tools/`
+- Root: `_kano/backlog/_shared/logs/agent_tools/` (cross-product shared)
 - File: `tool_invocations.jsonl`
 
 ## Log format (JSONL)

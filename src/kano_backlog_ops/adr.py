@@ -133,17 +133,22 @@ def create_adr(
 
 
 def _find_next_adr_number(decisions_dir: Path) -> int:
-    pattern = re.compile(r"^ADR-(\\d{4})")
+    """Find next ADR number by parsing frontmatter IDs (not filenames)."""
+    pattern = re.compile(r"^id:\s*ADR-(\d{4})", re.MULTILINE)
     max_num = 0
-    for path in decisions_dir.glob("ADR-*.md"):
-        match = pattern.match(path.name)
-        if not match:
+    
+    for path in decisions_dir.glob("*.md"):
+        if path.name == "README.md":
             continue
         try:
-            num = int(match.group(1))
-        except ValueError:
+            content = path.read_text(encoding="utf-8")
+            match = pattern.search(content)
+            if match:
+                num = int(match.group(1))
+                max_num = max(max_num, num)
+        except (OSError, ValueError):
             continue
-        max_num = max(max_num, num)
+    
     return max_num + 1
 
 

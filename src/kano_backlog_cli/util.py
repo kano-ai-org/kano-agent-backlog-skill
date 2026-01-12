@@ -11,7 +11,7 @@ def ensure_core_on_path() -> None:
         return
     except Exception:
         pass
-    # Try local path fallback: kano_backlog_core is in the same src/ directory as kano_cli
+    # Try local path fallback: kano_backlog_core is in the same src/ directory as kano_backlog_cli
     skill_src = Path(__file__).resolve().parent.parent
     if (skill_src / "kano_backlog_core").exists():
         sys.path.insert(0, str(skill_src))

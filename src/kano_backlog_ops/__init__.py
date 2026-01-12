@@ -25,12 +25,70 @@ from .workitem import (
 )
 from .adr import create_adr, list_adrs
 from .view import refresh_dashboards, generate_view
-from .workset import init_workset, refresh_workset, get_next_item, promote_item
+from .workset import (
+    # Functions
+    init_workset,
+    refresh_workset,
+    get_next_action,
+    promote_deliverables,
+    cleanup_worksets,
+    detect_adr_candidates,
+    list_worksets,
+    # Directory utilities
+    get_workset_cache_root,
+    get_item_workset_path,
+    get_topic_path,
+    ensure_workset_dirs,
+    # Data models
+    WorksetMetadata,
+    WorksetInitResult,
+    WorksetRefreshResult,
+    WorksetNextResult,
+    WorksetPromoteResult,
+    WorksetCleanupResult,
+    # Errors
+    WorksetError,
+    ItemNotFoundError as WorksetItemNotFoundError,
+    WorksetNotFoundError,
+    WorksetValidationError,
+    # Legacy aliases
+    get_next_item,
+    promote_item,
+)
 from .index import build_index, refresh_index
 from .demo import seed_demo, DemoSeedResult
 from .persona import generate_summary, generate_report, PersonaSummaryResult, PersonaReportResult
 from .sandbox import init_sandbox, SandboxInitResult
 from .validate import validate_uids, UidValidationResult, UidViolation
+from .topic import (
+    # Functions
+    create_topic,
+    add_item_to_topic,
+    pin_document,
+    switch_topic,
+    get_active_topic,
+    export_topic_context,
+    list_topics,
+    # Directory utilities
+    get_topics_root,
+    get_topic_path,
+    get_active_topic_path,
+    ensure_topic_dirs,
+    validate_topic_name,
+    is_valid_topic_name,
+    # Data models
+    TopicManifest,
+    TopicCreateResult,
+    TopicAddResult,
+    TopicPinResult,
+    TopicSwitchResult,
+    TopicContextBundle,
+    # Errors
+    TopicError,
+    TopicNotFoundError,
+    TopicExistsError,
+    TopicValidationError,
+)
 
 __all__ = [
     # init
@@ -49,9 +107,32 @@ __all__ = [
     # view
     "refresh_dashboards",
     "generate_view",
-    # workset
+    # workset - functions
     "init_workset",
     "refresh_workset",
+    "get_next_action",
+    "promote_deliverables",
+    "cleanup_worksets",
+    "detect_adr_candidates",
+    "list_worksets",
+    # workset - directory utilities
+    "get_workset_cache_root",
+    "get_item_workset_path",
+    "get_topic_path",
+    "ensure_workset_dirs",
+    # workset - data models
+    "WorksetMetadata",
+    "WorksetInitResult",
+    "WorksetRefreshResult",
+    "WorksetNextResult",
+    "WorksetPromoteResult",
+    "WorksetCleanupResult",
+    # workset - errors
+    "WorksetError",
+    "WorksetItemNotFoundError",
+    "WorksetNotFoundError",
+    "WorksetValidationError",
+    # workset - legacy aliases
     "get_next_item",
     "promote_item",
     # index
@@ -72,4 +153,31 @@ __all__ = [
     "validate_uids",
     "UidValidationResult",
     "UidViolation",
+    # topic - functions
+    "create_topic",
+    "add_item_to_topic",
+    "pin_document",
+    "switch_topic",
+    "get_active_topic",
+    "export_topic_context",
+    "list_topics",
+    # topic - directory utilities
+    "get_topics_root",
+    "get_topic_path",
+    "get_active_topic_path",
+    "ensure_topic_dirs",
+    "validate_topic_name",
+    "is_valid_topic_name",
+    # topic - data models
+    "TopicManifest",
+    "TopicCreateResult",
+    "TopicAddResult",
+    "TopicPinResult",
+    "TopicSwitchResult",
+    "TopicContextBundle",
+    # topic - errors
+    "TopicError",
+    "TopicNotFoundError",
+    "TopicExistsError",
+    "TopicValidationError",
 ]

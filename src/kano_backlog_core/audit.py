@@ -7,6 +7,9 @@ from datetime import datetime
 
 from .models import BacklogItem, WorklogEntry
 
+# Default cross-product audit log location (shared)
+DEFAULT_AUDIT_LOG = Path("_kano/backlog/_shared/logs/agent_tools/tool_invocations.jsonl")
+LEGACY_AUDIT_LOG = Path("_kano/backlog/_logs/agent_tools/tool_invocations.jsonl")
 
 class AuditLog:
     """Manage worklog and file operation logs."""
@@ -71,10 +74,10 @@ class AuditLog:
             tool: Tool performing the operation
             agent: Agent performing the operation
             metadata: Optional additional metadata
-            log_path: Full path to log file (defaults to _kano/backlog/_logs/agent_tools/tool_invocations.jsonl)
+            log_path: Full path to log file (defaults to _kano/backlog/_shared/logs/agent_tools/tool_invocations.jsonl)
         """
         if log_path is None:
-            log_path = Path("_kano/backlog/_logs/agent_tools/tool_invocations.jsonl")
+            log_path = DEFAULT_AUDIT_LOG
         
         log_path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -100,14 +103,17 @@ class AuditLog:
         Read file operations from audit log.
 
         Args:
-            log_path: Full path to log file (defaults to _kano/backlog/_logs/agent_tools/tool_invocations.jsonl)
+            log_path: Full path to log file (defaults to _kano/backlog/_shared/logs/agent_tools/tool_invocations.jsonl; falls back to legacy path if missing)
             operation_filter: Filter by operation type (e.g., "create")
 
         Returns:
             List of log entries (dicts)
         """
         if log_path is None:
-            log_path = Path("_kano/backlog/_logs/agent_tools/tool_invocations.jsonl")
+            log_path = DEFAULT_AUDIT_LOG
+            if not log_path.exists() and LEGACY_AUDIT_LOG.exists():
+                # Compatibility: read legacy path if the new shared path is absent
+                log_path = LEGACY_AUDIT_LOG
         
         if not log_path.exists():
             return []

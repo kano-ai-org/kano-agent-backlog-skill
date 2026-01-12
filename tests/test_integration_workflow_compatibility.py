@@ -27,7 +27,7 @@ scripts_dir = test_dir.parent / "scripts"
 sys.path.insert(0, str(src_dir))
 sys.path.insert(0, str(scripts_dir))
 
-from kano_cli.cli import app
+from kano_backlog_cli.cli import app
 
 
 class TestWorkflowCompatibility:
@@ -54,7 +54,7 @@ class TestWorkflowCompatibility:
         self.items_root = self.test_product / "items"
         
         # Create directory structure with all required components
-        for item_type in ["epics", "features", "userstories", "tasks", "bugs"]:
+        for item_type in ["epic", "feature", "userstory", "task", "bug"]:
             for bucket in ["0000", "0100"]:  # Multiple buckets for testing
                 (self.items_root / item_type / bucket).mkdir(parents=True, exist_ok=True)
         
@@ -370,7 +370,7 @@ class TestWorkflowCompatibility:
         second_items_root = second_product / "items"
         
         # Create directory structure for second product
-        for item_type in ["epics", "features", "userstories", "tasks", "bugs"]:
+        for item_type in ["epic", "feature", "userstory", "task", "bug"]:
             (second_items_root / item_type / "0000").mkdir(parents=True, exist_ok=True)
         
         for required_dir in ["decisions", "views", "_meta", "_config"]:
@@ -533,7 +533,7 @@ class TestWorkflowCompatibility:
         with existing audit log readers and processors.
         """
         # Set up audit log directory
-        audit_log_dir = self.backlog_root / "_logs" / "agent_tools"
+        audit_log_dir = self.backlog_root / "_shared" / "logs" / "agent_tools"
         audit_log_dir.mkdir(parents=True, exist_ok=True)
         audit_log_file = audit_log_dir / "tool_invocations.jsonl"
         
@@ -545,7 +545,7 @@ class TestWorkflowCompatibility:
         original_env = {}
         test_env = {
             "KANO_AUDIT_LOG_DISABLED": "false",
-            "KANO_AUDIT_LOG_ROOT": str(self.backlog_root / "_logs"),
+            "KANO_AUDIT_LOG_ROOT": str(self.backlog_root / "_shared/logs"),
             "KANO_AUDIT_LOG_FILE": "agent_tools/tool_invocations.jsonl"
         }
         

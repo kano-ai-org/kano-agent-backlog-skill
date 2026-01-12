@@ -21,12 +21,13 @@ else:
 class CanonicalStore:
     """Read and write canonical markdown items."""
 
-    TYPE_PLURALS = {
-        ItemType.EPIC: "epics",
-        ItemType.FEATURE: "features",
-        ItemType.USER_STORY: "userstories",
-        ItemType.TASK: "tasks",
-        ItemType.BUG: "bugs",
+    # Item type directory names (singular for consistency)
+    TYPE_DIRNAMES = {
+        ItemType.EPIC: "epic",
+        ItemType.FEATURE: "feature",
+        ItemType.USER_STORY: "userstory",
+        ItemType.TASK: "task",
+        ItemType.BUG: "bug",
     }
 
     TYPE_ABBREV = {
@@ -205,11 +206,11 @@ class CanonicalStore:
         slug = self._slugify(title)
 
         # Determine file path
-        type_plural = self.TYPE_PLURALS[item_type]
+        type_dir = self.TYPE_DIRNAMES[item_type]
         bucket = (next_number // 100) * 100
         bucket_str = f"{bucket:04d}"
         filename = f"{display_id}_{slug}.md"
-        file_path = self.items_root / type_plural / bucket_str / filename
+        file_path = self.items_root / type_dir / bucket_str / filename
 
         # Build item
         today = date.today().isoformat()
@@ -246,8 +247,8 @@ class CanonicalStore:
             List of item file paths
         """
         if item_type:
-            type_plural = self.TYPE_PLURALS[item_type]
-            type_dir = self.items_root / type_plural
+            type_dir_name = self.TYPE_DIRNAMES[item_type]
+            type_dir = self.items_root / type_dir_name
             if not type_dir.exists():
                 return []
             return list(type_dir.glob("**/*.md"))
@@ -357,8 +358,7 @@ class CanonicalStore:
 
     def _get_next_id_number(self, item_type: ItemType) -> int:
         """Get next available ID number for type."""
-        type_plural = self.TYPE_PLURALS[item_type]
-        type_dir = self.items_root / type_plural
+        type_dir = self.items_root / self.TYPE_DIRNAMES[item_type]
         if not type_dir.exists():
             return 1
 

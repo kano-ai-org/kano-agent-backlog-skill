@@ -1,37 +1,38 @@
 #!/usr/bin/env python3
 """
-kano - Unified CLI entrypoint for kano-agent-backlog-skill operations.
+DEPRECATED: kano wrapper (use kano-backlog instead)
 
-Per ADR-0013, this is the ONLY executable entrypoint agents should call.
-All backlog operations are exposed as subcommands.
+This script exists only for backward compatibility during the migration period.
+It will be removed in a future release.
 
-Usage:
-    kano doctor                        # Check environment health
-    kano item create ...               # Create work item
-    kano item update-state ...         # Update item state
-    kano item validate ...             # Validate Ready gate
-    kano view refresh ...              # Refresh dashboards
-    kano backlog init ...              # Initialize backlog
-    ...
-
-For full help:
-    kano --help
-    kano <command> --help
+Per ADR-0015, the 'kano' name is reserved for a future umbrella CLI that
+aggregates multiple skill CLIs. This backlog skill now uses 'kano-backlog'.
 """
 
-if __name__ == "__main__":
-    import sys
-    from pathlib import Path
-    
-    # Add src/ to Python path for imports
-    scripts_dir = Path(__file__).parent
-    skill_root = scripts_dir.parent
-    src_dir = skill_root / "src"
-    
-    if str(src_dir) not in sys.path:
-        sys.path.insert(0, str(src_dir))
-    
-    # Import and run the CLI app
-    from kano_cli.cli import app
-    
-    app()
+import sys
+import os
+
+# Emit deprecation warning to stderr
+print(
+    "⚠️  DEPRECATION WARNING: 'kano' is deprecated and will be removed in a future release.",
+    file=sys.stderr,
+)
+print(
+    "   Please use 'kano-backlog' instead. Update your scripts and aliases.",
+    file=sys.stderr,
+)
+print(
+    "   The 'kano' name is reserved for a future umbrella CLI (ADR-0015).",
+    file=sys.stderr,
+)
+print(file=sys.stderr)  # blank line for readability
+
+# Delegate to kano-backlog with same arguments
+kano_backlog_path = os.path.join(os.path.dirname(__file__), "kano-backlog")
+
+if os.path.exists(kano_backlog_path):
+    # Use os.execv to replace the current process (no overhead after warning)
+    os.execv(sys.executable, [sys.executable, kano_backlog_path] + sys.argv[1:])
+else:
+    print(f"❌ ERROR: kano-backlog not found at {kano_backlog_path}", file=sys.stderr)
+    sys.exit(1)

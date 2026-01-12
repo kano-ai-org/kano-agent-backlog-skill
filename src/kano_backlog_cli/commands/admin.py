@@ -6,7 +6,7 @@ import typer
 
 from ..util import ensure_core_on_path
 
-app = typer.Typer(help="Backlog administration commands")
+app = typer.Typer(help="Administrative and setup commands")
 
 __all__ = ["app"]
 

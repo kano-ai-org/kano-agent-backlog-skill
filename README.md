@@ -34,20 +34,20 @@ Goal: convert “evaporating context” into **searchable, linkable, auditable**
 - `references/templates.md`: work item / ADR templates
 - `references/workflow.md`: SOP (when to create items, when to record decisions, how to converge)
 - `references/views.md`: Obsidian view patterns (Dataview + Bases)
-- `scripts/kano`: Typer-based CLI entrypoint (subcommands: `backlog`, `item`, `state`, `worklog`, `view`, `doctor`)
+- `scripts/kano-backlog`: Typer-based CLI entrypoint (subcommands: `admin`, `workitem`, `state`, `worklog`, `view`, `doctor`)
 - `src/kano_backlog_core`: canonical models/storage helpers
 - `src/kano_backlog_ops`: use-cases (create/update/view)
-- `src/kano_cli`: CLI wiring (commands + utilities)
+- `src/kano_backlog_cli`: CLI wiring (commands + utilities)
 
-Note: backlog administration commands are grouped under `kano backlog ...` (index/demo/persona/sandbox/validate).
+Note: backlog administration commands are grouped under `kano-backlog admin ...` (index/demo/persona/sandbox/validate).
 
 Optionally, create `_kano/backlog/` in your project repo to store items, ADRs, views, and helper scripts as the system of record.
 
 ## Quick start (see value in ~5 minutes)
 
-1) Run `python skills/kano-agent-backlog-skill/scripts/kano backlog init --product <my-product> --agent <id>` to scaffold `_kano/backlog/products/<my-product>/`
+1) Run `python skills/kano-agent-backlog-skill/scripts/kano-backlog admin init --product <my-product> --agent <id>` to scaffold `_kano/backlog/products/<my-product>/`
 2) (Optional) Open the repo in Obsidian and enable Dataview or Bases
-3) Open `_kano/backlog/products/<my-product>/views/` (or regenerate them with `python skills/kano-agent-backlog-skill/scripts/kano view refresh --agent <id> --product <my-product>`)
+3) Open `_kano/backlog/products/<my-product>/views/` (or regenerate them with `python skills/kano-agent-backlog-skill/scripts/kano-backlog view refresh --agent <id> --product <my-product>`)
 4) Before any code change, create a Task/Bug and satisfy the Ready gate
 5) When a load-bearing decision happens, append a Worklog line; create an ADR when it’s truly architectural and link it
 
