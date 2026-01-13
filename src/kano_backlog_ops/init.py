@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import tomli_w
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
@@ -187,7 +188,7 @@ def _write_config(
     force: bool,
 ) -> Path:
     config_dir = product_root / "_config"
-    config_path = config_dir / "config.json"
+    config_path = config_dir / "config.toml"
     if config_path.exists() and not force:
         raise FileExistsError(f"Config already exists: {config_path}")
 
@@ -210,7 +211,7 @@ def _write_config(
         "_comment": f"Initialized by {agent} via kano-backlog admin init.",
     }
 
-    config_path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+    config_path.write_text(tomli_w.dumps(payload), encoding="utf-8")
     return config_path
 
 

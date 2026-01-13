@@ -74,7 +74,7 @@ class TopicValidationError(TopicError):
 
 @dataclass
 class SnippetRef:
-    """Reference to a code snippet (引用型優先，避免大量複製貼上)."""
+    """Reference to a code snippet (reference-first approach to avoid massive copy-paste)."""
 
     type: str = "snippet"  # Always "snippet"
     repo: str = "local"  # "local" or git remote URL

@@ -4,7 +4,7 @@ This module resolves platform/product roots and provides an "effective config"
 view by layering config sources.
 
 Layer order (later wins):
-1) _kano/backlog/_shared/defaults.json (or defaults.toml)
+1) _kano/backlog/_shared/defaults.toml (preferred) or defaults.json (deprecated)
 2) _kano/backlog/products/<product>/_config/config.json (or config.toml)
 3) _kano/backlog/.cache/worksets/topics/<topic>/config.json (or config.toml) (optional)
 4) _kano/backlog/.cache/worksets/items/<item_id>/config.json (or config.toml) (optional)
@@ -224,7 +224,7 @@ class ConfigLoader:
             return products[0]
 
         raise ConfigError(
-            "Cannot determine product; specify --product or set _kano/backlog/_shared/defaults.json:default_product",
+            "Cannot determine product; specify --product or set _kano/backlog/_shared/defaults.toml:default_product",
         )
 
     @staticmethod

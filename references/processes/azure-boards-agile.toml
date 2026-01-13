@@ -1,0 +1,46 @@
+# Built-in Azure Boards Agile profile for kano-agent-backlog-skill.
+id = "builtin/azure-boards-agile"
+name = "Azure Boards Agile"
+description = "Default Agile-like workflow for agent-managed backlog items."
+default_state = "Proposed"
+states = [
+    "Proposed",
+    "Planned",
+    "Ready",
+    "InProgress",
+    "Review",
+    "Blocked",
+    "Done",
+    "Dropped"
+]
+terminal_states = ["Done", "Dropped"]
+
+[[work_item_types]]
+type = "Epic"
+slug = "epic"
+
+[[work_item_types]]
+type = "Feature"
+slug = "feature"
+
+[[work_item_types]]
+type = "UserStory"
+slug = "userstory"
+
+[[work_item_types]]
+type = "Task"
+slug = "task"
+
+[[work_item_types]]
+type = "Bug"
+slug = "bug"
+
+[transitions]
+Proposed = ["Planned", "Dropped"]
+Planned = ["Ready", "Dropped"]
+Ready = ["InProgress", "Dropped"]
+InProgress = ["Review", "Blocked", "Dropped"]
+Review = ["Done", "InProgress"]
+Blocked = ["InProgress", "Dropped"]
+Done = []
+Dropped = []

@@ -1,0 +1,46 @@
+# Built-in Jira-flavored profile with common issue types and standard KABSD states.
+id = "builtin/jira-default"
+name = "Jira Default"
+description = "Common Jira issue types (Epic/Story/Task/Bug/Sub-task) mapped to the standard backlog state set."
+default_state = "Proposed"
+states = [
+    "Proposed",
+    "Planned",
+    "Ready",
+    "InProgress",
+    "Review",
+    "Blocked",
+    "Done",
+    "Dropped"
+]
+terminal_states = ["Done", "Dropped"]
+
+[[work_item_types]]
+type = "Epic"
+slug = "epic"
+
+[[work_item_types]]
+type = "Story"
+slug = "story"
+
+[[work_item_types]]
+type = "Task"
+slug = "task"
+
+[[work_item_types]]
+type = "Bug"
+slug = "bug"
+
+[[work_item_types]]
+type = "SubTask"
+slug = "subtask"
+
+[transitions]
+Proposed = ["Planned", "Dropped"]
+Planned = ["Ready", "Dropped"]
+Ready = ["InProgress", "Dropped"]
+InProgress = ["Review", "Blocked", "Dropped"]
+Review = ["Done", "InProgress"]
+Blocked = ["InProgress", "Dropped"]
+Done = []
+Dropped = []

@@ -68,27 +68,28 @@ def find_platform_root(start: Optional[Path] = None) -> Path:
 
 def resolve_product_root(product: Optional[str] = None, start: Optional[Path] = None) -> Path:
     platform_root = find_platform_root(start)
-    products_dir = platform_root / "_kano" / "backlog" / "products"
+    backlog_root = platform_root / "_kano" / "backlog"
+    products_dir = backlog_root / "products"
     if product:
         root = products_dir / product
         if not root.exists():
             raise SystemExit(f"Product not found: {root}")
         return root
-    # If defaults specify a product, honor it.
-    defaults_path = platform_root / "_kano" / "backlog" / "_shared" / "defaults.json"
-    if defaults_path.exists():
-        try:
-            import json
 
-            defaults = json.loads(defaults_path.read_text(encoding="utf-8"))
-            default_product = defaults.get("default_product") if isinstance(defaults, dict) else None
-            if isinstance(default_product, str) and default_product.strip():
-                candidate = products_dir / default_product.strip()
-                if candidate.exists():
-                    return candidate
-        except Exception:
-            # Keep fallback behavior if defaults are invalid.
-            pass
+    # If defaults specify a product, honor it (TOML-first; JSON is deprecated fallback).
+    try:
+        ensure_core_on_path()
+        from kano_backlog_core.config import ConfigLoader
+
+        defaults = ConfigLoader.load_defaults(backlog_root)
+        default_product = defaults.get("default_product") if isinstance(defaults, dict) else None
+        if isinstance(default_product, str) and default_product.strip():
+            candidate = products_dir / default_product.strip()
+            if candidate.exists():
+                return candidate
+    except Exception:
+        # Keep fallback behavior if defaults cannot be loaded.
+        pass
     # Fallback: pick the only product if exactly one exists
     candidates = [p for p in products_dir.iterdir() if p.is_dir()]
     if len(candidates) == 1:
