@@ -1,7 +1,7 @@
 # Developer Snapshot Report: {{scope}}
 
-**Generated:** {{meta.timestamp}}
-**Git SHA:** {{meta.git_sha}}
+**Scope:** {{meta.scope}}
+**VCS Revision:** {{meta.vcs.revision}} (dirty={{meta.vcs.dirty}}, ref={{meta.vcs.ref}}, provider={{meta.vcs.provider}}, label={{meta.vcs.label}})
 
 ## Implementation Status (Capabilities)
 

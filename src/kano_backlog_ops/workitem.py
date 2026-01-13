@@ -9,10 +9,11 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import List, Optional
+from typing import Iterable, List, Optional
 from datetime import datetime
 import sys
 import uuid
+import re
 
 from kano_backlog_core.models import BacklogItem, ItemType, ItemState
 if sys.version_info >= (3, 12):
@@ -25,6 +26,7 @@ from . import item_utils
 from . import item_templates
 from . import frontmatter
 from . import worklog
+from . import view
 
 
 @dataclass
@@ -54,6 +56,152 @@ class ValidationResult:
     is_valid: bool
     missing_sections: List[str]
     warnings: List[str]
+
+
+_UUID_RE = re.compile(
+    r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+)
+
+
+def _looks_like_path(value: str) -> bool:
+    if not value:
+        return False
+    if value.startswith((".", "/", "\\")):
+        return True
+    return ("/" in value) or ("\\" in value) or (":\\" in value)
+
+
+def _resolve_target_root(*, product: Optional[str], backlog_root: Optional[Path]) -> Path:
+    """
+    Resolve the "target root" that contains an items/ directory.
+
+    In product-scoped operation this is `_kano/backlog/products/<product>`.
+    For legacy/single-product operation this may be `_kano/backlog`.
+    """
+    if backlog_root is not None:
+        resolved = backlog_root.resolve()
+        if not resolved.exists():
+            raise FileNotFoundError(f"Backlog root not found: {resolved}")
+        return resolved
+
+    try:
+        ctx = ConfigLoader.from_path(Path.cwd(), product=product)
+        return ctx.product_root
+    except Exception:
+        current = Path.cwd().resolve()
+        while current != current.parent:
+            backlog_check = current / "_kano" / "backlog"
+            if backlog_check.exists():
+                if product:
+                    candidate = backlog_check / "products" / product
+                    if candidate.exists():
+                        return candidate
+                return backlog_check
+            current = current.parent
+        raise ValueError("Cannot find backlog root")
+
+
+def _iter_item_files(items_root: Path) -> Iterable[Path]:
+    for path in items_root.rglob("*.md"):
+        if path.name.endswith(".index.md") or path.name == "README.md":
+            continue
+        yield path
+
+
+def _find_item_paths_by_id(items_root: Path, item_id: str) -> List[Path]:
+    matches = [
+        path
+        for path in items_root.rglob(f"{item_id}_*.md")
+        if not path.name.endswith(".index.md")
+    ]
+    if matches:
+        return sorted({m.resolve() for m in matches})
+
+    try:
+        import frontmatter as py_frontmatter
+    except Exception:
+        return []
+
+    found: List[Path] = []
+    for path in _iter_item_files(items_root):
+        try:
+            post = py_frontmatter.load(path)
+        except Exception:
+            continue
+        if post.get("id") == item_id:
+            found.append(path.resolve())
+    return sorted({m for m in found})
+
+
+def _find_item_paths_by_uid(items_root: Path, uid: str) -> List[Path]:
+    try:
+        import frontmatter as py_frontmatter
+    except Exception:
+        return []
+
+    found: List[Path] = []
+    for path in _iter_item_files(items_root):
+        try:
+            post = py_frontmatter.load(path)
+        except Exception:
+            continue
+        if str(post.get("uid") or "").strip() == uid:
+            found.append(path.resolve())
+    return sorted({m for m in found})
+
+
+def _resolve_item_path(
+    item_ref: str,
+    *,
+    product: Optional[str],
+    backlog_root: Optional[Path],
+) -> tuple[Path, Path]:
+    target_root = _resolve_target_root(product=product, backlog_root=backlog_root)
+    items_root = target_root / "items"
+
+    if _looks_like_path(item_ref):
+        item_path = Path(item_ref).resolve()
+        if not item_path.exists():
+            raise FileNotFoundError(f"Item not found: {item_path}")
+        return target_root, item_path
+
+    candidates = _find_item_paths_by_id(items_root, item_ref)
+    if not candidates and _UUID_RE.match(item_ref):
+        candidates = _find_item_paths_by_uid(items_root, item_ref)
+
+    if not candidates:
+        raise FileNotFoundError(f"Item not found: {item_ref}")
+    if len(candidates) > 1:
+        raise ValueError(f"Ambiguous item reference '{item_ref}': {len(candidates)} matches")
+    return target_root, candidates[0]
+
+
+def _state_rank(state: ItemState) -> int:
+    if state in (ItemState.NEW, ItemState.PROPOSED, ItemState.READY):
+        return 0
+    if state in (ItemState.IN_PROGRESS, ItemState.REVIEW, ItemState.BLOCKED):
+        return 1
+    if state in (ItemState.DONE, ItemState.DROPPED):
+        return 2
+    return 0
+
+
+def _update_item_file_state(
+    item_path: Path,
+    *,
+    new_state: ItemState,
+    agent: str,
+    model: Optional[str],
+    message: str,
+    owner_to_set: Optional[str] = None,
+) -> None:
+    lines = frontmatter.load_lines(item_path)
+    today = item_utils.get_today()
+    lines = frontmatter.update_frontmatter(
+        lines, new_state.value, today, owner=owner_to_set
+    )
+    lines = worklog.append_worklog_entry(lines, message, agent, model=model)
+    frontmatter.write_lines(item_path, lines)
 
 
 def create_item(
@@ -248,90 +396,78 @@ def update_state(
         FileNotFoundError: If item not found
         ValueError: If state transition is invalid
     """
-    # Resolve item path
-    if item_ref.startswith("/") or ":\\" in item_ref:
-        # It's a path
-        item_path = Path(item_ref).resolve()
-    else:
-        # It's an ID or UID - need to search for it
-        if backlog_root is None:
-            # Prefer product-aware context resolution
-            if product:
-                try:
-                    ctx = ConfigLoader.from_path(Path.cwd(), product=product)
-                    backlog_root = ctx.product_root
-                except Exception as e:
-                    raise ValueError(f"Cannot resolve product root for '{product}': {e}")
-            else:
-                # Fallback: try single-product layout at repo root
-                current = Path.cwd()
-                while current != current.parent:
-                    backlog_check = current / "_kano" / "backlog"
-                    if backlog_check.exists():
-                        backlog_root = backlog_check
-                        break
-                    current = current.parent
-                if backlog_root is None:
-                    raise ValueError("Cannot find backlog root")
-        
-        # Search for item by ID in items/
-        items_root = backlog_root / "items"
-        item_path = None
-        for path in items_root.rglob("*.md"):
-            if path.name.endswith(".index.md"):
-                continue
-            # Extract ID from filename
-            stem = path.stem
-            file_id = stem.split("_", 1)[0] if "_" in stem else stem
-            if file_id == item_ref:
-                item_path = path
-                break
-        
-        if item_path is None:
-            raise FileNotFoundError(f"Item not found: {item_ref}")
-    
-    # Verify item exists
-    if not item_path.exists():
-        raise FileNotFoundError(f"Item not found: {item_path}")
-    
-    # Load and parse item
-    lines = frontmatter.load_lines(item_path)
-    fm = frontmatter.parse_frontmatter(lines)
-    
-    old_state_str = fm.get("state", "Proposed")
-    old_state = ItemState(old_state_str) if old_state_str in [s.value for s in ItemState] else ItemState.NEW
-    
-    # Update frontmatter
-    today = item_utils.get_today()
-    
-    # Auto-set owner when moving to InProgress
+    target_root, item_path = _resolve_item_path(
+        item_ref, product=product, backlog_root=backlog_root
+    )
+
+    item = get_item(str(item_path), backlog_root=target_root)
+    old_state = item.state
+
     owner_to_set = None
-    current_owner = fm.get("owner", "").strip()
     if new_state == ItemState.IN_PROGRESS:
-        if not current_owner or current_owner.lower() == "null":
+        current_owner = (item.owner or "").strip()
+        if not current_owner or current_owner.lower() in ("null", "none"):
             owner_to_set = agent
         elif current_owner == agent:
             owner_to_set = agent
-    
-    lines = frontmatter.update_frontmatter(lines, new_state.value, today, owner=owner_to_set)
-    
-    # Append worklog
+
     worklog_message = message or f"State -> {new_state.value}."
-    lines = worklog.append_worklog_entry(lines, worklog_message, agent, model=model)
-    
-    # Write updated file
-    try:
-        frontmatter.write_lines(item_path, lines)
-    except OSError as e:
-        raise OSError(f"Failed to write item file {item_path}: {e}") from e
-    
+    _update_item_file_state(
+        item_path,
+        new_state=new_state,
+        agent=agent,
+        model=model,
+        message=worklog_message,
+        owner_to_set=owner_to_set,
+    )
+
+    parent_synced = False
+    if sync_parent and item.parent:
+        try:
+            parent_item = get_item(item.parent, backlog_root=target_root)
+        except FileNotFoundError:
+            parent_item = None
+
+        if parent_item and parent_item.file_path:
+            parent_next_state: Optional[ItemState] = None
+
+            if new_state in (ItemState.IN_PROGRESS, ItemState.REVIEW, ItemState.BLOCKED):
+                if _state_rank(parent_item.state) < _state_rank(ItemState.IN_PROGRESS):
+                    parent_next_state = ItemState.IN_PROGRESS
+            elif new_state in (ItemState.DONE, ItemState.DROPPED):
+                siblings = list_items(parent=item.parent, backlog_root=target_root)
+                if siblings and all(
+                    s.state in (ItemState.DONE, ItemState.DROPPED) for s in siblings
+                ):
+                    if parent_item.state not in (ItemState.DONE, ItemState.DROPPED):
+                        parent_next_state = ItemState.DONE
+
+            if parent_next_state and parent_next_state != parent_item.state:
+                parent_message = (
+                    f"Auto parent sync: child {item.id} -> {new_state.value}; "
+                    f"parent -> {parent_next_state.value}."
+                )
+                _update_item_file_state(
+                    parent_item.file_path,
+                    new_state=parent_next_state,
+                    agent=agent,
+                    model=model,
+                    message=parent_message,
+                )
+                parent_synced = True
+
+    dashboards_refreshed = False
+    if refresh_dashboards:
+        view.refresh_dashboards(agent=agent, backlog_root=target_root, product=None)
+        dashboards_refreshed = True
+
     return UpdateStateResult(
-        id=fm.get("id", item_ref),
+        id=item.id,
         old_state=old_state,
         new_state=new_state,
         worklog_appended=True,
-        parent_synced=False,  # TODO: Implement parent sync
-        dashboards_refreshed=False,  # TODO: Implement dashboard refresh
+        parent_synced=parent_synced,
+        dashboards_refreshed=dashboards_refreshed,
     )
 
 
@@ -461,8 +597,43 @@ def list_items(
     Returns:
         List of matching BacklogItem objects
     """
-    # TODO: Implement
-    raise NotImplementedError("list_items not yet implemented")
+    target_root = _resolve_target_root(product=product, backlog_root=backlog_root)
+    items_root = target_root / "items"
+    if not items_root.exists():
+        raise FileNotFoundError(f"Items directory not found: {items_root}")
+
+    from kano_backlog_core.canonical import CanonicalStore
+
+    store = CanonicalStore(target_root)
+    tags = tags or []
+
+    candidates = store.list_items(item_type=item_type)
+    results: List[BacklogItem] = []
+
+    for path in candidates:
+        if path.name.endswith(".index.md") or path.name == "README.md":
+            continue
+        try:
+            item = store.read(path)
+        except Exception:
+            continue
+
+        if item_type and item.type != item_type:
+            continue
+        if state and item.state != state:
+            continue
+        if parent is not None:
+            if (item.parent or "") != parent:
+                continue
+        if tags:
+            item_tags = set(item.tags or [])
+            if not all(t in item_tags for t in tags):
+                continue
+
+        results.append(item)
+
+    results.sort(key=lambda it: it.id)
+    return results
 
 
 def get_item(
@@ -486,8 +657,17 @@ def get_item(
         FileNotFoundError: If item not found
         ValueError: If reference is ambiguous
     """
-    # TODO: Implement - currently delegates to workitem_resolve_ref.py
-    raise NotImplementedError("get_item not yet implemented - use workitem_resolve_ref.py")
+    target_root, item_path = _resolve_item_path(
+        item_ref, product=product, backlog_root=backlog_root
+    )
+
+    from kano_backlog_core.canonical import CanonicalStore
+
+    store = CanonicalStore(target_root)
+    item = store.read(item_path)
+    if item.file_path is None:
+        item.file_path = item_path
+    return item
 
 
 def _update_index_registry(

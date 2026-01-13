@@ -1260,12 +1260,4 @@ def list_worksets(
     return worksets
 
 
-# Legacy aliases for backward compatibility with __init__.py
-def get_next_item(*args, **kwargs):
-    """Legacy alias for get_next_action."""
-    raise NotImplementedError("get_next_item renamed to get_next_action")
 
-
-def promote_item(*args, **kwargs):
-    """Legacy alias for promote_deliverables."""
-    raise NotImplementedError("promote_item renamed to promote_deliverables")

@@ -9,23 +9,19 @@ from __future__ import annotations
 
 import json
 import re
-import subprocess
 from dataclasses import dataclass, field, asdict
-from datetime import datetime
 from pathlib import Path
 from typing import List, Optional, Dict, Any, Union
 
-from kano_backlog_core.derived import get_git_sha
 from kano_backlog_core.canonical import CanonicalStore
-from kano_backlog_core.models import ItemState
+from kano_backlog_ops.vcs import VcsMeta, get_vcs_meta
 
 
 @dataclass
 class SnapshotMeta:
     """Metadata for the snapshot evidence pack."""
-    timestamp: str          # ISO 8601
-    git_sha: Optional[str]  # HEAD commit if available
     scope: str              # "repo" or "product:<name>"
+    vcs: VcsMeta            # VCS metadata (agnostic)
     generator_version: str = "0.1.0"
 
 
@@ -84,7 +80,19 @@ class EvidencePack:
         """Deserialize from JSON."""
         data = json.loads(json_str)
         # Reconstruct nested objects
-        data['meta'] = SnapshotMeta(**data['meta'])
+        meta_data = data.get('meta', {}) or {}
+        vcs_data = meta_data.get('vcs', {}) if isinstance(meta_data, dict) else {}
+        data['meta'] = SnapshotMeta(
+            scope=meta_data.get('scope', 'repo'),
+            vcs=VcsMeta(
+                provider=vcs_data.get('provider', 'unknown'),
+                revision=vcs_data.get('revision', 'unknown'),
+                ref=vcs_data.get('ref', 'unknown'),
+                label=vcs_data.get('label'),
+                dirty=vcs_data.get('dirty', 'unknown'),
+            ),
+            generator_version=meta_data.get('generator_version', '0.1.0'),
+        )
         data['cli_tree'] = [cls._reconstruct_cli(c) for c in data.get('cli_tree', [])]
         data['stub_inventory'] = [StubEntry(**s) for s in data.get('stub_inventory', [])]
         data['capabilities'] = [CapabilityEvidence(**c) for c in data.get('capabilities', [])]
@@ -265,19 +273,28 @@ def generate_pack(
     """
     Generate the full evidence pack.
     """
-    # Get git SHA
-    try:
-        sha = get_git_sha(root_path)
-    except Exception:
-        sha = "unknown"
-        
     meta = SnapshotMeta(
-        timestamp=datetime.now().isoformat(),
-        git_sha=sha,
         scope=scope,
+        vcs=get_vcs_meta(root_path),
     )
-    
-    stubs = collect_stubs(root_path / "src" if (root_path / "src").exists() else root_path)
+
+    stubs_scan_root = root_path
+    if product:
+        # Product-scoped snapshots should not scan the whole monorepo.
+        skill_root = root_path / "skills" / product
+        backlog_product_root = root_path / "_kano" / "backlog" / "products" / product
+
+        if skill_root.exists():
+            stubs_scan_root = skill_root
+        elif backlog_product_root.exists():
+            stubs_scan_root = backlog_product_root
+    else:
+        # Repo-scoped snapshots scan the repository source root if present.
+        repo_src = root_path / "src"
+        if repo_src.exists():
+            stubs_scan_root = repo_src
+
+    stubs = collect_stubs(stubs_scan_root)
     
     # Resolve product root for capability collection
     caps = []

@@ -4,22 +4,18 @@ snapshot.py - Snapshot command for generating evidence packs.
 
 from __future__ import annotations
 
-import json
-import re
-import shutil
 import subprocess
 import sys
 from dataclasses import asdict
 from pathlib import Path
-from typing import Optional, List, Dict, Any
+from typing import Optional, List
 
 import typer
 from rich.console import Console
-from rich.syntax import Syntax
 
 from kano_backlog_ops import snapshot as snapshot_ops
 from kano_backlog_ops.template_engine import TemplateEngine
-from kano_backlog_cli.util import resolve_product_root, ensure_core_on_path
+from kano_backlog_cli.util import ensure_core_on_path
 
 app = typer.Typer()
 console = Console()
@@ -73,14 +69,13 @@ def _resolve_output_path(
     format: str, 
     out: Optional[Path], 
     cwd: Path,
-    timestamp: str
 ) -> Path:
     """Determine final output path."""
     if out:
         return out
         
     # Default structure: _kano/backlog/[products/<name>/]views/snapshots/
-    stem = f"snapshot.{view}.{timestamp}"
+    stem = f"snapshot.{view}"
     filename = f"{stem}.{format}"
     
     if scope.startswith("product:"):
@@ -90,14 +85,42 @@ def _resolve_output_path(
         try:
              # This might fail if product doesn't exist, handle gracefully
              product_root = backlog_root / "products" / product_name
-             target_dir = product_root / "views" / "snapshots"
+             target_dir = product_root / "views" / "snapshots" / view
         except:
-             target_dir = cwd / "snapshots"
+             target_dir = cwd / "snapshots" / view
     else:
         # Repo scope
-        target_dir = Path("_kano/backlog/views/snapshots")
+        target_dir = Path("_kano/backlog/views/snapshots") / view
         
     return target_dir / filename
+
+
+def _format_meta_block(meta: snapshot_ops.VcsMeta, mode: str) -> str:
+    """Render VCS metadata block according to KABSD-FTR-0039."""
+    if mode == "none":
+        return ""
+
+    lines = [
+        "<!-- kano:build",
+        f"vcs.provider: {meta.provider}",
+        f"vcs.revision: {meta.revision}",
+    ]
+
+    if mode in ("min", "full"):
+        lines.append(f"vcs.dirty: {meta.dirty}")
+    if mode == "full":
+        lines.append(f"vcs.ref: {meta.ref}")
+        lines.append(f"vcs.label: {meta.label or 'unknown'}")
+
+    lines.append("-->")
+    return "\n".join(lines) + "\n\n"
+
+
+def _validate_meta_mode(meta_mode: str) -> str:
+    allowed = {"none", "min", "full"}
+    if meta_mode not in allowed:
+        raise typer.BadParameter(f"meta-mode must be one of {', '.join(sorted(allowed))}")
+    return meta_mode
 
 
 @app.command(name="create", help="Generate a deterministic snapshot evidence pack.")
@@ -107,12 +130,14 @@ def create(
     format: str = typer.Option("md", "--format", "-f", help="Output format: json|md"),
     write: bool = typer.Option(False, "--write", "-w", help="Write output to file"),
     out: Optional[Path] = typer.Option(None, "--out", "-o", help="Custom output path"),
+    meta_mode: str = typer.Option("min", "--meta-mode", help="Metadata block mode: none|min|full"),
 ):
     """
     Generate a deterministic snapshot evidence pack.
     """
     cwd = Path.cwd()
     ensure_core_on_path()
+    meta_mode = _validate_meta_mode(meta_mode)
     
     # Parse scope
     product_name = None
@@ -127,6 +152,8 @@ def create(
         root_path=cwd,
         product=product_name
     )
+
+    meta_block = _format_meta_block(pack.meta.vcs, meta_mode)
     
     # Fill in CLI tree if requested (expensive/external)
     if view in ["all", "cli"]:
@@ -138,9 +165,11 @@ def create(
         output_content = pack.to_json()
     else:
         # Markdown rendering
-        output_content = f"# Snapshot Report: {scope}\n\n"
-        output_content += f"**Timestamp:** {pack.meta.timestamp}\n"
-        output_content += f"**Git SHA:** {pack.meta.git_sha}\n\n"
+        output_content = meta_block
+        output_content += f"# Snapshot Report: {scope}\n\n"
+        output_content += f"**Scope:** {pack.meta.scope}\n"
+        output_content += f"**VCS Revision:** {pack.meta.vcs.revision}\n"
+        output_content += f"**VCS Dirty:** {pack.meta.vcs.dirty}\n\n"
         
         if view in ["all", "capabilities"]:
             output_content += "## Capabilities\n\n"
@@ -173,8 +202,7 @@ def create(
     # Display or Write
     if write:
         # Determine path
-        timestamp_clean = pack.meta.timestamp.replace(":", "").replace("-", "").split(".")[0]
-        target_path = _resolve_output_path(scope, view, format, out, cwd, timestamp_clean)
+        target_path = _resolve_output_path(scope, view, format, out, cwd)
         target_path.parent.mkdir(parents=True, exist_ok=True)
         target_path.write_text(output_content, encoding="utf-8")
         console.print(f"[green]Snapshot written to: {target_path}[/green]")
@@ -188,12 +216,14 @@ def report(
     scope: str = typer.Option("repo", "--scope", help="Scope: repo|product:<name>"),
     write: bool = typer.Option(False, "--write", "-w", help="Write report to file"),
     out: Optional[Path] = typer.Option(None, "--out", "-o", help="Custom output path"),
+    meta_mode: str = typer.Option("min", "--meta-mode", help="Metadata block mode: none|min|full"),
 ):
     """
     Generate a personified report from a fresh snapshot using a template.
     """
     cwd = Path.cwd()
     ensure_core_on_path()
+    meta_mode = _validate_meta_mode(meta_mode)
     
     console.print(f"[bold blue]Generating {persona} report for {scope}...[/bold blue]")
     
@@ -225,11 +255,12 @@ def report(
     # Templates expect {{scope}}; provide an alias to meta.scope for convenience.
     context.setdefault("scope", pack.meta.scope)
     rendered = engine.render(template_content, context)
+    meta_block = _format_meta_block(pack.meta.vcs, meta_mode)
+    rendered = f"{meta_block}{rendered}" if meta_block else rendered
     
     # 4. Write or Print
     if write:
-        timestamp_clean = pack.meta.timestamp.replace(":", "").replace("-", "").split(".")[0]
-        target_path = _resolve_output_path(scope, f"report_{persona}", "md", out, cwd, timestamp_clean)
+        target_path = _resolve_output_path(scope, f"report_{persona}", "md", out, cwd)
         target_path.parent.mkdir(parents=True, exist_ok=True)
         target_path.write_text(rendered, encoding="utf-8")
         console.print(f"[green]Report written to: {target_path}[/green]")

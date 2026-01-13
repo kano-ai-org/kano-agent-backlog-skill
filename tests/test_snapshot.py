@@ -2,8 +2,6 @@
 test_snapshot.py - Tests for Snapshot and Evidence functionality.
 """
 import json
-from pathlib import Path
-from dataclasses import asdict
 
 import pytest
 
@@ -11,15 +9,21 @@ from kano_backlog_ops.snapshot import (
     EvidencePack, SnapshotMeta, StubEntry, 
     collect_stubs, generate_pack
 )
+from kano_backlog_ops.vcs import VcsMeta
 from kano_backlog_ops.template_engine import TemplateEngine
 
 
 @pytest.fixture
 def sample_pack():
     meta = SnapshotMeta(
-        timestamp="2026-01-01T00:00:00",
-        git_sha="abcdef",
         scope="repo",
+        vcs=VcsMeta(
+            provider="git",
+            revision="abcdef",
+            ref="main",
+            label="v1.0",
+            dirty="false",
+        ),
     )
     stubs = [
         StubEntry(type="TODO", file="foo.py", line=10, message="Implement me"),
@@ -115,10 +119,12 @@ def test_template_engine_if_eq_helpers():
 def test_evidence_pack_json_roundtrip(sample_pack):
     """Verify JSON serialization and deserialization."""
     json_str = sample_pack.to_json()
-    assert '"git_sha": "abcdef"' in json_str
+    json_data = json.loads(json_str)
+    assert json_data["meta"]["vcs"]["revision"] == "abcdef"
     
     reloaded = EvidencePack.from_json(json_str)
-    assert reloaded.meta.git_sha == "abcdef"
+    assert reloaded.meta.vcs.revision == "abcdef"
+    assert reloaded.meta.vcs.ref == "main"
     assert len(reloaded.stub_inventory) == 1
     assert reloaded.stub_inventory[0].message == "Implement me"
 

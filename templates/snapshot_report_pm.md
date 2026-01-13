@@ -1,7 +1,7 @@
 # Product Manager Snapshot Report: {{scope}}
 
-**Generated:** {{meta.timestamp}}
-**Version:** {{meta.git_sha}}
+**Scope:** {{meta.scope}}
+**VCS Revision:** {{meta.vcs.revision}} (dirty={{meta.vcs.dirty}}, ref={{meta.vcs.ref}}, provider={{meta.vcs.provider}}, label={{meta.vcs.label}})
 
 ## Feature Delivery Status
 

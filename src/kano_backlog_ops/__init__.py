@@ -51,9 +51,6 @@ from .workset import (
     ItemNotFoundError as WorksetItemNotFoundError,
     WorksetNotFoundError,
     WorksetValidationError,
-    # Legacy aliases
-    get_next_item,
-    promote_item,
 )
 from .index import build_index, refresh_index
 from .demo import seed_demo, DemoSeedResult
@@ -132,9 +129,6 @@ __all__ = [
     "WorksetItemNotFoundError",
     "WorksetNotFoundError",
     "WorksetValidationError",
-    # workset - legacy aliases
-    "get_next_item",
-    "promote_item",
     # index
     "build_index",
     "refresh_index",
