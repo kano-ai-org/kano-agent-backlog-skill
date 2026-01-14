@@ -141,8 +141,7 @@ Enable by config (per product):
 Execution:
 - The **default workflow** is: generate the deterministic report → use it as SSOT → fill in the analysis template.
   - The skill generates a deterministic prompt file to guide the analysis, and a derived markdown file with placeholder headings.
-- Optional automation: set `KANO_LLM_COMMAND` to a local CLI that reads prompt from stdin and writes Markdown to stdout
-  (so analysis is auto-generated into the derived file).
+- Optional automation: when `analysis.llm.enabled = true` in config, view refresh generates `views/snapshots/_analysis/Report_<persona>_analysis_prompt.md` (deterministic prompt) and `Report_<persona>_LLM.md` (template or LLM output)
 - Never pass API keys as CLI args; keep secrets in env vars to avoid leaking into audit logs.
 
 ## ID prefix derivation

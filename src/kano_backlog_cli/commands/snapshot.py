@@ -74,7 +74,7 @@ def _resolve_output_path(
     if out:
         return out
         
-    # Default structure: _kano/backlog/[products/<name>/]views/snapshots/
+    # Flattened structure: _kano/backlog/[products/<name>/]views/snapshots/snapshot.<view>.<format>
     stem = f"snapshot.{view}"
     filename = f"{stem}.{format}"
     
@@ -82,16 +82,16 @@ def _resolve_output_path(
         product_name = scope.split(":", 1)[1]
         try:
             product_root = resolve_product_root(product_name, start=cwd)
-            target_dir = product_root / "views" / "snapshots" / view
+            target_dir = product_root / "views" / "snapshots"
         except SystemExit:
-            target_dir = cwd / "snapshots" / view
+            target_dir = cwd / "snapshots"
     else:
         # Repo scope: store under the default product to avoid legacy root views.
         try:
             product_root = resolve_product_root(None, start=cwd)
-            target_dir = product_root / "views" / "snapshots" / "repo" / view
+            target_dir = product_root / "views" / "snapshots"
         except SystemExit:
-            target_dir = cwd / "snapshots" / "repo" / view
+            target_dir = cwd / "snapshots"
         
     return target_dir / filename
 

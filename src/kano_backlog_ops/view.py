@@ -115,13 +115,31 @@ def refresh_dashboards(
         output_path.write_text(content, encoding="utf-8")
         dashboards.append(output_path)
 
+    # Optional: generate analysis files when enabled
+    analysis_paths: List[Path] = []
+    if _should_generate_analysis(root, product):
+        snapshots_dir = views_root / "snapshots"
+        analysis_dir = snapshots_dir / "_analysis"
+        if snapshots_dir.exists():
+            try:
+                from .analysis import generate_all_persona_analyses
+                results = generate_all_persona_analyses(
+                    snapshots_dir=snapshots_dir,
+                    output_dir=analysis_dir,
+                )
+                for result in results:
+                    analysis_paths.extend([result.prompt_path, result.template_path])
+            except Exception:
+                # Don't fail refresh if analysis generation fails
+                pass
+
     # Persona-aware summaries/reports will be reintroduced once the native
     # implementations land. For now we return empty lists to keep the CLIs
     # compatible with the previous signature.
     return ViewRefreshResult(
         views_refreshed=dashboards,
         summaries_refreshed=[],
-        reports_refreshed=[],
+        reports_refreshed=analysis_paths,
     )
 
 
@@ -315,6 +333,24 @@ def _relative_path(target: Path, start: Path) -> str:
         return os.path.relpath(target, start).replace("\\", "/")
     except ValueError:
         return target.as_posix()
+
+
+def _should_generate_analysis(backlog_root: Path, product: Optional[str]) -> bool:
+    """Check if analysis generation is enabled in config."""
+    try:
+        from kano_backlog_core.config import ConfigLoader
+        ctx, effective = ConfigLoader.load_effective_config(
+            backlog_root,
+            product=product,
+            agent="system",  # Use system agent for config check
+        )
+        analysis_config = effective.get("analysis", {})
+        llm_config = analysis_config.get("llm", {}) if isinstance(analysis_config, dict) else {}
+        enabled = llm_config.get("enabled", False) if isinstance(llm_config, dict) else False
+        return bool(enabled)
+    except Exception:
+        # If config loading fails, default to disabled
+        return False
 
 
 def _find_workspace_root(path: Path) -> Path:
