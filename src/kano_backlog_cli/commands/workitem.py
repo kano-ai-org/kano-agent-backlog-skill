@@ -33,7 +33,7 @@ def read(
     if output_format == "json":
         data = item.model_dump()
         data["file_path"] = str(data.get("file_path"))
-        typer.echo(json.dumps(data, ensure_ascii=False))
+        typer.echo(json.dumps(data, ensure_ascii=True))
     else:
         typer.echo(f"ID: {item.id}\nTitle: {item.title}\nState: {item.state.value}\nOwner: {item.owner}")
 
@@ -59,7 +59,7 @@ def validate(
 
     if output_format == "json":
         result = {"id": item.id, "is_ready": is_ready, "gaps": gaps}
-        typer.echo(json.dumps(result, ensure_ascii=False))
+        typer.echo(json.dumps(result, ensure_ascii=True))
     else:
         if is_ready:
             typer.echo(f"OK: {item.id} is READY")
@@ -132,7 +132,7 @@ def _run_create_command(
             "path": str(result.path),
             "type": result.type.value,
         }
-        typer.echo(json.dumps(payload, ensure_ascii=False))
+        typer.echo(json.dumps(payload, ensure_ascii=True))
     else:
         typer.echo(f"OK: Created: {result.id}")
         typer.echo(f"  Path: {result.path.name}")
@@ -285,7 +285,7 @@ def update_state_command(
             "parent_synced": result.parent_synced,
             "dashboards_refreshed": result.dashboards_refreshed,
         }
-        typer.echo(json.dumps(payload, ensure_ascii=False))
+        typer.echo(json.dumps(payload, ensure_ascii=True))
     else:
         typer.echo(f"OK: Updated {result.id}: {result.old_state.value} -> {result.new_state.value}")
         if result.worklog_appended and message:
@@ -334,7 +334,7 @@ def attach_artifact_command(
             "worklog_appended": result.worklog_appended,
             "shared": shared,
         }
-        typer.echo(json.dumps(payload, ensure_ascii=False))
+        typer.echo(json.dumps(payload, ensure_ascii=True))
     else:
         typer.echo(f"OK: Attached artifact to {result.id}")
         typer.echo(f"  Source: {result.source.name}")

@@ -82,13 +82,21 @@ class EvidencePack:
         # Reconstruct nested objects
         meta_data = data.get('meta', {}) or {}
         vcs_data = meta_data.get('vcs', {}) if isinstance(meta_data, dict) else {}
+
+        # Backward compatibility:
+        # - v1: provider/revision/ref/label/dirty
+        # - v2: provider/branch/revno/hash/dirty
+        branch = vcs_data.get('branch') or vcs_data.get('ref') or 'unknown'
+        revno = vcs_data.get('revno') or 'unknown'
+        vcs_hash = vcs_data.get('hash') or vcs_data.get('revision') or 'unknown'
+
         data['meta'] = SnapshotMeta(
             scope=meta_data.get('scope', 'repo'),
             vcs=VcsMeta(
                 provider=vcs_data.get('provider', 'unknown'),
-                revision=vcs_data.get('revision', 'unknown'),
-                ref=vcs_data.get('ref', 'unknown'),
-                label=vcs_data.get('label'),
+                branch=branch,
+                revno=revno,
+                hash=vcs_hash,
                 dirty=vcs_data.get('dirty', 'unknown'),
             ),
             generator_version=meta_data.get('generator_version', '0.1.0'),

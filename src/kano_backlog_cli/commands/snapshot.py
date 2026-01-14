@@ -15,7 +15,7 @@ from rich.console import Console
 
 from kano_backlog_ops import snapshot as snapshot_ops
 from kano_backlog_ops.template_engine import TemplateEngine
-from kano_backlog_cli.util import ensure_core_on_path
+from kano_backlog_cli.util import ensure_core_on_path, resolve_product_root
 
 app = typer.Typer()
 console = Console()
@@ -80,17 +80,18 @@ def _resolve_output_path(
     
     if scope.startswith("product:"):
         product_name = scope.split(":", 1)[1]
-        backlog_root = Path("_kano/backlog") # Assumption, should resolve properly
-        # Try to resolve product root
         try:
-             # This might fail if product doesn't exist, handle gracefully
-             product_root = backlog_root / "products" / product_name
-             target_dir = product_root / "views" / "snapshots" / view
-        except:
-             target_dir = cwd / "snapshots" / view
+            product_root = resolve_product_root(product_name, start=cwd)
+            target_dir = product_root / "views" / "snapshots" / view
+        except SystemExit:
+            target_dir = cwd / "snapshots" / view
     else:
-        # Repo scope
-        target_dir = Path("_kano/backlog/views/snapshots") / view
+        # Repo scope: store under the default product to avoid legacy root views.
+        try:
+            product_root = resolve_product_root(None, start=cwd)
+            target_dir = product_root / "views" / "snapshots" / "repo" / view
+        except SystemExit:
+            target_dir = cwd / "snapshots" / "repo" / view
         
     return target_dir / filename
 
@@ -103,14 +104,13 @@ def _format_meta_block(meta: snapshot_ops.VcsMeta, mode: str) -> str:
     lines = [
         "<!-- kano:build",
         f"vcs.provider: {meta.provider}",
-        f"vcs.revision: {meta.revision}",
+        f"vcs.branch: {meta.branch}",
+        f"vcs.revno: {meta.revno}",
+        f"vcs.hash: {meta.hash}",
     ]
 
     if mode in ("min", "full"):
         lines.append(f"vcs.dirty: {meta.dirty}")
-    if mode == "full":
-        lines.append(f"vcs.ref: {meta.ref}")
-        lines.append(f"vcs.label: {meta.label or 'unknown'}")
 
     lines.append("-->")
     return "\n".join(lines) + "\n\n"
@@ -168,7 +168,9 @@ def create(
         output_content = meta_block
         output_content += f"# Snapshot Report: {scope}\n\n"
         output_content += f"**Scope:** {pack.meta.scope}\n"
-        output_content += f"**VCS Revision:** {pack.meta.vcs.revision}\n"
+        output_content += f"**VCS Branch:** {pack.meta.vcs.branch}\n"
+        output_content += f"**VCS RevNo:** {pack.meta.vcs.revno}\n"
+        output_content += f"**VCS Hash:** {pack.meta.vcs.hash}\n"
         output_content += f"**VCS Dirty:** {pack.meta.vcs.dirty}\n\n"
         
         if view in ["all", "capabilities"]:

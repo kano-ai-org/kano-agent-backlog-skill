@@ -22,8 +22,9 @@ def detect_vcs_metadata(repo_root: Optional[Path] = None) -> VcsMeta:
     # Fallback (should never reach here due to NullAdapter)
     return VcsMeta(
         provider="unknown",
-        revision="unknown", 
-        ref="unknown",
+        branch="unknown",
+        revno="unknown",
+        hash="unknown",
         dirty="unknown"
     )
 
@@ -35,13 +36,10 @@ def format_vcs_metadata(meta: VcsMeta, mode: str = "min") -> str:
     
     lines = ["<!-- kano:build"]
     lines.append(f"vcs.provider: {meta.provider}")
-    lines.append(f"vcs.revision: {meta.revision}")
+    lines.append(f"vcs.branch: {meta.branch}")
+    lines.append(f"vcs.revno: {meta.revno}")
+    lines.append(f"vcs.hash: {meta.hash}")
     lines.append(f"vcs.dirty: {meta.dirty}")
-    
-    if mode == "full":
-        lines.append(f"vcs.ref: {meta.ref}")
-        if meta.label:
-            lines.append(f"vcs.label: {meta.label}")
     
     lines.append("-->")
     return "\n".join(lines)

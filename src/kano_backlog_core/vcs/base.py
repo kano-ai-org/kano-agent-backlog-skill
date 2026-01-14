@@ -8,11 +8,18 @@ from typing import Optional, Protocol
 
 @dataclass
 class VcsMeta:
-    """VCS metadata for reproducible builds."""
+    """VCS metadata for reproducible builds.
+
+    Keep the model explicit and parse-free:
+    - branch: human context (branch/stream/path)
+    - revno: human-friendly revision number
+    - hash: collision-resistant identifier
+    """
+
     provider: str  # git, p4, svn, none, unknown
-    revision: str  # commit hash, changelist, etc. or "unknown"
-    ref: str  # branch, stream, etc. or "unknown"
-    label: Optional[str] = None  # tag, describe, etc.
+    branch: str  # branch, stream, etc. or "unknown"
+    revno: str  # git commit-count, svn revision, p4 changelist, etc.
+    hash: str  # git commit hash, or derived hash for non-hash providers
     dirty: str = "unknown"  # "true", "false", "unknown"
 
 

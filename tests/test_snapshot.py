@@ -19,9 +19,9 @@ def sample_pack():
         scope="repo",
         vcs=VcsMeta(
             provider="git",
-            revision="abcdef",
-            ref="main",
-            label="v1.0",
+            branch="main",
+            revno="42",
+            hash="abcdef",
             dirty="false",
         ),
     )
@@ -120,11 +120,12 @@ def test_evidence_pack_json_roundtrip(sample_pack):
     """Verify JSON serialization and deserialization."""
     json_str = sample_pack.to_json()
     json_data = json.loads(json_str)
-    assert json_data["meta"]["vcs"]["revision"] == "abcdef"
+    assert json_data["meta"]["vcs"]["hash"] == "abcdef"
     
     reloaded = EvidencePack.from_json(json_str)
-    assert reloaded.meta.vcs.revision == "abcdef"
-    assert reloaded.meta.vcs.ref == "main"
+    assert reloaded.meta.vcs.hash == "abcdef"
+    assert reloaded.meta.vcs.branch == "main"
+    assert reloaded.meta.vcs.revno == "42"
     assert len(reloaded.stub_inventory) == 1
     assert reloaded.stub_inventory[0].message == "Implement me"
 
