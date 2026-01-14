@@ -14,7 +14,6 @@ def _init():
     ensure_core_on_path()
 
 
-# Subcommands are registered in commands/*.py
 from .commands import admin as admin_cmd  # noqa: E402
 from .commands import workitem as workitem_cmd  # noqa: E402
 from .commands import state as state_cmd  # noqa: E402
@@ -30,6 +29,7 @@ from .commands import workset as workset_cmd  # noqa: E402
 from .commands import topic as topic_cmd  # noqa: E402
 from .commands import config_cmd as config_cmd  # noqa: E402
 from .commands import snapshot as snapshot_cmd  # noqa: E402
+from .commands import changelog as changelog_cmd  # noqa: E402
 from .commands.doctor import doctor as doctor_fn  # noqa: E402
 
 app.add_typer(admin_cmd.app, name="admin", help="Administrative and setup commands")
@@ -42,6 +42,7 @@ app.add_typer(snapshot_cmd.app, name="snapshot", help="Snapshot and evidence ope
 app.add_typer(workset_cmd.app, name="workset", help="Workset cache operations")
 app.add_typer(topic_cmd.app, name="topic", help="Topic context operations")
 app.add_typer(config_cmd.app, name="config", help="Config inspection and validation")
+app.add_typer(changelog_cmd.app, name="changelog", help="Changelog generation from backlog")
 # Nest index, demo, persona, and sandbox under admin group
 admin_cmd.app.add_typer(index_cmd.app, name="index", help="Index operations")
 admin_cmd.app.add_typer(demo_cmd.app, name="demo", help="Demo data operations")

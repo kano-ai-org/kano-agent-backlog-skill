@@ -6,6 +6,8 @@ This project uses Git tags as releases: `vX.Y.Z`.
 
 ## [Unreleased]
 
+## [0.0.1] - 2026-01-15
+
 ### Added
 - Optional SQLite index layer (rebuildable) to accelerate reads and view generation.
 - DBIndex vs NoDBIndex demo dashboards under `_kano/backlog/views/_demo/`.
@@ -21,7 +23,6 @@ This project uses Git tags as releases: `vX.Y.Z`.
 ### Fixed
 - `query_sqlite_index.py --sql` validation (SELECT/WITH detection).
 
-## [0.0.1] - 2026-01-06
 
 ### Added
 - Local-first backlog structure under `_kano/backlog/` (items, decisions/ADRs, views).
