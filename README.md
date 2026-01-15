@@ -73,6 +73,17 @@ If any of these sound familiar, this helps:
 
 Goal: convert “evaporating context” into **searchable, linkable, auditable** files in your repo.
 
+## The Dual-Readability Principle
+
+**Topics and Snapshots are designed to solve two problems at once:**
+1. **Human Overload**: Humans cannot keep entire repo states in their head. We need high-level summaries (`brief.md`, Reports) to make decisions.
+2. **Agent Coordination**: Agents cannot "see" the repo like we do. They need explicit lists of files, line numbers, and "stub inventories" to know what to do next.
+
+By enforcing **Dual-Readability** (Markdown for humans, JSON/Structured data for Agents), we create a shared workspace where:
+* Humans provide direction (via Briefs).
+* Agents provide evidence (via Snapshots).
+* Both can understand the other's output without translation.
+
 ## What you get (implemented)
 
 - `SKILL.md`: the workflow and rules (planning-before-coding, Ready gate, worklog discipline)

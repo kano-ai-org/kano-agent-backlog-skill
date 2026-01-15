@@ -113,10 +113,8 @@ class StateMachine:
             worklog_text = state_msg
         
         if agent:
-            if model:
-                worklog_line = f"{timestamp} [agent={agent}] [model={model}] {worklog_text}"
-            else:
-                worklog_line = f"{timestamp} [agent={agent}] {worklog_text}"
+            model_value = (model or "").strip() or "unknown"
+            worklog_line = f"{timestamp} [agent={agent}] [model={model_value}] {worklog_text}"
         else:
             worklog_line = f"{timestamp} {worklog_text}"
         

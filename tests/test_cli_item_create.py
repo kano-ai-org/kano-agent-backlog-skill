@@ -90,6 +90,50 @@ def test_item_create_creates_file_and_uses_config_prefix(tmp_path: Path):
         os.chdir(cwd_before)
 
 
+def test_item_create_records_unknown_model_when_missing(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    _scaffold_product(tmp_path, name="demo-product")
+    cwd_before = Path.cwd()
+    os.chdir(tmp_path)
+
+    monkeypatch.delenv("KANO_AGENT_MODEL", raising=False)
+    monkeypatch.delenv("KANO_MODEL", raising=False)
+
+    try:
+        result = runner.invoke(
+            app,
+            [
+                "item",
+                "create",
+                "--type",
+                "task",
+                "--title",
+                "Model-less Task",
+                "--priority",
+                "P2",
+                "--agent",
+                "tester",
+                "--product",
+                "demo-product",
+            ],
+        )
+        assert result.exit_code == 0, result.output
+
+        lines = [line.strip() for line in result.output.splitlines() if line.strip()]
+        created_line = next(line for line in lines if line.startswith("OK: Created:"))
+        created_id = created_line.split(":", 2)[-1].strip()
+
+        product_root = tmp_path / "_kano" / "backlog" / "products" / "demo-product"
+        created_files = list((product_root / "items").rglob(f"{created_id}_*.md"))
+        assert created_files, "Expected created item file on disk"
+
+        content = created_files[0].read_text(encoding="utf-8")
+        assert "# Worklog" in content
+        assert "[agent=tester]" in content
+        assert "[model=unknown]" in content
+    finally:
+        os.chdir(cwd_before)
+
+
 def test_item_create_invalid_type_exits_with_error(tmp_path: Path):
     _scaffold_product(tmp_path)
     cwd_before = Path.cwd()

@@ -6,8 +6,23 @@ Per ADR-0013: Extracted worklog logic for use in ops layer.
 
 from __future__ import annotations
 
+import os
 from datetime import datetime
 from typing import List, Optional
+
+
+def resolve_model(model: Optional[str]) -> str:
+    """Resolve the model name for worklog attribution.
+
+    Order:
+    1) explicit argument
+    2) env vars KANO_AGENT_MODEL, KANO_MODEL
+    3) "unknown"
+    """
+    if model and model.strip():
+        return model.strip()
+    env_model = (os.environ.get("KANO_AGENT_MODEL") or os.environ.get("KANO_MODEL") or "").strip()
+    return env_model or "unknown"
 
 
 def find_worklog_section(lines: List[str]) -> int:
@@ -62,10 +77,8 @@ def append_worklog_entry(
     
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M")
     
-    if model:
-        entry = f"{timestamp} [agent={agent}] [model={model}] {message}"
-    else:
-        entry = f"{timestamp} [agent={agent}] {message}"
+    resolved_model = resolve_model(model)
+    entry = f"{timestamp} [agent={agent}] [model={resolved_model}] {message}"
     
     lines.append(entry)
     return lines

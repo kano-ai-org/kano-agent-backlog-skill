@@ -9,6 +9,8 @@ from __future__ import annotations
 from datetime import datetime
 from typing import List, Optional
 
+from .worklog import resolve_model
+
 
 def render_item_frontmatter(
     item_id: str,
@@ -129,6 +131,8 @@ def render_item_body(
         owner=owner,
     )
     
+    model_value = resolve_model(None)
+
     body_sections = [
         "",
         "# Context",
@@ -147,7 +151,7 @@ def render_item_body(
         "",
         "# Worklog",
         "",
-        f"{timestamp} [agent={agent}] {worklog_message}",
+        f"{timestamp} [agent={agent}] [model={model_value}] {worklog_message}",
     ]
     
     body = "\n".join(body_sections)
