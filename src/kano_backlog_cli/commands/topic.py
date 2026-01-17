@@ -1098,3 +1098,185 @@ def snapshot_cleanup(
             typer.echo("  Deleted files:")
             for file_path in result["deleted_files"]:
                 typer.echo(f"    - {file_path}")
+
+@app.command("split")
+def split_topic_cmd(
+    source_topic: str = typer.Argument(..., help="Source topic name to split"),
+    agent: str = typer.Option(..., "--agent", help="Agent identity"),
+    config_file: Optional[str] = typer.Option(None, "--config", help="JSON file with split configuration"),
+    new_topic: Optional[List[str]] = typer.Option(None, "--new-topic", help="New topic in format 'name:item1,item2'"),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Show what would be done without making changes"),
+    no_snapshots: bool = typer.Option(False, "--no-snapshots", help="Skip creating snapshots before split"),
+    output_format: str = typer.Option("plain", "--format", help="Output format: plain|json"),
+):
+    """Split a topic into multiple focused subtopics."""
+    ensure_core_on_path()
+    from kano_backlog_ops.topic import (
+        split_topic,
+        TopicNotFoundError,
+        TopicError,
+    )
+
+    # Parse split configuration
+    split_config = {}
+    
+    if config_file:
+        try:
+            with open(config_file, 'r', encoding='utf-8') as f:
+                split_config = json.load(f)
+        except Exception as e:
+            typer.echo(f"❌ Error reading config file: {e}", err=True)
+            raise typer.Exit(1)
+    elif new_topic:
+        for topic_spec in new_topic:
+            if ':' not in topic_spec:
+                typer.echo(f"❌ Invalid topic spec: {topic_spec}. Use format 'name:item1,item2'", err=True)
+                raise typer.Exit(1)
+            
+            name, items_str = topic_spec.split(':', 1)
+            items = [item.strip() for item in items_str.split(',') if item.strip()]
+            split_config[name.strip()] = items
+    else:
+        typer.echo("❌ Must provide either --config file or --new-topic specifications", err=True)
+        raise typer.Exit(1)
+
+    try:
+        result = split_topic(
+            source_topic,
+            split_config,
+            agent=agent,
+            dry_run=dry_run,
+            create_snapshots=not no_snapshots,
+        )
+    except TopicNotFoundError as exc:
+        typer.echo(f"❌ {exc.message}", err=True)
+        if exc.suggestion:
+            typer.echo(f"   Suggestion: {exc.suggestion}", err=True)
+        raise typer.Exit(1)
+    except TopicError as exc:
+        typer.echo(f"❌ {exc.message}", err=True)
+        if exc.suggestion:
+            typer.echo(f"   Suggestion: {exc.suggestion}", err=True)
+        raise typer.Exit(1)
+    except Exception as exc:
+        typer.echo(f"❌ Unexpected error: {exc}", err=True)
+        raise typer.Exit(2)
+
+    if output_format == "json":
+        if dry_run:
+            payload = {
+                "source_topic": result.source_topic,
+                "new_topics": result.new_topics,
+                "conflicts": result.conflicts,
+                "references_to_update": result.references_to_update,
+                "dry_run": True,
+            }
+        else:
+            payload = {
+                "source_topic": result.source_topic,
+                "new_topics": result.new_topics,
+                "items_redistributed": result.items_redistributed,
+                "materials_redistributed": result.materials_redistributed,
+                "references_updated": result.references_updated,
+                "split_at": result.split_at,
+            }
+        typer.echo(json.dumps(payload, ensure_ascii=False, indent=2))
+    else:
+        if dry_run:
+            typer.echo(f"🔍 DRY RUN: Split plan for '{result.source_topic}'")
+            typer.echo(f"  Would create {len(result.new_topics)} new topics:")
+            for topic_info in result.new_topics:
+                typer.echo(f"    - {topic_info['name']}: {len(topic_info['items'])} items")
+            if result.conflicts:
+                typer.echo(f"  ⚠️  Conflicts detected: {len(result.conflicts)}")
+        else:
+            typer.echo(f"✓ Split topic '{result.source_topic}' into {len(result.new_topics)} topics")
+            typer.echo(f"  Split at: {result.split_at}")
+            typer.echo(f"  New topics created:")
+            for topic, items in result.items_redistributed.items():
+                typer.echo(f"    - {topic}: {len(items)} items")
+            if result.references_updated:
+                typer.echo(f"  Updated references in {len(result.references_updated)} topics")
+
+
+@app.command("merge")
+def merge_topics_cmd(
+    target_topic: str = typer.Argument(..., help="Target topic name to merge into"),
+    source_topics: List[str] = typer.Argument(..., help="Source topic names to merge from"),
+    agent: str = typer.Option(..., "--agent", help="Agent identity"),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Show what would be done without making changes"),
+    no_snapshots: bool = typer.Option(False, "--no-snapshots", help="Skip creating snapshots before merge"),
+    delete_sources: bool = typer.Option(False, "--delete-sources", help="Delete source topics after merge"),
+    output_format: str = typer.Option("plain", "--format", help="Output format: plain|json"),
+):
+    """Merge multiple topics into a target topic."""
+    ensure_core_on_path()
+    from kano_backlog_ops.topic import (
+        merge_topics,
+        TopicNotFoundError,
+        TopicError,
+    )
+
+    try:
+        result = merge_topics(
+            target_topic,
+            source_topics,
+            agent=agent,
+            dry_run=dry_run,
+            create_snapshots=not no_snapshots,
+            delete_source_topics=delete_sources,
+        )
+    except TopicNotFoundError as exc:
+        typer.echo(f"❌ {exc.message}", err=True)
+        if exc.suggestion:
+            typer.echo(f"   Suggestion: {exc.suggestion}", err=True)
+        raise typer.Exit(1)
+    except TopicError as exc:
+        typer.echo(f"❌ {exc.message}", err=True)
+        if exc.suggestion:
+            typer.echo(f"   Suggestion: {exc.suggestion}", err=True)
+        raise typer.Exit(1)
+    except Exception as exc:
+        typer.echo(f"❌ Unexpected error: {exc}", err=True)
+        raise typer.Exit(2)
+
+    if output_format == "json":
+        if dry_run:
+            payload = {
+                "target_topic": result.target_topic,
+                "source_topics": result.source_topics,
+                "item_conflicts": result.item_conflicts,
+                "material_conflicts": result.material_conflicts,
+                "references_to_update": result.references_to_update,
+                "dry_run": True,
+            }
+        else:
+            payload = {
+                "target_topic": result.target_topic,
+                "merged_topics": result.merged_topics,
+                "items_merged": result.items_merged,
+                "materials_merged": result.materials_merged,
+                "references_updated": result.references_updated,
+                "merged_at": result.merged_at,
+            }
+        typer.echo(json.dumps(payload, ensure_ascii=False, indent=2))
+    else:
+        if dry_run:
+            typer.echo(f"🔍 DRY RUN: Merge plan for '{result.target_topic}'")
+            typer.echo(f"  Would merge {len(result.source_topics)} topics:")
+            for topic in result.source_topics:
+                typer.echo(f"    - {topic}")
+            if result.item_conflicts:
+                typer.echo(f"  ⚠️  Item conflicts: {len(result.item_conflicts)}")
+            if result.material_conflicts:
+                typer.echo(f"  ⚠️  Material conflicts: {len(result.material_conflicts)}")
+        else:
+            typer.echo(f"✓ Merged {len(result.merged_topics)} topics into '{result.target_topic}'")
+            typer.echo(f"  Merged at: {result.merged_at}")
+            typer.echo(f"  Topics merged:")
+            for topic, items in result.items_merged.items():
+                typer.echo(f"    - {topic}: {len(items)} items")
+            if result.references_updated:
+                typer.echo(f"  Updated references in {len(result.references_updated)} topics")
+            if delete_sources:
+                typer.echo(f"  Deleted {len(result.merged_topics)} source topics")

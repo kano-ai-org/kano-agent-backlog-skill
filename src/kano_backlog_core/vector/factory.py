@@ -30,20 +30,16 @@ class NoOpBackend(VectorBackendAdapter):
 
 
 def get_backend(config: Dict[str, Any]) -> VectorBackendAdapter:
-    """
-    Factory for vector backends.
-
-    Args:
-        config: Configuration dictionary. Must contain 'backend' key.
-
-    Returns:
-        An instance of VectorBackendAdapter.
-    """
+    """Factory for vector backends."""
     backend_type = config.get("backend", "noop").lower()
-
+    
     if backend_type == "noop":
         return NoOpBackend()
     
-    # Future backends (e.g., 'chroma', 'faiss', 'sqlite') will be registered here.
+    if backend_type == "sqlite":
+        path = config.get("path", ".kano/vector/index.db")
+        collection = config.get("collection", "backlog")
+        from .sqlite_backend import SQLiteVectorBackend
+        return SQLiteVectorBackend(path=path, collection=collection)
     
     raise ValueError(f"Unknown vector backend: {backend_type}")

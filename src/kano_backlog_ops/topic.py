@@ -293,6 +293,47 @@ class TopicSnapshotListResult:
     snapshots: List[Dict[str, Any]]  # List of snapshot metadata
 
 
+@dataclass
+class TopicSplitResult:
+    """Result of splitting a topic."""
+    source_topic: str
+    new_topics: List[str]
+    items_redistributed: Dict[str, List[str]]  # topic -> list of item UIDs
+    materials_redistributed: Dict[str, List[str]]  # topic -> list of material paths
+    references_updated: List[str]  # list of topics with updated references
+    split_at: str
+
+
+@dataclass
+class TopicMergeResult:
+    """Result of merging topics."""
+    target_topic: str
+    merged_topics: List[str]
+    items_merged: Dict[str, List[str]]  # source topic -> list of item UIDs
+    materials_merged: Dict[str, List[str]]  # source topic -> list of material paths
+    references_updated: List[str]  # list of topics with updated references
+    merged_at: str
+
+
+@dataclass
+class TopicSplitPlan:
+    """Plan for splitting a topic (used in dry-run)."""
+    source_topic: str
+    new_topics: List[Dict[str, Any]]  # List of {name, items, materials}
+    conflicts: List[str]  # List of potential conflicts
+    references_to_update: List[str]  # Topics that will need reference updates
+
+
+@dataclass
+class TopicMergePlan:
+    """Plan for merging topics (used in dry-run)."""
+    target_topic: str
+    source_topics: List[str]
+    item_conflicts: List[str]  # Items that exist in multiple topics
+    material_conflicts: List[str]  # Materials with same path but different content
+    references_to_update: List[str]  # Topics that will need reference updates
+
+
 # =============================================================================
 # Topic Name Validation (Task 8.3)
 # =============================================================================
@@ -2084,3 +2125,332 @@ def cleanup_topic_snapshots(
         "deleted_files": deleted_files,
         "dry_run": dry_run,
     }
+
+def split_topic(
+    source_topic: str,
+    split_config: Dict[str, List[str]],
+    *,
+    agent: str,
+    backlog_root: Optional[Path] = None,
+    dry_run: bool = False,
+    create_snapshots: bool = True,
+) -> TopicSplitResult:
+    """
+    Split a topic into multiple focused subtopics.
+
+    Args:
+        source_topic: Name of the topic to split
+        split_config: Dict mapping new topic names to lists of item UIDs
+        agent: Agent performing the split
+        backlog_root: Root path for backlog
+        dry_run: If True, only return what would be done
+        create_snapshots: Whether to create snapshots before splitting
+
+    Returns:
+        TopicSplitResult with split details
+
+    Raises:
+        TopicNotFoundError: If source topic does not exist
+        TopicError: If split configuration is invalid or operation fails
+    """
+    # Validate split configuration
+    if not split_config:
+        raise TopicError("Split configuration cannot be empty")
+    
+    for new_topic, items in split_config.items():
+        if not new_topic or not new_topic.strip():
+            raise TopicError("New topic names cannot be empty")
+        validation_errors = validate_topic_name(new_topic)
+        if validation_errors:
+            raise TopicError(f"Invalid topic name '{new_topic}': {validation_errors[0]}")
+
+    # Resolve backlog root
+    if backlog_root is None:
+        backlog_root = _find_backlog_root()
+
+    # Get source topic and verify it exists
+    canonical_source = _normalize_topic_name(source_topic)
+    source_path = get_topic_path(canonical_source, backlog_root)
+    source_manifest_path = source_path / "manifest.json"
+
+    if not source_manifest_path.exists():
+        raise TopicNotFoundError(canonical_source)
+
+    # Load source manifest
+    source_manifest = TopicManifest.load(source_manifest_path)
+
+    # Validate that all specified items exist in source topic
+    all_split_items = set()
+    for items in split_config.values():
+        all_split_items.update(items)
+    
+    missing_items = all_split_items - set(source_manifest.seed_items)
+    if missing_items:
+        raise TopicError(f"Items not found in source topic: {', '.join(missing_items)}")
+
+    # Check for new topic name conflicts
+    for new_topic in split_config.keys():
+        canonical_new = _normalize_topic_name(new_topic)
+        new_path = get_topic_path(canonical_new, backlog_root)
+        if new_path.exists():
+            raise TopicError(f"Target topic already exists: {new_topic}")
+
+    if dry_run:
+        # Return plan without making changes
+        new_topics_info = []
+        for new_topic, items in split_config.items():
+            new_topics_info.append({
+                "name": new_topic,
+                "items": items,
+                "materials": [],  # Would need to implement material distribution logic
+            })
+        
+        return TopicSplitPlan(
+            source_topic=canonical_source,
+            new_topics=new_topics_info,
+            conflicts=[],
+            references_to_update=[],
+        )
+
+    # Create snapshots if requested
+    if create_snapshots:
+        try:
+            create_topic_snapshot(
+                canonical_source,
+                f"before_split_{_now_timestamp().replace(':', '').replace('-', '')[:15]}",
+                description=f"Automatic snapshot before splitting into {len(split_config)} topics",
+                agent=agent,
+                backlog_root=backlog_root,
+            )
+        except Exception:
+            # Continue with split even if snapshot fails
+            pass
+
+    now = _now_timestamp()
+    items_redistributed = {}
+    materials_redistributed = {}
+    references_updated = []
+
+    try:
+        # Create new topics and redistribute items
+        for new_topic, items_to_move in split_config.items():
+            canonical_new = _normalize_topic_name(new_topic)
+            
+            # Create new topic
+            create_result = create_topic(
+                new_topic,
+                agent=agent,
+                backlog_root=backlog_root,
+                create_notes=True,
+                create_brief=True,
+            )
+            
+            # Update new topic's manifest with assigned items
+            new_manifest = create_result.manifest
+            new_manifest.seed_items = items_to_move.copy()
+            new_manifest.updated_at = now
+            new_manifest.save(create_result.topic_path / "manifest.json")
+            
+            items_redistributed[canonical_new] = items_to_move.copy()
+            materials_redistributed[canonical_new] = []
+
+        # Update source topic manifest (remove split items)
+        remaining_items = [item for item in source_manifest.seed_items 
+                          if item not in all_split_items]
+        source_manifest.seed_items = remaining_items
+        source_manifest.updated_at = now
+        
+        # Add worklog entry to source topic
+        split_summary = ", ".join(f"{topic}({len(items)})" for topic, items in split_config.items())
+        worklog_entry = f"{now} [agent={agent}] Split topic into: {split_summary}"
+        
+        # Update source manifest
+        source_manifest.save(source_manifest_path)
+
+        # Update cross-references if source topic was referenced
+        topics_list = list_topics(backlog_root=backlog_root)
+        for topic_manifest in topics_list:
+            if canonical_source in topic_manifest.related_topics:
+                # Add references to all new topics
+                for new_topic in split_config.keys():
+                    canonical_new = _normalize_topic_name(new_topic)
+                    if canonical_new not in topic_manifest.related_topics:
+                        topic_manifest.related_topics.append(canonical_new)
+                
+                topic_manifest.updated_at = now
+                topic_path = get_topic_path(topic_manifest.topic, backlog_root)
+                topic_manifest.save(topic_path / "manifest.json")
+                references_updated.append(topic_manifest.topic)
+
+    except Exception as e:
+        raise TopicError(f"Split operation failed: {e}")
+
+    return TopicSplitResult(
+        source_topic=canonical_source,
+        new_topics=list(split_config.keys()),
+        items_redistributed=items_redistributed,
+        materials_redistributed=materials_redistributed,
+        references_updated=references_updated,
+        split_at=now,
+    )
+
+
+def merge_topics(
+    target_topic: str,
+    source_topics: List[str],
+    *,
+    agent: str,
+    backlog_root: Optional[Path] = None,
+    dry_run: bool = False,
+    create_snapshots: bool = True,
+    delete_source_topics: bool = False,
+) -> TopicMergeResult:
+    """
+    Merge multiple topics into a target topic.
+
+    Args:
+        target_topic: Name of the topic to merge into
+        source_topics: List of topic names to merge from
+        agent: Agent performing the merge
+        backlog_root: Root path for backlog
+        dry_run: If True, only return what would be done
+        create_snapshots: Whether to create snapshots before merging
+        delete_source_topics: Whether to delete source topics after merge
+
+    Returns:
+        TopicMergeResult with merge details
+
+    Raises:
+        TopicNotFoundError: If any topic does not exist
+        TopicError: If merge operation fails
+    """
+    if not source_topics:
+        raise TopicError("Source topics list cannot be empty")
+
+    # Resolve backlog root
+    if backlog_root is None:
+        backlog_root = _find_backlog_root()
+
+    # Validate all topics exist
+    canonical_target = _normalize_topic_name(target_topic)
+    target_path = get_topic_path(canonical_target, backlog_root)
+    target_manifest_path = target_path / "manifest.json"
+
+    if not target_manifest_path.exists():
+        raise TopicNotFoundError(canonical_target)
+
+    canonical_sources = []
+    source_manifests = []
+    
+    for source_topic in source_topics:
+        canonical_source = _normalize_topic_name(source_topic)
+        source_path = get_topic_path(canonical_source, backlog_root)
+        source_manifest_path = source_path / "manifest.json"
+        
+        if not source_manifest_path.exists():
+            raise TopicNotFoundError(canonical_source)
+        
+        canonical_sources.append(canonical_source)
+        source_manifests.append(TopicManifest.load(source_manifest_path))
+
+    # Load target manifest
+    target_manifest = TopicManifest.load(target_manifest_path)
+
+    if dry_run:
+        # Analyze conflicts
+        item_conflicts = []
+        material_conflicts = []
+        
+        # Check for item conflicts
+        target_items = set(target_manifest.seed_items)
+        for source_manifest in source_manifests:
+            conflicts = target_items.intersection(set(source_manifest.seed_items))
+            item_conflicts.extend(conflicts)
+        
+        return TopicMergePlan(
+            target_topic=canonical_target,
+            source_topics=canonical_sources,
+            item_conflicts=item_conflicts,
+            material_conflicts=material_conflicts,
+            references_to_update=[],
+        )
+
+    # Create snapshots if requested
+    if create_snapshots:
+        all_topics = [canonical_target] + canonical_sources
+        for topic in all_topics:
+            try:
+                create_topic_snapshot(
+                    topic,
+                    f"before_merge_{_now_timestamp().replace(':', '').replace('-', '')[:15]}",
+                    description=f"Automatic snapshot before merge operation",
+                    agent=agent,
+                    backlog_root=backlog_root,
+                )
+            except Exception:
+                # Continue with merge even if snapshot fails
+                pass
+
+    now = _now_timestamp()
+    items_merged = {}
+    materials_merged = {}
+    references_updated = []
+
+    try:
+        # Merge items from source topics into target
+        for i, source_manifest in enumerate(source_manifests):
+            canonical_source = canonical_sources[i]
+            
+            # Merge items (avoid duplicates)
+            source_items = source_manifest.seed_items.copy()
+            new_items = [item for item in source_items if item not in target_manifest.seed_items]
+            target_manifest.seed_items.extend(new_items)
+            
+            items_merged[canonical_source] = source_items
+            materials_merged[canonical_source] = []
+
+        # Update target manifest
+        target_manifest.updated_at = now
+        target_manifest.save(target_manifest_path)
+
+        # Update cross-references
+        topics_list = list_topics(backlog_root=backlog_root)
+        for topic_manifest in topics_list:
+            updated = False
+            
+            # Replace references to source topics with target topic
+            for canonical_source in canonical_sources:
+                if canonical_source in topic_manifest.related_topics:
+                    topic_manifest.related_topics.remove(canonical_source)
+                    if canonical_target not in topic_manifest.related_topics:
+                        topic_manifest.related_topics.append(canonical_target)
+                    updated = True
+            
+            if updated:
+                topic_manifest.updated_at = now
+                topic_path = get_topic_path(topic_manifest.topic, backlog_root)
+                topic_manifest.save(topic_path / "manifest.json")
+                references_updated.append(topic_manifest.topic)
+
+        # Delete source topics if requested
+        if delete_source_topics:
+            for canonical_source in canonical_sources:
+                source_path = get_topic_path(canonical_source, backlog_root)
+                try:
+                    import shutil
+                    shutil.rmtree(source_path)
+                except Exception:
+                    # Continue even if deletion fails
+                    pass
+
+    except Exception as e:
+        raise TopicError(f"Merge operation failed: {e}")
+
+    return TopicMergeResult(
+        target_topic=canonical_target,
+        merged_topics=canonical_sources,
+        items_merged=items_merged,
+        materials_merged=materials_merged,
+        references_updated=references_updated,
+        merged_at=now,
+    )
