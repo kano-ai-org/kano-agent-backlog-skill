@@ -1,11 +1,20 @@
+"""Deterministic chunking primitives.
+
+This module provides a small, local-first, dependency-free chunking core that:
+- Normalizes text deterministically
+- Selects boundaries deterministically (paragraph -> sentence -> hard cut)
+- Applies fixed overlap (in tokenizer-agnostic "tokens")
+- Produces stable chunk IDs
+"""
+
 from __future__ import annotations
 
+from bisect import bisect_left, bisect_right
 from dataclasses import dataclass
 import hashlib
 import re
 import unicodedata
-from bisect import bisect_left, bisect_right
-from typing import Iterable, List, Sequence, Tuple
+from typing import Iterable, List, Optional, Sequence, Set, Tuple
 
 
 @dataclass(frozen=True)
@@ -61,7 +70,14 @@ def _is_cjk(ch: str) -> bool:
 
 
 def token_spans(text: str) -> List[Tuple[int, int]]:
-    spans: list[tuple[int, int]] = []
+    """Return deterministic token spans for tokenizer-agnostic chunking.
+
+    This intentionally avoids external tokenizer dependencies:
+    - ASCII/Latin: groups alnum + underscore
+    - CJK: treats each CJK character as a token
+    - Punctuation: each punctuation mark is a token
+    """
+    spans: List[Tuple[int, int]] = []
     i = 0
     n = len(text)
     while i < n:
@@ -91,7 +107,7 @@ def token_spans(text: str) -> List[Tuple[int, int]]:
 
 def _boundary_token_indexes(boundary_chars: Iterable[int], spans: Sequence[Tuple[int, int]]) -> List[int]:
     ends = [e for _, e in spans]
-    token_indexes: set[int] = set()
+    token_indexes: Set[int] = set()
     for c in boundary_chars:
         idx = bisect_right(ends, c)
         token_indexes.add(idx)
@@ -99,7 +115,7 @@ def _boundary_token_indexes(boundary_chars: Iterable[int], spans: Sequence[Tuple
 
 
 def _paragraph_boundary_chars(text: str) -> List[int]:
-    boundaries: list[int] = []
+    boundaries: List[int] = []
     for match in _PARA_BREAK_RE.finditer(text):
         boundaries.append(match.start())
     boundaries.append(len(text))
@@ -107,7 +123,7 @@ def _paragraph_boundary_chars(text: str) -> List[int]:
 
 
 def _sentence_boundary_chars(text: str) -> List[int]:
-    boundaries: list[int] = []
+    boundaries: List[int] = []
     for match in _SENT_END_RE.finditer(text):
         boundaries.append(match.end())
     boundaries.append(len(text))
@@ -120,7 +136,7 @@ def _pick_boundary(
     start_token: int,
     preferred_end: int,
     max_end: int,
-) -> int | None:
+) -> Optional[int]:
     left = bisect_left(boundaries, start_token + 1)
     right = bisect_right(boundaries, max_end)
     if left >= right:
@@ -137,7 +153,10 @@ def _pick_boundary(
     return None
 
 
-def _chunk_id(*, source_id: str, version: str, start_char: int, end_char: int, span_text: str) -> str:
+def build_chunk_id(
+    *, source_id: str, version: str, start_char: int, end_char: int, span_text: str
+) -> str:
+    """Build a deterministic chunk id for a given span."""
     digest = hashlib.sha256(
         f"{source_id}\n{version}\n{start_char}\n{end_char}\n{span_text}".encode("utf-8")
     ).hexdigest()
@@ -145,6 +164,16 @@ def _chunk_id(*, source_id: str, version: str, start_char: int, end_char: int, s
 
 
 def chunk_text(source_id: str, text: str, options: ChunkingOptions) -> List[Chunk]:
+    """Chunk text into deterministic spans with stable IDs.
+
+    Args:
+        source_id: Stable identifier for the source document.
+        text: Raw input text.
+        options: Chunking options (size, overlap, version).
+
+    Returns:
+        Deterministic list of chunks ordered by increasing start_char.
+    """
     if not source_id:
         raise ValueError("source_id must be non-empty")
 
@@ -156,7 +185,7 @@ def chunk_text(source_id: str, text: str, options: ChunkingOptions) -> List[Chun
     para_boundaries = _boundary_token_indexes(_paragraph_boundary_chars(normalized), spans)
     sent_boundaries = _boundary_token_indexes(_sentence_boundary_chars(normalized), spans)
 
-    chunks: list[Chunk] = []
+    chunks: List[Chunk] = []
     start_token = 0
     total_tokens = len(spans)
 
@@ -192,7 +221,7 @@ def chunk_text(source_id: str, text: str, options: ChunkingOptions) -> List[Chun
                 start_char=start_char,
                 end_char=end_char,
                 text=span_text,
-                chunk_id=_chunk_id(
+                chunk_id=build_chunk_id(
                     source_id=source_id,
                     version=options.version,
                     start_char=start_char,
@@ -205,7 +234,10 @@ def chunk_text(source_id: str, text: str, options: ChunkingOptions) -> List[Chun
         if end_token >= total_tokens:
             break
 
-        start_token = max(0, end_token - options.overlap_tokens)
+        chunk_len = end_token - start_token
+        if options.overlap_tokens <= 0 or chunk_len <= options.overlap_tokens:
+            start_token = end_token
+        else:
+            start_token = end_token - options.overlap_tokens
 
     return chunks
-

@@ -388,6 +388,16 @@ _kano/backlog/.cache/worksets/items/<ITEM_ID>/
   - `hash`: `sha256:...` of content for staleness check
   - `cached_text`: optional snapshot (use `--snapshot` to include)
   - `revision`: git commit hash if available
+
+### Human decision materials vs. machine manifest
+
+- Treat `manifest.json` as **machine-oriented** metadata (seed item UIDs, pinned doc paths, snippet refs).
+- Keep `brief.md` **deterministic** (generated/overwritten by `topic distill`).
+- Put human-facing decision support in `_kano/backlog/topics/<topic>/notes.md` (and/or pinned docs), e.g.:
+  - Decision to make
+  - Options + trade-offs
+  - Evidence (ADR links, snippet refs, benchmark/log artifacts)
+  - Recommendation + follow-ups
 - **Staleness detection**: Compare current file hash with stored hash to detect if code changed
 - **Distillation**: `topic distill` generates deterministic `brief.md` with materials index (items, docs, snippets sorted for repeatability)
 
