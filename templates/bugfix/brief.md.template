@@ -1,0 +1,193 @@
+# Bug Investigation: {{topic_name}}
+
+**Bug**: {{bug_title}}
+**Component**: {{component}} | **Severity**: {{severity}} | **Reporter**: {{reporter}}
+**Status**: 🐛 **INVESTIGATING** | **Created**: {{created_date}} | **Agent**: {{agent}}
+
+## Problem Description
+
+### Symptoms
+<!-- What the user observes -->
+- [ ] Symptom 1 - Description and frequency
+- [ ] Symptom 2 - Description and frequency
+- [ ] Symptom 3 - Description and frequency
+
+### Expected Behavior
+<!-- What should happen -->
+
+### Actual Behavior
+<!-- What actually happens -->
+
+### Impact Assessment
+- **User Impact**: How many users affected
+- **Business Impact**: Revenue, reputation, operational impact
+- **System Impact**: Performance, stability, security implications
+- **Workaround Available**: Yes/No - Description if available
+
+## Reproduction
+
+### Steps to Reproduce
+1. Step 1 - Detailed action
+2. Step 2 - Detailed action  
+3. Step 3 - Detailed action
+4. **Result**: Observed behavior
+
+### Reproduction Rate
+- **Frequency**: Always / Often / Sometimes / Rarely
+- **Conditions**: Specific conditions required
+- **Environment**: Where it occurs (prod/staging/dev)
+
+### Test Cases
+- [ ] **Minimal Reproduction**: Simplest case that triggers bug
+- [ ] **Edge Cases**: Boundary conditions and edge scenarios
+- [ ] **Regression Test**: Test to prevent future occurrences
+
+## Investigation Progress
+
+### Initial Analysis
+- [ ] Bug report reviewed and validated
+- [ ] Reproduction steps confirmed
+- [ ] Affected components identified
+- [ ] Similar issues researched
+
+### Root Cause Analysis
+- [ ] Code analysis completed
+- [ ] Log analysis performed
+- [ ] Database investigation done
+- [ ] Configuration review finished
+
+### Solution Development
+- [ ] Fix approach identified
+- [ ] Implementation plan created
+- [ ] Testing strategy defined
+- [ ] Deployment plan prepared
+
+### Verification
+- [ ] Fix implemented and tested
+- [ ] Regression testing completed
+- [ ] User acceptance verified
+- [ ] Monitoring configured
+
+## Technical Investigation
+
+### Affected Components
+- **Primary**: {{component}} - Main component with the issue
+- **Secondary**: Related components that may be affected
+- **Dependencies**: External systems or services involved
+
+### Error Analysis
+```
+Error logs, stack traces, and diagnostic information
+```
+
+### Code Analysis
+- **Suspected Files**: List of files likely containing the bug
+- **Recent Changes**: Recent commits that might have introduced the issue
+- **Code Patterns**: Common patterns or anti-patterns identified
+
+### Data Analysis
+- **Database State**: Relevant database records and their state
+- **Configuration**: System configuration that might affect the bug
+- **Environment**: Environment-specific factors
+
+## Root Cause
+
+### Primary Cause
+<!-- The main reason the bug exists -->
+
+### Contributing Factors
+- [ ] Factor 1 - How it contributes to the problem
+- [ ] Factor 2 - How it contributes to the problem
+- [ ] Factor 3 - How it contributes to the problem
+
+### Timeline Analysis
+- **Introduced**: When the bug was likely introduced
+- **First Reported**: When it was first reported
+- **Detection Gap**: Why it wasn't caught earlier
+
+## Solution Strategy
+
+### Fix Approach
+<!-- High-level approach to fixing the bug -->
+
+### Implementation Plan
+1. **Phase 1**: Immediate fix for critical issues
+2. **Phase 2**: Comprehensive solution
+3. **Phase 3**: Prevention measures
+
+### Risk Assessment
+- **Fix Risk**: Risk of the fix causing new issues
+- **Deployment Risk**: Risk during deployment
+- **Rollback Plan**: How to rollback if needed
+
+## Testing Strategy
+
+### Unit Testing
+- [ ] Test cases for the specific bug scenario
+- [ ] Edge case testing
+- [ ] Regression test creation
+
+### Integration Testing
+- [ ] End-to-end workflow testing
+- [ ] Cross-component interaction testing
+- [ ] Performance impact testing
+
+### User Acceptance Testing
+- [ ] Original reporter verification
+- [ ] Stakeholder approval
+- [ ] Production-like environment testing
+
+## Prevention Measures
+
+### Code Quality
+- [ ] Code review process improvements
+- [ ] Static analysis rule additions
+- [ ] Coding standard updates
+
+### Testing Improvements
+- [ ] Additional test coverage
+- [ ] Automated testing enhancements
+- [ ] Monitoring and alerting improvements
+
+### Process Improvements
+- [ ] Development process updates
+- [ ] Deployment process enhancements
+- [ ] Documentation improvements
+
+## Communication Plan
+
+### Stakeholder Updates
+- **Internal Team**: Development team notifications
+- **Management**: Executive summary and impact assessment
+- **Users**: User communication and status updates
+- **Support**: Customer support team briefing
+
+### Status Reporting
+- [ ] Initial acknowledgment sent
+- [ ] Regular progress updates scheduled
+- [ ] Resolution notification prepared
+- [ ] Post-mortem report planned
+
+## Success Criteria
+
+### Fix Validation
+- [ ] Bug no longer reproducible
+- [ ] All test cases passing
+- [ ] Performance impact acceptable
+- [ ] No new issues introduced
+
+### User Satisfaction
+- [ ] Original reporter confirms fix
+- [ ] User acceptance criteria met
+- [ ] Support ticket volume reduced
+- [ ] User feedback positive
+
+### System Health
+- [ ] System stability maintained
+- [ ] Performance metrics normal
+- [ ] Error rates reduced
+- [ ] Monitoring alerts cleared
+
+---
+*Bug investigation template v1.0 - systematic debugging workflow*
+*Generated: {{created_datetime}}*

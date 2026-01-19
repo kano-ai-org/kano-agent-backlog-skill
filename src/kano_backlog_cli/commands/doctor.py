@@ -72,7 +72,7 @@ def check_backlog_initialized(
     backlog_root: Optional[Path] = None,
 ) -> CheckResult:
     """Check that backlog is initialized for the product."""
-    # Find platform root
+    # Find project root
     if backlog_root is None:
         # Try to find _kano/backlog in current directory or parents
         cwd = Path.cwd()

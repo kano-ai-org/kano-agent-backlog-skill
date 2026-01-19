@@ -11,6 +11,9 @@ from pathlib import Path
 from typing import List, Optional
 from datetime import date
 import re
+import sys
+
+import frontmatter
 
 from kano_backlog_core.audit import AuditLog
 from kano_backlog_core.config import ConfigLoader
@@ -35,6 +38,29 @@ class CreateADRResult:
     id: str
     title: str
     path: Path
+
+
+@dataclass
+class AdrUidFixAction:
+    path: Path
+    old_uid: str
+    new_uid: Optional[str]
+    status: str
+
+
+@dataclass
+class AdrUidFixResult:
+    product: str
+    checked: int
+    updated: int
+    actions: List[AdrUidFixAction]
+
+
+# Conditional import for UUIDv7
+if sys.version_info >= (3, 12):
+    from uuid import uuid7  # type: ignore
+else:
+    from uuid6 import uuid7  # type: ignore
 
 
 def create_adr(
@@ -84,6 +110,7 @@ def create_adr(
 
     next_number = _find_next_adr_number(decisions_dir)
     adr_id = f"ADR-{next_number:04d}"
+    adr_uid = str(uuid7())
     adr_slug = slugify(title)
     adr_path = decisions_dir / f"{adr_id}_{adr_slug}.md"
 
@@ -97,6 +124,7 @@ def create_adr(
     content = (
         "---\n"
         f"id: {adr_id}\n"
+        f"uid: {adr_uid}\n"
         f"title: \"{_escape_yaml_string(title.strip())}\"\n"
         f"status: {status}\n"
         f"date: {today}\n"
@@ -122,6 +150,7 @@ def create_adr(
         agent=agent,
         metadata={
             "adr_id": adr_id,
+            "uid": adr_uid,
             "title": title.strip(),
             "product": product,
             "status": status,
@@ -182,3 +211,85 @@ def list_adrs(
     """
     # TODO: Implement
     raise NotImplementedError("list_adrs not yet implemented")
+
+
+def _is_uuidv7(value: str) -> bool:
+    pattern = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$")
+    return bool(pattern.match(value.lower()))
+
+
+def backfill_adr_uids(
+    *,
+    product: Optional[str] = None,
+    backlog_root: Optional[Path] = None,
+    agent: str,
+    model: Optional[str] = None,
+    apply: bool = False,
+) -> List[AdrUidFixResult]:
+    """Add missing/invalid ADR UIDs (UUIDv7) across product decisions."""
+    results: List[AdrUidFixResult] = []
+
+    product_roots: List[Path] = []
+    if backlog_root:
+        backlog_root = Path(backlog_root).resolve()
+        if product:
+            product_roots.append(backlog_root / "products" / product)
+        else:
+            products_dir = backlog_root / "products"
+            if products_dir.exists():
+                product_roots.extend([p for p in products_dir.iterdir() if p.is_dir()])
+    else:
+        if product:
+            ctx = ConfigLoader.from_path(Path.cwd(), product=product)
+            product_roots.append(ctx.product_root)
+        else:
+            ctx = ConfigLoader.from_path(Path.cwd())
+            products_dir = ctx.backlog_root / "products"
+            if products_dir.exists():
+                product_roots.extend([p for p in products_dir.iterdir() if p.is_dir()])
+
+    for root in product_roots:
+        decisions_dir = root / "decisions"
+        actions: List[AdrUidFixAction] = []
+        checked = 0
+        updated = 0
+
+        if not decisions_dir.exists():
+            results.append(AdrUidFixResult(product=root.name, checked=0, updated=0, actions=[]))
+            continue
+
+        for path in decisions_dir.glob("*.md"):
+            if path.name.lower() == "readme.md":
+                continue
+            try:
+                post = frontmatter.load(path)
+            except Exception:
+                continue
+            checked += 1
+            current_uid = str(post.get("uid", "") or "")
+            if current_uid and _is_uuidv7(current_uid):
+                actions.append(AdrUidFixAction(path=path, old_uid=current_uid, new_uid=None, status="ok"))
+                continue
+
+            new_uid = str(uuid7())
+            actions.append(AdrUidFixAction(path=path, old_uid=current_uid or "<missing>", new_uid=new_uid, status="added"))
+            if apply:
+                post["uid"] = new_uid
+                path.write_text(frontmatter.dumps(post), encoding="utf-8")
+                updated += 1
+                AuditLog.log_file_operation(
+                    operation="update",
+                    path=str(path).replace("\\", "/"),
+                    tool="kano backlog adr fix-uids",
+                    agent=agent,
+                    metadata={
+                        "adr_id": post.get("id"),
+                        "uid": new_uid,
+                        "product": root.name,
+                        "model": model,
+                    },
+                )
+
+        results.append(AdrUidFixResult(product=root.name, checked=checked, updated=updated, actions=actions))
+
+    return results

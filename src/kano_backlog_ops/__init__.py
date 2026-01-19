@@ -19,9 +19,11 @@ from .init import InitBacklogResult, init_backlog, check_initialized
 from .workitem import (
     create_item,
     update_state,
+    add_decision_writeback,
     validate_ready,
     list_items,
     get_item,
+    DecisionWritebackResult,
 )
 from .adr import create_adr, list_adrs
 from .view import refresh_dashboards, generate_view
@@ -66,10 +68,25 @@ from .topic import (
     get_active_topic,
     export_topic_context,
     list_topics,
-    # Directory utilities
+    # Shared state functions (KABSD-TSK-0257)
+    load_state_index,
+    save_state_index,
+    load_topic_state,
+    save_topic_state,
+    generate_topic_id,
+    migrate_legacy_active_topics,
+    cleanup_legacy_active_topics,
+    migrate_topic_state_filenames,
+    list_active_topics,
+    get_topic_state_by_name,
+    update_agent_state,
+    update_worksets_after_merge,
+    generate_decision_audit_report,
     get_topics_root,
     get_topic_path,
     get_active_topic_path,
+    get_state_store_path,
+    get_state_topics_dir,
     ensure_topic_dirs,
     validate_topic_name,
     is_valid_topic_name,
@@ -80,11 +97,30 @@ from .topic import (
     TopicPinResult,
     TopicSwitchResult,
     TopicContextBundle,
+    TopicDecisionAuditResult,
+    # Shared state data models (KABSD-TSK-0257)
+    StateIndex,
+    AgentTopicState,
+    TopicStateDocument,
     # Errors
     TopicError,
     TopicNotFoundError,
     TopicExistsError,
     TopicValidationError,
+)
+from .template import (
+    # Functions
+    create_topic_from_template,
+    get_available_templates,
+    get_template_info,
+    validate_template_by_name,
+    # Data models
+    TemplateListResult,
+    TemplateLoadResult,
+    # Errors
+    TemplateError,
+    TemplateNotFoundError,
+    TemplateValidationError,
 )
 
 __all__ = [
@@ -155,10 +191,26 @@ __all__ = [
     "get_active_topic",
     "export_topic_context",
     "list_topics",
+    # topic - shared state functions (KABSD-TSK-0257)
+    "load_state_index",
+    "save_state_index",
+    "load_topic_state",
+    "save_topic_state",
+    "generate_topic_id",
+    "migrate_legacy_active_topics",
+    "cleanup_legacy_active_topics",
+    "migrate_topic_state_filenames",
+    "list_active_topics",
+    "get_topic_state_by_name",
+    "update_agent_state",
+    "update_worksets_after_merge",
+    "generate_decision_audit_report",
     # topic - directory utilities
     "get_topics_root",
     "get_topic_path",
     "get_active_topic_path",
+    "get_state_store_path",
+    "get_state_topics_dir",
     "ensure_topic_dirs",
     "validate_topic_name",
     "is_valid_topic_name",
@@ -169,9 +221,26 @@ __all__ = [
     "TopicPinResult",
     "TopicSwitchResult",
     "TopicContextBundle",
+    "TopicDecisionAuditResult",
+    # topic - shared state data models (KABSD-TSK-0257)
+    "StateIndex",
+    "AgentTopicState",
+    "TopicStateDocument",
     # topic - errors
     "TopicError",
     "TopicNotFoundError",
     "TopicExistsError",
     "TopicValidationError",
+    # template - functions
+    "create_topic_from_template",
+    "get_available_templates",
+    "get_template_info",
+    "validate_template_by_name",
+    # template - data models
+    "TemplateListResult",
+    "TemplateLoadResult",
+    # template - errors
+    "TemplateError",
+    "TemplateNotFoundError",
+    "TemplateValidationError",
 ]

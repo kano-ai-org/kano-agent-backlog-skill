@@ -1,0 +1,277 @@
+# Refactoring Notes: {{topic_name}}
+
+## Refactoring Overview
+**Target**: {{refactor_target}}
+**Type**: {{refactor_type}}
+**Scope**: {{scope}}
+**Priority**: {{priority}}
+
+## Problem Analysis
+
+### Current Issues
+<!-- Detailed analysis of current problems -->
+
+#### Code Quality Issues
+- **Complexity**: High cyclomatic complexity in specific methods/classes
+- **Duplication**: Repeated code patterns and logic
+- **Coupling**: Tight coupling between components
+- **Cohesion**: Low cohesion within modules
+
+#### Performance Issues
+- **Bottlenecks**: Identified performance bottlenecks
+- **Resource Usage**: Inefficient memory or CPU usage
+- **Scalability**: Scaling limitations and constraints
+- **Response Time**: Slow response times in critical paths
+
+#### Maintainability Issues
+- **Code Smells**: Specific code smells identified
+- **Documentation**: Missing or outdated documentation
+- **Testing**: Insufficient or poor-quality tests
+- **Architecture**: Architectural inconsistencies
+
+### Impact Assessment
+- **Developer Productivity**: How current issues affect development speed
+- **Bug Frequency**: Correlation between code quality and bug reports
+- **Maintenance Cost**: Time spent on maintenance vs. new features
+- **Technical Debt**: Accumulated technical debt and its impact
+
+## Refactoring Log
+
+### {{created_date}} - Refactoring Initiated
+- **Agent**: {{agent}}
+- **Target**: {{refactor_target}}
+- **Type**: {{refactor_type}}
+- **Scope**: {{scope}}
+
+<!-- Add entries as refactoring progresses -->
+
+## Code Analysis
+
+### Static Analysis Results
+```
+Code metrics, complexity scores, duplication reports
+```
+
+#### Complexity Analysis
+- **Cyclomatic Complexity**: Average and maximum complexity scores
+- **Nesting Depth**: Maximum nesting levels found
+- **Method Length**: Long methods that need refactoring
+- **Class Size**: Large classes that need decomposition
+
+#### Dependency Analysis
+- **Coupling Metrics**: Afferent and efferent coupling scores
+- **Dependency Cycles**: Circular dependencies identified
+- **Interface Segregation**: Interface usage analysis
+- **Abstraction Level**: Appropriate abstraction levels
+
+### Code Smells Identified
+- [ ] **Long Method**: Methods exceeding reasonable length
+- [ ] **Large Class**: Classes with too many responsibilities
+- [ ] **Feature Envy**: Methods using more of another class
+- [ ] **Data Clumps**: Groups of data that appear together
+- [ ] **Primitive Obsession**: Overuse of primitive types
+- [ ] **Switch Statements**: Complex conditional logic
+
+### Refactoring Opportunities
+1. **Extract Method**: Break down long methods
+2. **Extract Class**: Separate responsibilities
+3. **Move Method**: Relocate methods to appropriate classes
+4. **Replace Magic Numbers**: Use named constants
+5. **Introduce Parameter Object**: Group related parameters
+6. **Replace Conditional with Polymorphism**: Eliminate complex conditionals
+
+## Design Improvements
+
+### Architecture Enhancements
+<!-- Architectural improvements being made -->
+
+#### Design Patterns Applied
+- **Pattern 1**: Strategy Pattern for algorithm selection
+- **Pattern 2**: Factory Pattern for object creation
+- **Pattern 3**: Observer Pattern for event handling
+- **Pattern 4**: Decorator Pattern for feature extension
+
+#### SOLID Principles Application
+- **Single Responsibility**: Each class has one reason to change
+- **Open/Closed**: Open for extension, closed for modification
+- **Liskov Substitution**: Subtypes must be substitutable
+- **Interface Segregation**: Clients depend only on needed interfaces
+- **Dependency Inversion**: Depend on abstractions, not concretions
+
+### Interface Design
+```python
+# Example of improved interface design
+class ImprovedInterface:
+    """Clear, focused interface with single responsibility."""
+    
+    def process_data(self, data: DataModel) -> ProcessResult:
+        """Process data with clear input/output contract."""
+        pass
+    
+    def validate_input(self, data: DataModel) -> ValidationResult:
+        """Validate input data with specific validation rules."""
+        pass
+```
+
+## Implementation Details
+
+### Refactoring Steps
+1. **Step 1**: Establish comprehensive test coverage
+2. **Step 2**: Extract methods from long functions
+3. **Step 3**: Break down large classes
+4. **Step 4**: Eliminate code duplication
+5. **Step 5**: Improve naming and documentation
+6. **Step 6**: Optimize performance bottlenecks
+
+### Code Changes
+```python
+# Before refactoring
+def complex_method(data):
+    # Long, complex method with multiple responsibilities
+    # ... 100+ lines of code
+    pass
+
+# After refactoring
+class DataProcessor:
+    def process(self, data: DataModel) -> ProcessResult:
+        validated_data = self._validate(data)
+        transformed_data = self._transform(validated_data)
+        return self._save(transformed_data)
+    
+    def _validate(self, data: DataModel) -> DataModel:
+        # Focused validation logic
+        pass
+    
+    def _transform(self, data: DataModel) -> DataModel:
+        # Focused transformation logic
+        pass
+    
+    def _save(self, data: DataModel) -> ProcessResult:
+        # Focused persistence logic
+        pass
+```
+
+### Performance Optimizations
+- **Algorithm Improvements**: More efficient algorithms implemented
+- **Data Structure Changes**: Better data structures for specific use cases
+- **Caching Strategies**: Appropriate caching mechanisms added
+- **Database Optimizations**: Query optimizations and indexing improvements
+
+## Testing Strategy
+
+### Test Coverage Enhancement
+- **Before**: Current test coverage percentage
+- **Target**: Desired test coverage percentage
+- **Strategy**: How to achieve coverage improvement
+
+### Test Quality Improvements
+- [ ] **Unit Tests**: Comprehensive unit test coverage
+- [ ] **Integration Tests**: Component integration testing
+- [ ] **Performance Tests**: Performance regression testing
+- [ ] **Mutation Tests**: Test quality validation
+
+### Regression Prevention
+```python
+# Example of comprehensive test for refactored code
+class TestDataProcessor:
+    def test_process_valid_data(self):
+        """Test processing with valid input data."""
+        processor = DataProcessor()
+        result = processor.process(valid_test_data)
+        assert result.success
+        assert result.data == expected_output
+    
+    def test_process_invalid_data(self):
+        """Test processing with invalid input data."""
+        processor = DataProcessor()
+        with pytest.raises(ValidationError):
+            processor.process(invalid_test_data)
+    
+    def test_performance_benchmark(self):
+        """Test performance meets requirements."""
+        processor = DataProcessor()
+        start_time = time.time()
+        processor.process(large_test_dataset)
+        execution_time = time.time() - start_time
+        assert execution_time < performance_threshold
+```
+
+## Quality Metrics Tracking
+
+### Before Refactoring Metrics
+- **Lines of Code**: X lines
+- **Cyclomatic Complexity**: Average Y, Max Z
+- **Code Duplication**: X% duplicated
+- **Test Coverage**: Y% coverage
+- **Performance**: Z ms average response time
+
+### Progress Tracking
+<!-- Update as refactoring progresses -->
+- **Week 1**: Initial analysis and planning completed
+- **Week 2**: Core refactoring 50% complete
+- **Week 3**: Testing and validation in progress
+- **Week 4**: Final optimization and deployment
+
+### Target Metrics Achievement
+- [ ] **Complexity Reduction**: Achieved X% reduction
+- [ ] **Duplication Elimination**: Reduced to Y%
+- [ ] **Coverage Improvement**: Increased to Z%
+- [ ] **Performance Enhancement**: Improved by X%
+
+## Lessons Learned
+
+### What Worked Well
+- [ ] Effective refactoring techniques
+- [ ] Good test coverage strategy
+- [ ] Successful performance improvements
+- [ ] Team collaboration and communication
+
+### Challenges Encountered
+- [ ] Unexpected complexity in legacy code
+- [ ] Integration issues with external systems
+- [ ] Performance regression in specific scenarios
+- [ ] Time estimation accuracy
+
+### Best Practices Identified
+- [ ] Incremental refactoring approach
+- [ ] Comprehensive testing before changes
+- [ ] Regular performance benchmarking
+- [ ] Clear communication with stakeholders
+
+## Knowledge Transfer
+
+### Documentation Updates
+- [ ] Code documentation refreshed
+- [ ] Architecture diagrams updated
+- [ ] API documentation revised
+- [ ] Developer guides enhanced
+
+### Team Education
+- [ ] Refactoring techniques shared
+- [ ] Code quality standards communicated
+- [ ] Best practices documented
+- [ ] Tool usage training provided
+
+## Future Improvements
+
+### Next Refactoring Opportunities
+- [ ] **Component A**: Specific improvements needed
+- [ ] **Component B**: Performance optimization opportunities
+- [ ] **Component C**: Architecture enhancement possibilities
+
+### Technical Debt Prevention
+- [ ] Code review process improvements
+- [ ] Automated quality gates
+- [ ] Regular refactoring schedule
+- [ ] Developer training programs
+
+### Monitoring and Maintenance
+- [ ] Code quality monitoring setup
+- [ ] Performance regression detection
+- [ ] Technical debt tracking
+- [ ] Regular architecture reviews
+
+---
+*Refactoring notes for {{refactor_target}}*
+*Type: {{refactor_type}} | Scope: {{scope}}*
+*Last updated: {{created_datetime}}*

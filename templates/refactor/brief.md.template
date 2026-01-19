@@ -1,0 +1,209 @@
+# Refactoring Brief: {{topic_name}}
+
+**Target**: {{refactor_target}}
+**Type**: {{refactor_type}} | **Scope**: {{scope}} | **Priority**: {{priority}}
+**Status**: 🔧 **REFACTORING** | **Created**: {{created_date}} | **Agent**: {{agent}}
+
+## Refactoring Objectives
+
+### Primary Goal
+<!-- Main objective of this refactoring effort -->
+
+### Success Criteria
+- [ ] Code quality metrics improved
+- [ ] Performance targets met (if applicable)
+- [ ] Maintainability enhanced
+- [ ] Technical debt reduced
+
+### Business Justification
+- **Development Velocity**: How this improves development speed
+- **Maintenance Cost**: Reduction in maintenance overhead
+- **Risk Mitigation**: Technical risks being addressed
+- **Future Enablement**: Capabilities this refactoring enables
+
+## Current State Analysis
+
+### Code Quality Assessment
+- **Complexity**: Cyclomatic complexity, nesting levels
+- **Duplication**: Code duplication percentage and locations
+- **Coverage**: Test coverage percentage and gaps
+- **Dependencies**: Coupling and dependency analysis
+
+### Performance Baseline
+- **Response Time**: Current performance metrics
+- **Resource Usage**: Memory, CPU, I/O utilization
+- **Scalability**: Current scaling limitations
+- **Bottlenecks**: Identified performance bottlenecks
+
+### Technical Debt Inventory
+- [ ] **Code Smells**: Long methods, large classes, feature envy
+- [ ] **Architecture Issues**: Circular dependencies, tight coupling
+- [ ] **Documentation**: Missing or outdated documentation
+- [ ] **Testing**: Insufficient test coverage or quality
+
+## Refactoring Strategy
+
+### Approach Selection
+<!-- Chosen refactoring approach and rationale -->
+
+### Refactoring Patterns
+- **Pattern 1**: Extract Method/Class/Interface
+- **Pattern 2**: Move Method/Field
+- **Pattern 3**: Replace Conditional with Polymorphism
+- **Pattern 4**: Introduce Parameter Object
+
+### Risk Mitigation
+- **Regression Risk**: How to prevent breaking existing functionality
+- **Performance Risk**: How to avoid performance degradation
+- **Integration Risk**: How to maintain system integration
+- **Timeline Risk**: How to manage scope and schedule
+
+## Implementation Plan
+
+### Phase 1: Preparation and Analysis
+- [ ] Comprehensive code analysis completed
+- [ ] Test coverage baseline established
+- [ ] Performance benchmarks recorded
+- [ ] Refactoring plan validated with team
+
+### Phase 2: Core Refactoring
+- [ ] Extract common functionality
+- [ ] Eliminate code duplication
+- [ ] Improve method and class structure
+- [ ] Enhance error handling
+
+### Phase 3: Optimization and Polish
+- [ ] Performance optimization applied
+- [ ] Code documentation updated
+- [ ] Additional test coverage added
+- [ ] Code review and validation completed
+
+### Phase 4: Validation and Deployment
+- [ ] Regression testing completed
+- [ ] Performance testing validated
+- [ ] Integration testing passed
+- [ ] Production deployment successful
+
+## Quality Metrics
+
+### Before Refactoring
+- **Lines of Code**: Current LOC count
+- **Cyclomatic Complexity**: Average complexity score
+- **Code Duplication**: Percentage of duplicated code
+- **Test Coverage**: Current test coverage percentage
+- **Performance**: Baseline performance metrics
+
+### Target Metrics
+- **Lines of Code**: Target LOC reduction/optimization
+- **Cyclomatic Complexity**: Target complexity reduction
+- **Code Duplication**: Target duplication elimination
+- **Test Coverage**: Target coverage improvement
+- **Performance**: Target performance improvement
+
+### Measurement Tools
+- **Static Analysis**: SonarQube, CodeClimate, ESLint
+- **Performance**: Profilers, APM tools, benchmarks
+- **Coverage**: Coverage.py, Istanbul, JaCoCo
+- **Complexity**: Complexity analyzers, metrics tools
+
+## Testing Strategy
+
+### Regression Testing
+- [ ] Existing test suite execution
+- [ ] Manual testing of critical paths
+- [ ] Integration test validation
+- [ ] User acceptance testing
+
+### New Test Development
+- [ ] Unit tests for refactored components
+- [ ] Integration tests for new interfaces
+- [ ] Performance tests for optimized code
+- [ ] Edge case and error condition tests
+
+### Test Automation
+- [ ] Automated regression test suite
+- [ ] Continuous integration pipeline
+- [ ] Performance monitoring integration
+- [ ] Quality gate enforcement
+
+## Risk Assessment
+
+### Technical Risks
+- [ ] **Breaking Changes**: Risk of introducing bugs
+  - **Mitigation**: Comprehensive testing, gradual rollout
+- [ ] **Performance Degradation**: Risk of slower performance
+  - **Mitigation**: Performance testing, benchmarking
+- [ ] **Integration Issues**: Risk of breaking integrations
+  - **Mitigation**: Integration testing, API compatibility
+
+### Business Risks
+- [ ] **Timeline Impact**: Risk of delaying other features
+  - **Mitigation**: Phased approach, parallel development
+- [ ] **Resource Allocation**: Risk of over-investing in refactoring
+  - **Mitigation**: Clear ROI metrics, time boxing
+- [ ] **Stakeholder Buy-in**: Risk of insufficient support
+  - **Mitigation**: Clear communication, visible benefits
+
+## Communication Plan
+
+### Stakeholder Updates
+- **Development Team**: Daily standups, code reviews
+- **Technical Leadership**: Weekly progress reports
+- **Product Management**: Milestone updates, impact assessment
+- **QA Team**: Testing coordination, quality metrics
+
+### Documentation Updates
+- [ ] Code documentation refresh
+- [ ] Architecture documentation update
+- [ ] API documentation revision
+- [ ] Developer onboarding materials update
+
+## Success Validation
+
+### Code Quality Improvements
+- [ ] Complexity metrics improved by X%
+- [ ] Code duplication reduced by Y%
+- [ ] Test coverage increased to Z%
+- [ ] Static analysis score improved
+
+### Performance Improvements
+- [ ] Response time improved by X%
+- [ ] Memory usage reduced by Y%
+- [ ] CPU utilization optimized by Z%
+- [ ] Scalability limits increased
+
+### Developer Experience
+- [ ] Development velocity increased
+- [ ] Bug resolution time decreased
+- [ ] Code review time reduced
+- [ ] Developer satisfaction improved
+
+### Business Value
+- [ ] Maintenance cost reduction achieved
+- [ ] Feature development acceleration enabled
+- [ ] Technical risk mitigation completed
+- [ ] Future capability foundation established
+
+## Rollback Plan
+
+### Rollback Triggers
+- [ ] Critical functionality broken
+- [ ] Performance degradation > 20%
+- [ ] Integration failures detected
+- [ ] User experience significantly impacted
+
+### Rollback Procedure
+1. **Immediate**: Stop deployment, assess impact
+2. **Short-term**: Revert to previous version
+3. **Medium-term**: Analyze issues, plan fixes
+4. **Long-term**: Re-approach with lessons learned
+
+### Recovery Strategy
+- **Code Reversion**: Git rollback procedures
+- **Database Changes**: Migration rollback scripts
+- **Configuration**: Environment configuration restoration
+- **Monitoring**: Enhanced monitoring during recovery
+
+---
+*Refactoring template v1.0 - systematic code improvement workflow*
+*Generated: {{created_datetime}}*

@@ -16,6 +16,11 @@ def append(
     agent: str = typer.Option("cli", help="Agent name for audit/worklog"),
     model: str | None = typer.Option(None, help="Model used by agent (e.g., claude-sonnet-4.5, gpt-5.1)"),
     product: str | None = typer.Option(None, help="Product name under _kano/backlog/products"),
+    backlog_root_override: Path | None = typer.Option(
+        None,
+        "--backlog-root-override",
+        help="Backlog root override (e.g., _kano/backlog_sandbox/<name>)",
+    ),
     output_format: str = typer.Option("plain", "--format", help="plain|json"),
 ):
     """Append a worklog entry to an item and persist."""
@@ -23,17 +28,12 @@ def append(
     from kano_backlog_core.canonical import CanonicalStore
     from kano_backlog_core.audit import AuditLog
 
-    product_root = resolve_product_root(product)
+    product_root = resolve_product_root(product, backlog_root_override=backlog_root_override)
     store = CanonicalStore(product_root)
     item_path = find_item_path_by_id(store.items_root, item_id)
     item = store.read(item_path)
 
-    resolved_model, used_unknown = resolve_model(model)
-    if used_unknown:
-        typer.echo(
-            "Warning: model not provided; recording [model=unknown]. Set --model or env KANO_AGENT_MODEL/KANO_MODEL.",
-            err=True,
-        )
+    resolved_model, _ = resolve_model(model)
 
     AuditLog.append_worklog(item, message, agent=agent, model=resolved_model)
     store.write(item)

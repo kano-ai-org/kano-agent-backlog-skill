@@ -1,0 +1,27 @@
+[
+  {
+    "source_id": "doc-en-short",
+    "language": "en",
+    "text": "Short English paragraph about backlog items and decisions."
+  },
+  {
+    "source_id": "doc-en-long",
+    "language": "en",
+    "text": "This is a longer English document intended to produce multiple chunks. It repeats a sentence to reach sufficient length. This is a longer English document intended to produce multiple chunks. It repeats a sentence to reach sufficient length. This is a longer English document intended to produce multiple chunks. It repeats a sentence to reach sufficient length."
+  },
+  {
+    "source_id": "doc-cjk",
+    "language": "cjk",
+    "text": "你好世界再來一句測試段落。你好世界再來一句測試段落。你好世界再來一句測試段落。"
+  },
+  {
+    "source_id": "doc-mixed",
+    "language": "mixed",
+    "text": "Decision: Keep local-first. 你好世界。This sentence mixes English and CJK. 再來一句。"
+  },
+  {
+    "source_id": "doc-punct",
+    "language": "mixed",
+    "text": "Punctuation-heavy text!!! Does it split? Yes... maybe; maybe not: test_case_123."
+  }
+]

@@ -30,6 +30,11 @@ if __name__ == "__main__":
     
     if str(src_dir) not in sys.path:
         sys.path.insert(0, str(src_dir))
+
+    # Ensure Windows console encoding issues never crash the CLI.
+    from kano_backlog_cli.util import configure_stdio
+
+    configure_stdio()
     
     # Import and run the CLI app
     from kano_backlog_cli.cli import app

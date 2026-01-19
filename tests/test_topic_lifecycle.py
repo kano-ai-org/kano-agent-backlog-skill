@@ -29,6 +29,7 @@ from kano_backlog_ops.topic import (
     distill_topic,
     cleanup_topics,
 )
+from kano_backlog_ops.artifacts import attach_artifact
 
 
 def _mk_backlog(tmp: Path) -> Path:
@@ -48,6 +49,7 @@ def test_topic_create_creates_materials_and_brief():
         result = create_topic("t1", agent="a", backlog_root=backlog_root)
         assert (result.topic_path / "manifest.json").exists()
         assert (result.topic_path / "brief.md").exists()
+        assert (result.topic_path / "brief.generated.md").exists()
         assert (result.topic_path / "materials" / "clips").exists()
         assert (result.topic_path / "materials" / "links").exists()
         assert (result.topic_path / "materials" / "extracts").exists()
@@ -140,5 +142,56 @@ def test_cleanup_dry_run_lists_materials_after_close_and_ttl():
         # Instead, exercise that cleanup runs and returns a result structure.
         result = cleanup_topics(ttl_days=1, backlog_root=backlog_root, dry_run=True)
         assert result.topics_scanned >= 1
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def test_attach_artifact_resolves_items_in_product_layout():
+    tmp = Path(tempfile.mkdtemp())
+    try:
+        backlog_root = _mk_backlog(tmp)
+
+        product_root = backlog_root / "products" / "p"
+        items_root = product_root / "items" / "epic" / "0000"
+        items_root.mkdir(parents=True, exist_ok=True)
+
+        item_id = "P-EPIC-0001"
+        item_path = items_root / f"{item_id}_demo.md"
+        item_path.write_text(
+            "\n".join(
+                [
+                    "---",
+                    f"id: {item_id}",
+                    "uid: 019bd5aa-1111-7335-becf-f0a281746fbc",
+                    "type: Epic",
+                    "title: Demo epic",
+                    "state: Proposed",
+                    "created: 2026-01-01",
+                    "updated: 2026-01-01",
+                    "---",
+                    "",
+                    "# Context",
+                    "",
+                    "Demo.",
+                    "",
+                ]
+            ),
+            encoding="utf-8",
+        )
+
+        src = tmp / "artifact.txt"
+        src.write_text("hello", encoding="utf-8")
+
+        result = attach_artifact(
+            item_ref=item_id,
+            artifact_path=src,
+            product="p",
+            shared=False,
+            agent="tester",
+            backlog_root=backlog_root,
+        )
+        assert result.destination.exists()
+        assert result.destination.name == "artifact.txt"
+        assert (product_root / "artifacts" / item_id).exists()
     finally:
         shutil.rmtree(tmp, ignore_errors=True)

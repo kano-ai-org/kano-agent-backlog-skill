@@ -2,6 +2,7 @@ pydantic>=2.0.0
 python-frontmatter>=1.0.0
 typer>=0.12
 rich>=13
+tomli-w>=1.0.0
 
 [:python_version < "3.11"]
 tomli>=2.0.0

@@ -96,9 +96,9 @@ def init_backlog(
     if create_guides:
         guides_updated = _update_guides(backlog_root_path)
 
-    platform_root = _resolve_platform_root(backlog_root_path)
+    project_root = _resolve_project_root(backlog_root_path)
     context = BacklogContext(
-        platform_root=platform_root,
+        project_root=project_root,
         backlog_root=backlog_root_path,
         product_root=product_root,
         sandbox_root=None,
@@ -320,7 +320,7 @@ def _find_repo_root(start: Path) -> Path:
     return start
 
 
-def _resolve_platform_root(backlog_root: Path) -> Path:
+def _resolve_project_root(backlog_root: Path) -> Path:
     if backlog_root.parent.name == "_kano":
         return backlog_root.parent.parent
     return backlog_root.parent

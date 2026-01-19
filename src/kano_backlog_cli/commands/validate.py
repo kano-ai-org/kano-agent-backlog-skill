@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 import typer
 
@@ -65,3 +66,71 @@ def validate_repo_layout() -> None:
         raise typer.Exit(1)
 
     typer.echo("✓ Repo layout OK (no legacy src/kano_cli python files)")
+
+
+
+@app.command("links")
+def validate_links(
+    product: str | None = typer.Option(None, "--product", help="Product name (validate all if omitted)"),
+    backlog_root: Path | None = typer.Option(None, "--backlog-root", help="Backlog root (_kano/backlog)"),
+    include_views: bool = typer.Option(False, "--include-views", help="Scan views/ markdown (derived output)"),
+    ignore_target: list[str] | None = typer.Option(
+        None,
+        "--ignore-target",
+        help="Glob pattern for targets to ignore (repeatable)",
+    ),
+    output_format: str = typer.Option("markdown", "--format", help="Output format: markdown|json"),
+):
+    """Validate markdown links and wikilinks within backlog content."""
+    ensure_core_on_path()
+    from kano_backlog_ops.validate import validate_links as validate_links_op
+
+    ignore_target = ignore_target or []
+    results = validate_links_op(
+        product=product,
+        backlog_root=backlog_root,
+        include_views=include_views,
+        ignore_targets=ignore_target,
+    )
+
+    if output_format == "json":
+        payload = []
+        for res in results:
+            payload.append(
+                {
+                    "product": res.product,
+                    "checked_files": res.checked_files,
+                    "issues": [
+                        {
+                            "source_path": str(issue.source_path),
+                            "line": issue.line,
+                            "column": issue.column,
+                            "link_type": issue.link_type,
+                            "link_text": issue.link_text,
+                            "target": issue.target,
+                        }
+                        for issue in res.issues
+                    ],
+                }
+            )
+        typer.echo(json.dumps(payload, ensure_ascii=True, indent=2))
+        return
+
+    total_issues = 0
+    for res in results:
+        total_issues += len(res.issues)
+        typer.echo(f"# Product: {res.product}")
+        typer.echo(f"- checked_files: {res.checked_files}")
+        typer.echo(f"- issues: {len(res.issues)}")
+        if res.issues:
+            for issue in res.issues:
+                typer.echo(
+                    f"  - {issue.source_path}:{issue.line}:{issue.column} "
+                    f"[{issue.link_type}] target={issue.target} text={issue.link_text}"
+                )
+        else:
+            typer.echo("  - OK: no broken links detected")
+        typer.echo("")
+
+    if total_issues:
+        raise typer.Exit(1)

@@ -1,0 +1,142 @@
+# Feature Brief: {{topic_name}}
+
+**Feature**: {{feature_name}}
+**Complexity**: {{complexity}} | **Target Release**: {{target_release}}
+**Status**: 🚀 **DEVELOPING** | **Created**: {{created_date}} | **Agent**: {{agent}}
+
+## User Story
+
+**As a** user, **I want** {{user_story}}, **so that** I can achieve my goals efficiently.
+
+## Feature Overview
+
+### Purpose
+<!-- Why this feature is needed -->
+
+### Scope
+<!-- What's included and excluded -->
+- **In Scope**: 
+- **Out of Scope**: 
+
+### Success Criteria
+- [ ] User story requirements met
+- [ ] Performance targets achieved
+- [ ] Quality standards satisfied
+- [ ] Documentation completed
+
+## Development Progress
+
+### Requirements Phase
+- [ ] User stories defined
+- [ ] Acceptance criteria documented
+- [ ] Non-functional requirements specified
+- [ ] Stakeholder approval received
+
+### Design Phase  
+- [ ] Architecture designed
+- [ ] UI/UX mockups created
+- [ ] API specifications defined
+- [ ] Database schema designed
+
+### Implementation Phase
+- [ ] Core functionality implemented
+- [ ] Unit tests written
+- [ ] Integration tests completed
+- [ ] Code review passed
+
+### Testing Phase
+- [ ] Feature testing completed
+- [ ] Performance testing passed
+- [ ] Security testing verified
+- [ ] User acceptance testing approved
+
+### Deployment Phase
+- [ ] Staging deployment successful
+- [ ] Production deployment planned
+- [ ] Rollback plan prepared
+- [ ] Monitoring configured
+
+## Technical Approach
+
+### Architecture
+<!-- High-level technical approach -->
+
+### Key Components
+- **Component 1**: Description and responsibility
+- **Component 2**: Description and responsibility
+- **Component 3**: Description and responsibility
+
+### Dependencies
+- [ ] Dependency 1 - Status
+- [ ] Dependency 2 - Status
+- [ ] Dependency 3 - Status
+
+### Integration Points
+- [ ] Integration 1 - Description
+- [ ] Integration 2 - Description
+
+## Quality Assurance
+
+### Testing Strategy
+- **Unit Testing**: Coverage targets and approach
+- **Integration Testing**: Key scenarios and data flows
+- **Performance Testing**: Load and stress testing plans
+- **Security Testing**: Vulnerability and penetration testing
+
+### Quality Gates
+- [ ] Code coverage > 80%
+- [ ] Performance benchmarks met
+- [ ] Security scan passed
+- [ ] Accessibility compliance verified
+
+## Risk Management
+
+### Technical Risks
+- [ ] Risk 1 - Impact: High/Medium/Low - Mitigation strategy
+- [ ] Risk 2 - Impact: High/Medium/Low - Mitigation strategy
+
+### Business Risks
+- [ ] Risk 1 - Impact: High/Medium/Low - Mitigation strategy
+- [ ] Risk 2 - Impact: High/Medium/Low - Mitigation strategy
+
+### Timeline Risks
+- [ ] Risk 1 - Impact: High/Medium/Low - Mitigation strategy
+- [ ] Risk 2 - Impact: High/Medium/Low - Mitigation strategy
+
+## Stakeholder Communication
+
+### Key Stakeholders
+- **Product Owner**: Name - Role - Contact
+- **Tech Lead**: Name - Role - Contact  
+- **QA Lead**: Name - Role - Contact
+- **UX Designer**: Name - Role - Contact
+
+### Communication Plan
+- [ ] Weekly progress updates
+- [ ] Demo sessions scheduled
+- [ ] Stakeholder reviews planned
+- [ ] Go-live communication prepared
+
+## Success Metrics
+
+### User Metrics
+- [ ] User adoption rate
+- [ ] User satisfaction score
+- [ ] Feature usage analytics
+- [ ] User feedback collection
+
+### Technical Metrics
+- [ ] Performance benchmarks
+- [ ] Error rates and reliability
+- [ ] System resource usage
+- [ ] Maintenance overhead
+
+### Business Metrics
+- [ ] Business value delivered
+- [ ] ROI achievement
+- [ ] Cost efficiency
+- [ ] Time to market
+
+---
+*Feature development template v1.0 - systematic development workflow*
+*Generated: {{created_datetime}}*

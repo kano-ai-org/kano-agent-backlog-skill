@@ -1,0 +1,101 @@
+# Topic Brief: {{topic_name}}
+
+**Research Question**: {{research_question}}
+**Domain**: {{domain}} | **Priority**: {{priority}}
+**Status**: 🔍 **INVESTIGATING** | **Created**: {{created_date}} | **Agent**: {{agent}}
+
+## Research Objectives
+
+- [ ] {{research_question}}
+- [ ] Identify key findings and evidence
+- [ ] Document conclusions and recommendations
+- [ ] Validate findings with stakeholders
+
+## Methodology
+
+### Technical Research
+- [ ] Code analysis and documentation review
+- [ ] Performance testing and benchmarking  
+- [ ] Architecture evaluation
+- [ ] Security assessment
+
+### Business Research
+- [ ] Market research and competitive analysis
+- [ ] Stakeholder interviews
+- [ ] Business case development
+- [ ] ROI analysis
+
+### User Research
+- [ ] User interviews and surveys
+- [ ] Usability testing
+- [ ] Behavior analysis
+- [ ] Feedback collection
+
+## Key Findings
+
+<!-- Update as research progresses -->
+- [ ] Finding 1 — [source](ref)
+- [ ] Finding 2 — [source](ref)
+- [ ] Finding 3 — [source](ref)
+
+## Evidence Collection
+
+### Primary Sources
+- [ ] Documentation review
+- [ ] Code analysis  
+- [ ] Expert consultation
+- [ ] Direct observation
+
+### Secondary Sources
+- [ ] Literature review
+- [ ] Case studies
+- [ ] Best practices research
+- [ ] Industry reports
+
+## Open Questions
+
+- [ ] {{research_question}} sub-questions
+- [ ] Validation needed for findings
+- [ ] Next steps and follow-up research
+- [ ] Resource requirements
+
+## Risk Assessment
+
+### Research Risks
+- [ ] Limited access to information
+- [ ] Time constraints
+- [ ] Resource availability
+- [ ] Stakeholder availability
+
+### Mitigation Strategies
+- [ ] Alternative information sources
+- [ ] Phased research approach
+- [ ] Stakeholder engagement plan
+- [ ] Contingency planning
+
+## Conclusions
+
+<!-- To be completed -->
+- **Primary Recommendation**: TBD
+- **Alternative Options**: TBD
+- **Confidence Level**: TBD (High/Medium/Low)
+- **Next Actions**: TBD
+- **Timeline**: TBD
+
+## Decision Support
+
+### Go/No-Go Criteria
+- [ ] Sufficient evidence collected
+- [ ] Stakeholder alignment achieved
+- [ ] Risk assessment completed
+- [ ] Resource requirements defined
+
+### Success Metrics
+- [ ] Research objectives met
+- [ ] Quality of evidence
+- [ ] Stakeholder satisfaction
+- [ ] Actionable recommendations
+
+---
+*Research template v1.0 - systematic investigation workflow*
+*Generated: {{created_datetime}}*

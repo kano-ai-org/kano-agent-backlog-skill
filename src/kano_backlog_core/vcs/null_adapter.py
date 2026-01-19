@@ -15,8 +15,7 @@ class NullAdapter:
         """Return unknown metadata."""
         return VcsMeta(
             provider="none",
-            branch="unknown",
-            revno="unknown",
-            hash="unknown",
+            revision="unknown",
+            ref="unknown",
             dirty="unknown"
         )

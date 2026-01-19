@@ -68,10 +68,8 @@ def _write_effective_config_artifact(
     overwrite: bool,
 ) -> Path:
     context_dict = _stringify_paths(ctx.model_dump())
-    # Provide project_root alias for clarity; drop platform_root to avoid confusion.
-    if "platform_root" in context_dict:
-        context_dict.setdefault("project_root", context_dict["platform_root"])
-        context_dict.pop("platform_root", None)
+    # project_root is already canonical in Context.
+
 
     payload = {
         "context": context_dict,
@@ -141,6 +139,43 @@ def _next_backup_path(json_path: Path) -> Path:
         candidate = base.with_suffix(base.suffix + f".{counter}")
         counter += 1
     return candidate
+
+
+
+@app.command("pipeline")
+def config_pipeline(
+    path: Path = typer.Option(Path("."), "--path", help="Resource path to resolve config from"),
+    product: str | None = typer.Option(None, "--product", help="Product name (optional)"),
+    sandbox: str | None = typer.Option(None, "--sandbox", help="Sandbox name (optional)"),
+    agent: str | None = typer.Option(None, "--agent", help="Agent name for topic lookup"),
+    topic: str | None = typer.Option(None, "--topic", help="Explicit topic name"),
+):
+    """Inspect effective embedding pipeline configuration."""
+    ensure_core_on_path()
+    from kano_backlog_core.config import ConfigLoader
+    
+    try:
+        ctx, effective = ConfigLoader.load_effective_config(
+            path,
+            product=product,
+            sandbox=sandbox,
+            agent=agent,
+            topic=topic
+        )
+        
+        typer.echo(f"Context: Product={ctx.product_name} Topic={topic or 'None'}")
+        
+        try:
+            pc = ConfigLoader.validate_pipeline_config(effective)
+            typer.echo("✓ Pipeline config is valid")
+            # typer.echo(pc) 
+        except Exception as e:
+            typer.echo(f"✗ Pipeline config invalid: {e}")
+            typer.echo(json.dumps(effective, indent=2, default=str))
+
+    except Exception as e:
+        typer.echo(f"Error: {e}")
+        raise typer.Exit(1)
 
 
 @app.command("show")

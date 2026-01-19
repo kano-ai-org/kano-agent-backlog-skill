@@ -42,9 +42,25 @@ Use this skill to:
   - Open a new Task/Bug when you will change code/docs/views/scripts.
   - Open an ADR (and link it) when a real trade-off or direction change is decided.
   - Otherwise, record the discussion in an existing Worklog; ask if unsure.
+- Ticket type selection (keep it lightweight):
+  - Epic: multi-release or multi-team milestone spanning multiple Features.
+  - Feature: a new capability that delivers multiple UserStories.
+  - UserStory: a single user-facing outcome that requires multiple Tasks.
+  - Task: a single focused implementation or doc change (typically one session).
+  - Example: "End-to-end embedding pipeline" = Epic; "Pluggable vector backend" = Feature; "MVP chunking pipeline" = UserStory; "Implement tokenizer adapter" = Task.
 - Bug vs Task triage (when fixing behavior):
   - If you are correcting a behavior that was previously marked `Done` and the behavior violates the original intent/acceptance (defect or regression), open a **Bug** and link it to the original item.
   - If the change is a new requirement/scope change beyond the original acceptance, open a **Task/UserStory** (or Feature) instead, and link it for traceability.
+- Bug origin tracing (when diagnosing a defect/regression):
+  - Record **when the issue started** and the **evidence path** you used to determine it.
+  - Prefer VCS-backed evidence when available:
+    - last-known-good revision (commit hash or tag)
+    - first-known-bad revision (commit hash or tag)
+    - suspected introducing change(s) (commit hash) and why (e.g., `git blame` on specific lines)
+  - If git history is unavailable (zip export, shallow clone, missing remote), explicitly record that limitation and what alternative evidence you used (e.g., release notes, timestamps, reproduction reports).
+  - Keep evidence lightweight: record commit hashes + 1–2 line summaries; avoid pasting large diffs into Worklog. Attach artifacts when needed.
+  - Suggested Worklog template:
+    - `Bug origin: last_good=<sha|tag>, first_bad=<sha|tag>, suspect=<sha> (reason: blame <path>:<line>), evidence=<git log/blame/bisect|other>`
 - State ownership: the agent decides when to move items to InProgress or Done; humans observe and can add context.
 - State semantics: Proposed = needs discovery/confirmation; Planned = approved but not started; Ready gate applies before start.
 - Hierarchy is in frontmatter links, not folder nesting; avoid moving files to reflect scope changes.
@@ -54,7 +70,7 @@ Use this skill to:
 - Agent Identity: In Worklog and audit logs, use your own identity (e.g., `[agent=antigravity]`), never copy `[agent=codex]` blindly.
 - Always provide an explicit `--agent` value for auditability (some commands currently default to `cli`, but do not rely on it).
 - Model attribution (optional but preferred): provide `--model <name>` (or env `KANO_AGENT_MODEL` / `KANO_MODEL`) when it is known deterministically.
-  - Do not guess model names; if unknown, record `unknown`.
+  - Do not guess model names; if unknown, omit the `[model=...]` segment.
 - **Agent Identity Protocol**: Supply `--agent <ID>` with your real product name (e.g., `cursor`, `copilot`, `windsurf`, `antigravity`).
   - **Forbidden (Placeholders)**: `auto`, `user`, `assistant`, `<AGENT_NAME>`, `$AGENT_NAME`.
 - File operations for backlog/skill artifacts must go through the `kano-backlog` CLI
@@ -229,6 +245,16 @@ Guideline: do not paste large `--help` output into chat; inspect it locally and 
 - Backlog integrity checks:
   - `python skills/kano-agent-backlog-skill/scripts/kano-backlog admin validate uids --product <name>`
 
+## Conflict handling policy (configurable)
+
+Use product config to control how duplicate IDs and UIDs are handled by maintenance commands
+such as `admin links normalize-ids`.
+
+- Config keys (product `_config/config.toml`):
+  - `conflict_policy.id_conflict`: default `rename` (rename duplicate IDs).
+  - `conflict_policy.uid_conflict`: default `trash_shorter` (move shorter duplicate content to `_trash/`).
+- `trash_shorter` uses `_trash/<YYYYMMDD>/...` under the product root; items get a Worklog entry.
+
 ### Sandbox workflow (isolated experimentation)
 
 For testing, prototyping, or demos without affecting production backlog:
@@ -272,13 +298,14 @@ Use Topics when:
 
 **Topic lifecycle**:
 1. **Create**: `python skills/kano-agent-backlog-skill/scripts/kano-backlog topic create <topic-name> --agent <id>`
-   - Creates `_kano/backlog/topics/<topic>/` with `manifest.json`, `brief.md`, `notes.md`, and `materials/` subdirectories
+   - Creates `_kano/backlog/topics/<topic>/` with `manifest.json`, `brief.md`, `brief.generated.md`, `notes.md`, and `materials/` subdirectories
 2. **Collect materials**:
    - Add items: `topic add <topic-name> --item <ITEM_ID>`
    - Add code snippets: `topic add-snippet <topic-name> --file <path> --start <line> --end <line> --agent <id>`
    - Pin docs: `topic pin <topic-name> --doc <path>`
 3. **Distill**: `python skills/kano-agent-backlog-skill/scripts/kano-backlog topic distill <topic-name>`
-   - Generates/updates deterministic `brief.md` from collected materials
+  - Generates/overwrites deterministic `brief.generated.md` from collected materials
+  - `brief.md` is a stable, human-maintained brief (do not overwrite it automatically)
 4. **Switch context**: `python skills/kano-agent-backlog-skill/scripts/kano-backlog topic switch <topic-name> --agent <id>`
    - Sets active topic (affects config overlays and workset behavior)
 5. **Close**: `python skills/kano-agent-backlog-skill/scripts/kano-backlog topic close <topic-name> --agent <id>`
@@ -286,11 +313,18 @@ Use Topics when:
 6. **Cleanup**: `python skills/kano-agent-backlog-skill/scripts/kano-backlog topic cleanup --ttl-days <N> [--dry-run]`
    - Removes raw materials from closed topics older than TTL
 
+**Topic snapshots (retention policy)**:
+- Snapshots are intended for **milestone checkpoints** (pre-merge/split/restore, risky bulk edits), not every small edit.
+- To prevent noise, keep only the **latest snapshot per topic** in this demo repo.
+- After creating a snapshot (or periodically), prune all but the newest snapshot:
+  - `python skills/kano-agent-backlog-skill/scripts/kano-backlog topic snapshot cleanup <topic-name> --ttl-days 0 --keep-latest 1 --apply`
+
 **Topic structure**:
 ```
 _kano/backlog/topics/<topic>/
   manifest.json          # refs to items/docs/snippets, status, timestamps
-  brief.md               # deterministic distilled summary (can be versioned)
+  brief.md               # stable, human-maintained brief (do not overwrite automatically)
+  brief.generated.md     # deterministic distilled brief (generated/overwritten by `topic distill`)
   notes.md               # freeform notes (backward compat)
   materials/             # raw collection (gitignored by default)
     clips/               # code snippet refs + cached text
@@ -340,7 +374,7 @@ _kano/backlog/.cache/worksets/items/<ITEM_ID>/
 | Shared context for collaboration | ✅ Yes | ❌ No |
 | Single item scratch space | ❌ No | ✅ Yes |
 | Item-specific deliverables | ❌ No | ✅ Yes |
-| Version-controlled distillation | ✅ Yes (brief.md) | ❌ No |
+| Version-controlled distillation | ✅ Yes (brief.generated.md) | ❌ No |
 
 **Best practice**: Start exploration in a Topic, create work items as scope clarifies, then use Worksets for individual item execution.
 
@@ -362,8 +396,32 @@ _kano/backlog/.cache/worksets/items/<ITEM_ID>/
   - `hash`: `sha256:...` of content for staleness check
   - `cached_text`: optional snapshot (use `--snapshot` to include)
   - `revision`: git commit hash if available
+
+### Human decision materials vs. machine manifest
+
+**Dual-Readability Design**: Every artifact checks against both human and agent readability:
+- **Human-Readable**: High-level summaries, clear checklists, "manager-friendly" reports for rapid decision-making
+- **Agent-Readable**: Structural precision, file paths, line numbers, explicit markers for action without hallucination
+
+**Implementation in Topics**:
+- Treat `manifest.json` as **machine-oriented** metadata:
+  - `seed_items`: UUID list for precise agent reference
+  - `snippet_refs`: file+line+hash for deterministic loading
+  - `pinned_docs`: absolute paths for unambiguous reference
+- Keep `brief.generated.md` **deterministic** and **tool-owned** (generated/overwritten by `topic distill`):
+  - Readable item titles (e.g., "KABSD-TSK-0042: Implement tokenizer adapter")
+  - If available, include item path and keep UID in a hidden HTML comment for deterministic mapping
+  - Materials index with items/docs/snippets sorted for repeatability
+- Keep `brief.md` **human-oriented** and **stable** (do not overwrite automatically):
+  - Context summary and key decisions
+  - Optional: include a human-friendly materials list (do not duplicate raw snippet text)
+- Put human-facing decision support in `_kano/backlog/topics/<topic>/notes.md` (and/or pinned docs), e.g.:
+  - Decision to make
+  - Options + trade-offs
+  - Evidence (ADR links, snippet refs, benchmark/log artifacts)
+  - Recommendation + follow-ups
 - **Staleness detection**: Compare current file hash with stored hash to detect if code changed
-- **Distillation**: `topic distill` generates deterministic `brief.md` with materials index (items, docs, snippets sorted for repeatability)
+- **Distillation**: `topic distill` generates deterministic `brief.generated.md` with a repeatable materials index
 
 ---
 END_OF_SKILL_SENTINEL

@@ -15,27 +15,27 @@ class GitAdapter:
     def get_metadata(self, repo_root: Path) -> VcsMeta:
         """Get Git metadata."""
         try:
-            # Hash (commit hash)
+            # Get hash (commit hash)
             commit_hash = subprocess.check_output(
                 ["git", "rev-parse", "HEAD"],
                 cwd=repo_root,
                 stderr=subprocess.DEVNULL,
-                text=True,
+                text=True
             ).strip()
-
-            # Branch (or HEAD for detached)
+            
+            # Get branch (or HEAD when detached)
             try:
                 branch = subprocess.check_output(
                     ["git", "symbolic-ref", "--short", "HEAD"],
                     cwd=repo_root,
                     stderr=subprocess.DEVNULL,
-                    text=True,
+                    text=True
                 ).strip()
             except subprocess.CalledProcessError:
-                branch = "HEAD"
+                branch = "HEAD"  # detached
 
-            # RevNo: human-friendly monotonic-ish number within the repo.
-            # For git we use commit count on HEAD.
+            # Get revno (commit count on HEAD)
+            revno = "unknown"
             try:
                 revno = subprocess.check_output(
                     ["git", "rev-list", "--count", "HEAD"],
@@ -44,7 +44,19 @@ class GitAdapter:
                     text=True,
                 ).strip()
             except subprocess.CalledProcessError:
-                revno = "unknown"
+                pass
+            
+            # Get label (describe)
+            label = None
+            try:
+                label = subprocess.check_output(
+                    ["git", "describe", "--tags", "--always"],
+                    cwd=repo_root,
+                    stderr=subprocess.DEVNULL,
+                    text=True
+                ).strip()
+            except subprocess.CalledProcessError:
+                pass
             
             # Check if dirty
             try:
@@ -59,16 +71,18 @@ class GitAdapter:
             
             return VcsMeta(
                 provider="git",
+                revision=commit_hash,
+                ref=branch,
+                label=label,
+                dirty=dirty,
                 branch=branch,
                 revno=revno,
                 hash=commit_hash,
-                dirty=dirty
             )
         except Exception:
             return VcsMeta(
                 provider="git",
-                branch="unknown",
-                revno="unknown",
-                hash="unknown",
+                revision="unknown",
+                ref="unknown",
                 dirty="unknown"
             )

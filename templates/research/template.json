@@ -1,0 +1,46 @@
+{
+  "name": "research",
+  "display_name": "Research Topic",
+  "description": "Template for systematic research and investigation topics",
+  "version": "1.0.0",
+  "author": "kano-agent-backlog-skill",
+  "created_at": "2026-01-17T23:59:00Z",
+  "tags": ["research", "investigation", "analysis"],
+  "structure": {
+    "directories": [
+      "materials/clips",
+      "materials/links",
+      "materials/extracts", 
+      "materials/logs",
+      "synthesis",
+      "publish"
+    ],
+    "files": {
+      "brief.md": "brief.md.template",
+      "notes.md": "notes.md.template"
+    }
+  },
+  "manifest_defaults": {
+    "status": "open",
+    "has_spec": false
+  },
+  "variables": {
+    "research_question": {
+      "type": "string",
+      "description": "Main research question or hypothesis",
+      "required": true
+    },
+    "domain": {
+      "type": "choice",
+      "description": "Research domain",
+      "choices": ["technical", "business", "user", "market"],
+      "default": "technical"
+    },
+    "priority": {
+      "type": "choice", 
+      "description": "Research priority level",
+      "choices": ["high", "medium", "low"],
+      "default": "medium"
+    }
+  }
+}

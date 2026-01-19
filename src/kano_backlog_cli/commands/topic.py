@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Optional
+from typing import Optional, List
 
 import typer
 
@@ -29,40 +29,128 @@ app = typer.Typer(help="Manage topic-based context groupings")
 def create(
     name: str = typer.Argument(..., help="Topic name"),
     agent: str = typer.Option(..., "--agent", help="Agent identity"),
-    no_notes: bool = typer.Option(False, "--no-notes", help="Skip creating notes.md"),
+    template: Optional[str] = typer.Option(None, "--template", help="Template name to use"),
+    list_templates: bool = typer.Option(False, "--list-templates", help="List available templates"),
+    variables: Optional[List[str]] = typer.Option(None, "--var", help="Template variables in format key=value"),
+    no_notes: bool = typer.Option(False, "--no-notes", help="Skip creating notes.md (ignored when using templates)"),
+    with_spec: bool = typer.Option(False, "--with-spec", help="Initialize spec/ directory with templates (ignored when using templates)"),
     output_format: str = typer.Option("plain", "--format", help="Output format: plain|json"),
 ):
-    """Create a new topic."""
+    """Create a new topic, optionally from a template."""
     ensure_core_on_path()
-    from kano_backlog_ops.topic import (
-        create_topic,
-        TopicExistsError,
-        TopicValidationError,
-        TopicError,
-    )
-
-    try:
-        result = create_topic(
-            name,
-            agent=agent,
-            create_notes=not no_notes,
+    
+    # Handle template listing
+    if list_templates:
+        from kano_backlog_ops.template import get_available_templates
+        try:
+            templates = get_available_templates()
+            if output_format == "json":
+                payload = {
+                    "templates": [
+                        {
+                            "name": t.name,
+                            "display_name": t.display_name,
+                            "description": t.description,
+                            "tags": t.tags,
+                        }
+                        for t in templates.templates
+                    ],
+                    "builtin_count": templates.builtin_count,
+                    "custom_count": templates.custom_count,
+                }
+                typer.echo(json.dumps(payload, ensure_ascii=False, indent=2))
+            else:
+                if not templates.templates:
+                    typer.echo("No templates available")
+                else:
+                    typer.echo(f"Available templates ({len(templates.templates)} total):")
+                    typer.echo("")
+                    for t in templates.templates:
+                        typer.echo(f"  {t.name}")
+                        typer.echo(f"    {t.description}")
+                        if t.tags:
+                            typer.echo(f"    Tags: {', '.join(t.tags)}")
+                        typer.echo("")
+            return
+        except Exception as exc:
+            typer.echo(f"❌ Error listing templates: {exc}", err=True)
+            raise typer.Exit(1)
+    
+    # Parse template variables
+    template_vars = {}
+    if variables:
+        for var_str in variables:
+            if "=" not in var_str:
+                typer.echo(f"❌ Invalid variable format: {var_str}. Use key=value format.", err=True)
+                raise typer.Exit(1)
+            key, value = var_str.split("=", 1)
+            template_vars[key.strip()] = value.strip()
+    
+    # Create topic with or without template
+    if template:
+        # Template-based creation
+        from kano_backlog_ops.template import (
+            create_topic_from_template,
+            TemplateNotFoundError,
+            TemplateValidationError as TemplateValidationError,
+            TemplateError,
         )
-    except TopicExistsError as exc:
-        typer.echo(f"❌ {exc.message}", err=True)
-        if exc.suggestion:
-            typer.echo(f"   Suggestion: {exc.suggestion}", err=True)
-        raise typer.Exit(1)
-    except TopicValidationError as exc:
-        typer.echo(f"❌ {exc.message}", err=True)
-        raise typer.Exit(1)
-    except TopicError as exc:
-        typer.echo(f"❌ {exc.message}", err=True)
-        if exc.suggestion:
-            typer.echo(f"   Suggestion: {exc.suggestion}", err=True)
-        raise typer.Exit(1)
-    except Exception as exc:
-        typer.echo(f"❌ Unexpected error: {exc}", err=True)
-        raise typer.Exit(2)
+        
+        try:
+            result = create_topic_from_template(
+                name,
+                template,
+                agent=agent,
+                variables=template_vars,
+            )
+        except TemplateNotFoundError as exc:
+            typer.echo(f"❌ {exc.message}", err=True)
+            if exc.suggestion:
+                typer.echo(f"   Suggestion: {exc.suggestion}", err=True)
+            raise typer.Exit(1)
+        except TemplateValidationError as exc:
+            typer.echo(f"❌ {exc.message}", err=True)
+            raise typer.Exit(1)
+        except TemplateError as exc:
+            typer.echo(f"❌ {exc.message}", err=True)
+            if exc.suggestion:
+                typer.echo(f"   Suggestion: {exc.suggestion}", err=True)
+            raise typer.Exit(1)
+        except Exception as exc:
+            typer.echo(f"❌ Unexpected error: {exc}", err=True)
+            raise typer.Exit(2)
+    else:
+        # Standard creation
+        from kano_backlog_ops.topic import (
+            create_topic,
+            TopicExistsError,
+            TopicValidationError,
+            TopicError,
+        )
+
+        try:
+            result = create_topic(
+                name,
+                agent=agent,
+                create_notes=not no_notes,
+                create_spec=with_spec,
+            )
+        except TopicExistsError as exc:
+            typer.echo(f"❌ {exc.message}", err=True)
+            if exc.suggestion:
+                typer.echo(f"   Suggestion: {exc.suggestion}", err=True)
+            raise typer.Exit(1)
+        except TopicValidationError as exc:
+            typer.echo(f"❌ {exc.message}", err=True)
+            raise typer.Exit(1)
+        except TopicError as exc:
+            typer.echo(f"❌ {exc.message}", err=True)
+            if exc.suggestion:
+                typer.echo(f"   Suggestion: {exc.suggestion}", err=True)
+            raise typer.Exit(1)
+        except Exception as exc:
+            typer.echo(f"❌ Unexpected error: {exc}", err=True)
+            raise typer.Exit(2)
 
     if output_format == "json":
         payload = {
@@ -70,10 +158,16 @@ def create(
             "topic_path": str(result.topic_path),
             "agent": result.manifest.agent,
             "created_at": result.manifest.created_at,
+            "template_used": template,
+            "variables_used": template_vars if template else None,
         }
         typer.echo(json.dumps(payload, ensure_ascii=False))
     else:
         typer.echo(f"✓ Topic created: {name}")
+        if template:
+            typer.echo(f"  Template: {template}")
+            if template_vars:
+                typer.echo(f"  Variables: {len(template_vars)} provided")
         typer.echo(f"  Path: {result.topic_path}")
 
 
@@ -229,7 +323,7 @@ def distill(
     topic_name: str = typer.Argument(..., help="Topic name"),
     output_format: str = typer.Option("plain", "--format", help="Output format: plain|json"),
 ):
-    """Generate/overwrite deterministic brief.md from collected materials."""
+    """Generate/overwrite deterministic brief.generated.md from collected materials."""
     ensure_core_on_path()
     from kano_backlog_ops.topic import distill_topic, TopicNotFoundError, TopicError
 
@@ -253,6 +347,49 @@ def distill(
         typer.echo(json.dumps({"topic": topic_name, "brief_path": str(brief_path)}, ensure_ascii=False))
     else:
         typer.echo(f"✓ Distilled brief: {brief_path}")
+
+
+@app.command("decision-audit")
+def decision_audit(
+    topic_name: str = typer.Argument(..., help="Topic name"),
+    output_format: str = typer.Option("plain", "--format", help="Output format: plain|json"),
+):
+    """Generate a decision write-back audit report for a topic."""
+    ensure_core_on_path()
+    from kano_backlog_ops.topic import generate_decision_audit_report, TopicNotFoundError, TopicError
+
+    try:
+        result = generate_decision_audit_report(topic_name)
+    except TopicNotFoundError as exc:
+        typer.echo(f"❌ {exc.message}", err=True)
+        if exc.suggestion:
+            typer.echo(f"   Suggestion: {exc.suggestion}", err=True)
+        raise typer.Exit(1)
+    except TopicError as exc:
+        typer.echo(f"❌ {exc.message}", err=True)
+        if exc.suggestion:
+            typer.echo(f"   Suggestion: {exc.suggestion}", err=True)
+        raise typer.Exit(1)
+    except Exception as exc:
+        typer.echo(f"❌ Unexpected error: {exc}", err=True)
+        raise typer.Exit(2)
+
+    if output_format == "json":
+        payload = {
+            "topic": result.topic,
+            "report_path": str(result.report_path),
+            "decisions_found": result.decisions_found,
+            "items_total": result.items_total,
+            "items_with_writeback": result.items_with_writeback,
+            "items_missing_writeback": result.items_missing_writeback,
+            "sources_scanned": result.sources_scanned,
+        }
+        typer.echo(json.dumps(payload, ensure_ascii=False, indent=2))
+    else:
+        typer.echo(f"✓ Decision audit report: {result.report_path}")
+        typer.echo(f"  Decisions found: {result.decisions_found}")
+        typer.echo(f"  Workitems checked: {result.items_total}")
+        typer.echo(f"  Missing write-back: {len(result.items_missing_writeback)}")
 
 
 @app.command("close")
@@ -332,6 +469,81 @@ def cleanup(
         typer.echo(f"{mode}: scanned={result.topics_scanned} cleaned={result.topics_cleaned}")
         for p in result.deleted_paths:
             typer.echo(f"  - {p}")
+
+
+@app.command("merge")
+def merge(
+    target: str = typer.Argument(..., help="Target topic name"),
+    sources: List[str] = typer.Argument(..., help="Source topics to merge (space-separated)"),
+    agent: Optional[str] = typer.Option(None, "--agent", help="Agent performing merge"),
+    update_worksets: bool = typer.Option(True, "--update-worksets/--no-update-worksets", help="Update shared state after merge"),
+    delete_sources: bool = typer.Option(False, "--delete-sources", help="Delete source topic directories after merge"),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Analyze only, do not modify"),
+    output_format: str = typer.Option("plain", "--format", help="Output format: plain|json"),
+):
+    """Merge one or more topics into a target and optionally update worksets state."""
+    ensure_core_on_path()
+    from kano_backlog_ops.topic import (
+        merge_topics,
+        update_worksets_after_merge,
+        TopicNotFoundError,
+        TopicError,
+    )
+
+    try:
+        result = merge_topics(
+            target,
+            sources,
+            agent=agent or "",
+            dry_run=dry_run,
+            delete_source_topics=delete_sources,
+        )
+    except TopicNotFoundError as exc:
+        typer.echo(f"❌ {exc.message}", err=True)
+        if getattr(exc, "suggestion", None):
+            typer.echo(f"   Suggestion: {exc.suggestion}", err=True)
+        raise typer.Exit(1)
+    except TopicError as exc:
+        typer.echo(f"❌ {exc.message}", err=True)
+        if getattr(exc, "suggestion", None):
+            typer.echo(f"   Suggestion: {exc.suggestion}", err=True)
+        raise typer.Exit(1)
+    except Exception as exc:
+        typer.echo(f"❌ Unexpected error: {exc}", err=True)
+        raise typer.Exit(2)
+
+    # Update worksets state if requested and not dry_run
+    if update_worksets and not dry_run:
+        try:
+            update_worksets_after_merge(target, sources)
+        except Exception as exc:
+            # Non-fatal; report and continue
+            typer.echo(f"⚠️  Worksets state update warning: {exc}", err=True)
+
+    if output_format == "json":
+        payload = {
+            "target": result.target_topic,
+            "sources": result.merged_topics,
+            "items": result.items_merged,
+            "materials": result.materials_merged,
+            "references_updated": result.references_updated,
+            "merged_at": result.merged_at,
+            "worksets_updated": update_worksets and not dry_run,
+            "deleted_sources": delete_sources,
+        }
+        typer.echo(json.dumps(payload, ensure_ascii=False, indent=2))
+    else:
+        typer.echo(f"✓ Merged into '{result.target_topic}' at {result.merged_at}")
+        if result.merged_topics:
+            typer.echo(f"  Sources: {', '.join(result.merged_topics)}")
+        total_items = sum(len(v) for v in result.items_merged.values())
+        typer.echo(f"  Items merged: {total_items}")
+        if result.references_updated:
+            typer.echo(f"  References updated in: {', '.join(result.references_updated)}")
+        if update_worksets and not dry_run:
+            typer.echo("  Worksets state: updated")
+        if delete_sources:
+            typer.echo("  Source topics: deleted")
 
 
 @app.command()
@@ -503,3 +715,844 @@ def list_cmd(
                 typer.echo(f"    Pinned docs: {len(t.pinned_docs)}")
                 typer.echo(f"    Updated: {t.updated_at}")
                 typer.echo("")
+
+
+@app.command("add-reference")
+def add_reference(
+    topic_name: str = typer.Argument(..., help="Source topic name"),
+    referenced_topic: str = typer.Option(..., "--to", help="Target topic name to reference"),
+    output_format: str = typer.Option("plain", "--format", help="Output format: plain|json"),
+):
+    """Add a reference from one topic to another (bidirectional)."""
+    ensure_core_on_path()
+    from kano_backlog_ops.topic import (
+        add_topic_reference,
+        TopicNotFoundError,
+        TopicError,
+    )
+
+    try:
+        result = add_topic_reference(topic_name, referenced_topic)
+    except TopicNotFoundError as exc:
+        typer.echo(f"❌ {exc.message}", err=True)
+        if exc.suggestion:
+            typer.echo(f"   Suggestion: {exc.suggestion}", err=True)
+        raise typer.Exit(1)
+    except TopicError as exc:
+        typer.echo(f"❌ {exc.message}", err=True)
+        if exc.suggestion:
+            typer.echo(f"   Suggestion: {exc.suggestion}", err=True)
+        raise typer.Exit(1)
+    except Exception as exc:
+        typer.echo(f"❌ Unexpected error: {exc}", err=True)
+        raise typer.Exit(2)
+
+    if output_format == "json":
+        payload = {
+            "topic": result.topic,
+            "referenced_topic": result.referenced_topic,
+            "added": result.added,
+        }
+        typer.echo(json.dumps(payload, ensure_ascii=False))
+    else:
+        if result.added:
+            typer.echo(f"✓ Added reference: '{result.topic}' → '{result.referenced_topic}'")
+            typer.echo("  Bidirectional linking applied automatically")
+        else:
+            typer.echo(f"Reference already exists: '{result.topic}' → '{result.referenced_topic}'")
+
+
+@app.command("remove-reference")
+def remove_reference(
+    topic_name: str = typer.Argument(..., help="Source topic name"),
+    referenced_topic: str = typer.Option(..., "--to", help="Target topic name to unreference"),
+    output_format: str = typer.Option("plain", "--format", help="Output format: plain|json"),
+):
+    """Remove a reference from one topic to another (bidirectional cleanup)."""
+    ensure_core_on_path()
+    from kano_backlog_ops.topic import (
+        remove_topic_reference,
+        TopicNotFoundError,
+        TopicError,
+    )
+
+    try:
+        result = remove_topic_reference(topic_name, referenced_topic)
+    except TopicNotFoundError as exc:
+        typer.echo(f"❌ {exc.message}", err=True)
+        if exc.suggestion:
+            typer.echo(f"   Suggestion: {exc.suggestion}", err=True)
+        raise typer.Exit(1)
+    except TopicError as exc:
+        typer.echo(f"❌ {exc.message}", err=True)
+        if exc.suggestion:
+            typer.echo(f"   Suggestion: {exc.suggestion}", err=True)
+        raise typer.Exit(1)
+    except Exception as exc:
+        typer.echo(f"❌ Unexpected error: {exc}", err=True)
+        raise typer.Exit(2)
+
+    if output_format == "json":
+        payload = {
+            "topic": result.topic,
+            "referenced_topic": result.referenced_topic,
+            "removed": result.removed,
+        }
+        typer.echo(json.dumps(payload, ensure_ascii=False))
+    else:
+        if result.removed:
+            typer.echo(f"✓ Removed reference: '{result.topic}' → '{result.referenced_topic}'")
+            typer.echo("  Bidirectional cleanup applied automatically")
+        else:
+            typer.echo(f"Reference does not exist: '{result.topic}' → '{result.referenced_topic}'")
+
+
+# Template management commands
+template_app = typer.Typer(help="Template management commands")
+app.add_typer(template_app, name="template")
+
+
+@template_app.command("list")
+def template_list(
+    output_format: str = typer.Option("plain", "--format", help="Output format: plain|json"),
+):
+    """List available templates."""
+    ensure_core_on_path()
+    from kano_backlog_ops.template import get_available_templates, TemplateError
+
+    try:
+        templates = get_available_templates()
+    except TemplateError as exc:
+        typer.echo(f"❌ {exc.message}", err=True)
+        if exc.suggestion:
+            typer.echo(f"   Suggestion: {exc.suggestion}", err=True)
+        raise typer.Exit(1)
+    except Exception as exc:
+        typer.echo(f"❌ Unexpected error: {exc}", err=True)
+        raise typer.Exit(2)
+
+    if output_format == "json":
+        payload = {
+            "templates": [
+                {
+                    "name": t.name,
+                    "display_name": t.display_name,
+                    "description": t.description,
+                    "version": t.version,
+                    "author": t.author,
+                    "tags": t.tags,
+                    "variables": {
+                        name: {
+                            "type": var.type,
+                            "description": var.description,
+                            "required": var.required,
+                            "default": var.default,
+                            "choices": var.choices,
+                        }
+                        for name, var in t.variables.items()
+                    },
+                }
+                for t in templates.templates
+            ],
+            "builtin_count": templates.builtin_count,
+            "custom_count": templates.custom_count,
+        }
+        typer.echo(json.dumps(payload, ensure_ascii=False, indent=2))
+    else:
+        if not templates.templates:
+            typer.echo("No templates available")
+        else:
+            typer.echo(f"Available templates ({len(templates.templates)} total):")
+            typer.echo(f"  Built-in: {templates.builtin_count}")
+            typer.echo(f"  Custom: {templates.custom_count}")
+            typer.echo("")
+            
+            for t in templates.templates:
+                typer.echo(f"  📋 {t.name} - {t.display_name}")
+                typer.echo(f"     {t.description}")
+                if t.tags:
+                    typer.echo(f"     Tags: {', '.join(t.tags)}")
+                if t.variables:
+                    typer.echo(f"     Variables: {len(t.variables)} configurable")
+                typer.echo("")
+
+
+@template_app.command("show")
+def template_show(
+    template_name: str = typer.Argument(..., help="Template name"),
+    output_format: str = typer.Option("plain", "--format", help="Output format: plain|json"),
+):
+    """Show detailed information about a template."""
+    ensure_core_on_path()
+    from kano_backlog_ops.template import get_template_info, TemplateNotFoundError, TemplateError
+
+    try:
+        template_info = get_template_info(template_name)
+        template = template_info.template
+    except TemplateNotFoundError as exc:
+        typer.echo(f"❌ {exc.message}", err=True)
+        if exc.suggestion:
+            typer.echo(f"   Suggestion: {exc.suggestion}", err=True)
+        raise typer.Exit(1)
+    except TemplateError as exc:
+        typer.echo(f"❌ {exc.message}", err=True)
+        if exc.suggestion:
+            typer.echo(f"   Suggestion: {exc.suggestion}", err=True)
+        raise typer.Exit(1)
+    except Exception as exc:
+        typer.echo(f"❌ Unexpected error: {exc}", err=True)
+        raise typer.Exit(2)
+
+    if output_format == "json":
+        payload = {
+            "template": template.to_dict(),
+            "source_path": str(template_info.source_path),
+            "is_builtin": template_info.is_builtin,
+        }
+        typer.echo(json.dumps(payload, ensure_ascii=False, indent=2))
+    else:
+        source_type = "Built-in" if template_info.is_builtin else "Custom"
+        typer.echo(f"📋 Template: {template.name}")
+        typer.echo(f"   Display Name: {template.display_name}")
+        typer.echo(f"   Description: {template.description}")
+        typer.echo(f"   Version: {template.version}")
+        typer.echo(f"   Author: {template.author}")
+        typer.echo(f"   Source: {source_type}")
+        typer.echo(f"   Path: {template_info.source_path}")
+        
+        if template.tags:
+            typer.echo(f"   Tags: {', '.join(template.tags)}")
+        
+        if template.variables:
+            typer.echo(f"\n   Variables ({len(template.variables)}):")
+            for name, var in template.variables.items():
+                required_marker = " (required)" if var.required else ""
+                typer.echo(f"     • {name}{required_marker}")
+                typer.echo(f"       Type: {var.type}")
+                typer.echo(f"       Description: {var.description}")
+                if var.default is not None:
+                    typer.echo(f"       Default: {var.default}")
+                if var.choices:
+                    typer.echo(f"       Choices: {', '.join(var.choices)}")
+        
+        if template.structure.directories:
+            typer.echo(f"\n   Directory Structure:")
+            for directory in template.structure.directories:
+                typer.echo(f"     📁 {directory}")
+        
+        if template.structure.files:
+            typer.echo(f"\n   Template Files:")
+            for target, source in template.structure.files.items():
+                typer.echo(f"     📄 {target} ← {source}")
+
+
+@template_app.command("validate")
+def template_validate(
+    template_name: str = typer.Argument(..., help="Template name"),
+    output_format: str = typer.Option("plain", "--format", help="Output format: plain|json"),
+):
+    """Validate a template."""
+    ensure_core_on_path()
+    from kano_backlog_ops.template import validate_template_by_name, TemplateError
+
+    try:
+        errors = validate_template_by_name(template_name)
+    except TemplateError as exc:
+        typer.echo(f"❌ {exc.message}", err=True)
+        if exc.suggestion:
+            typer.echo(f"   Suggestion: {exc.suggestion}", err=True)
+        raise typer.Exit(1)
+    except Exception as exc:
+        typer.echo(f"❌ Unexpected error: {exc}", err=True)
+        raise typer.Exit(2)
+
+    if output_format == "json":
+        payload = {
+            "template": template_name,
+            "valid": len(errors) == 0,
+            "errors": [
+                {
+                    "path": error.path,
+                    "message": error.message,
+                    "line": error.line,
+                }
+                for error in errors
+            ],
+        }
+        typer.echo(json.dumps(payload, ensure_ascii=False, indent=2))
+    else:
+        if not errors:
+            typer.echo(f"✅ Template '{template_name}' is valid")
+        else:
+            typer.echo(f"❌ Template '{template_name}' has {len(errors)} error(s):")
+            for error in errors:
+                location = f" (line {error.line})" if error.line else ""
+                typer.echo(f"   • {error.path}{location}: {error.message}")
+            raise typer.Exit(1)
+
+# Snapshot management commands
+snapshot_app = typer.Typer(help="Topic snapshot management commands")
+app.add_typer(snapshot_app, name="snapshot")
+
+
+@snapshot_app.command("create")
+def snapshot_create(
+    topic_name: str = typer.Argument(..., help="Topic name"),
+    snapshot_name: str = typer.Argument(..., help="Snapshot name"),
+    agent: str = typer.Option(..., "--agent", help="Agent identity"),
+    description: str = typer.Option("", "--description", help="Snapshot description"),
+    no_materials: bool = typer.Option(False, "--no-materials", help="Skip materials in snapshot"),
+    output_format: str = typer.Option("plain", "--format", help="Output format: plain|json"),
+):
+    """Create a snapshot of a topic's current state."""
+    ensure_core_on_path()
+    from kano_backlog_ops.topic import (
+        create_topic_snapshot,
+        TopicNotFoundError,
+        TopicError,
+    )
+
+    try:
+        result = create_topic_snapshot(
+            topic_name,
+            snapshot_name,
+            description=description,
+            agent=agent,
+            include_materials=not no_materials,
+        )
+    except TopicNotFoundError as exc:
+        typer.echo(f"❌ {exc.message}", err=True)
+        if exc.suggestion:
+            typer.echo(f"   Suggestion: {exc.suggestion}", err=True)
+        raise typer.Exit(1)
+    except TopicError as exc:
+        typer.echo(f"❌ {exc.message}", err=True)
+        if exc.suggestion:
+            typer.echo(f"   Suggestion: {exc.suggestion}", err=True)
+        raise typer.Exit(1)
+    except Exception as exc:
+        typer.echo(f"❌ Unexpected error: {exc}", err=True)
+        raise typer.Exit(2)
+
+    if output_format == "json":
+        payload = {
+            "topic": result.topic,
+            "snapshot_name": result.snapshot_name,
+            "snapshot_path": str(result.snapshot_path),
+            "created_at": result.created_at,
+        }
+        typer.echo(json.dumps(payload, ensure_ascii=False))
+    else:
+        typer.echo(f"✓ Created snapshot '{result.snapshot_name}' for topic '{result.topic}'")
+        typer.echo(f"  Created at: {result.created_at}")
+        typer.echo(f"  Path: {result.snapshot_path}")
+
+
+@snapshot_app.command("list")
+def snapshot_list(
+    topic_name: str = typer.Argument(..., help="Topic name"),
+    output_format: str = typer.Option("plain", "--format", help="Output format: plain|json"),
+):
+    """List all snapshots for a topic."""
+    ensure_core_on_path()
+    from kano_backlog_ops.topic import (
+        list_topic_snapshots,
+        TopicNotFoundError,
+        TopicError,
+    )
+
+    try:
+        result = list_topic_snapshots(topic_name)
+    except TopicNotFoundError as exc:
+        typer.echo(f"❌ {exc.message}", err=True)
+        if exc.suggestion:
+            typer.echo(f"   Suggestion: {exc.suggestion}", err=True)
+        raise typer.Exit(1)
+    except TopicError as exc:
+        typer.echo(f"❌ {exc.message}", err=True)
+        if exc.suggestion:
+            typer.echo(f"   Suggestion: {exc.suggestion}", err=True)
+        raise typer.Exit(1)
+    except Exception as exc:
+        typer.echo(f"❌ Unexpected error: {exc}", err=True)
+        raise typer.Exit(2)
+
+    if output_format == "json":
+        payload = {
+            "topic": result.topic,
+            "snapshots": result.snapshots,
+        }
+        typer.echo(json.dumps(payload, ensure_ascii=False, indent=2))
+    else:
+        if not result.snapshots:
+            typer.echo(f"No snapshots found for topic '{result.topic}'")
+        else:
+            typer.echo(f"Snapshots for topic '{result.topic}' ({len(result.snapshots)} total):")
+            typer.echo("")
+            for snapshot in result.snapshots:
+                typer.echo(f"  📸 {snapshot['name']}")
+                typer.echo(f"     Created: {snapshot['created_at']}")
+                typer.echo(f"     By: {snapshot['created_by']}")
+                if snapshot['description']:
+                    typer.echo(f"     Description: {snapshot['description']}")
+                typer.echo("")
+
+
+@snapshot_app.command("restore")
+def snapshot_restore(
+    topic_name: str = typer.Argument(..., help="Topic name"),
+    snapshot_name: str = typer.Argument(..., help="Snapshot name"),
+    agent: str = typer.Option(..., "--agent", help="Agent identity"),
+    no_backup: bool = typer.Option(False, "--no-backup", help="Skip creating backup before restore"),
+    manifest_only: bool = typer.Option(False, "--manifest-only", help="Restore manifest.json only"),
+    brief_only: bool = typer.Option(False, "--brief-only", help="Restore brief.generated.md only"),
+    notes_only: bool = typer.Option(False, "--notes-only", help="Restore notes.md only"),
+    output_format: str = typer.Option("plain", "--format", help="Output format: plain|json"),
+):
+    """Restore a topic from a snapshot."""
+    ensure_core_on_path()
+    from kano_backlog_ops.topic import (
+        restore_topic_snapshot,
+        TopicNotFoundError,
+        TopicError,
+    )
+
+    # Determine what to restore
+    if manifest_only or brief_only or notes_only:
+        restore_manifest = manifest_only
+        restore_brief = brief_only
+        restore_notes = notes_only
+    else:
+        # Default: restore everything
+        restore_manifest = True
+        restore_brief = True
+        restore_notes = True
+
+    try:
+        result = restore_topic_snapshot(
+            topic_name,
+            snapshot_name,
+            agent=agent,
+            restore_manifest=restore_manifest,
+            restore_brief=restore_brief,
+            restore_notes=restore_notes,
+            backup_current=not no_backup,
+        )
+    except TopicNotFoundError as exc:
+        typer.echo(f"❌ {exc.message}", err=True)
+        if exc.suggestion:
+            typer.echo(f"   Suggestion: {exc.suggestion}", err=True)
+        raise typer.Exit(1)
+    except TopicError as exc:
+        typer.echo(f"❌ {exc.message}", err=True)
+        if exc.suggestion:
+            typer.echo(f"   Suggestion: {exc.suggestion}", err=True)
+        raise typer.Exit(1)
+    except Exception as exc:
+        typer.echo(f"❌ Unexpected error: {exc}", err=True)
+        raise typer.Exit(2)
+
+    if output_format == "json":
+        payload = {
+            "topic": result.topic,
+            "snapshot_name": result.snapshot_name,
+            "restored_at": result.restored_at,
+            "restored_components": result.restored_components,
+        }
+        typer.echo(json.dumps(payload, ensure_ascii=False))
+    else:
+        typer.echo(f"✓ Restored topic '{result.topic}' from snapshot '{result.snapshot_name}'")
+        typer.echo(f"  Restored at: {result.restored_at}")
+        typer.echo(f"  Components restored: {', '.join(result.restored_components)}")
+        if not no_backup:
+            typer.echo("  Automatic backup created before restore")
+
+
+@snapshot_app.command("cleanup")
+def snapshot_cleanup(
+    topic_name: str = typer.Argument(..., help="Topic name"),
+    ttl_days: int = typer.Option(30, "--ttl-days", help="Delete snapshots older than N days"),
+    keep_latest: int = typer.Option(5, "--keep-latest", help="Always keep N most recent snapshots"),
+    apply: bool = typer.Option(False, "--apply", help="Perform deletion (default is dry-run)"),
+    output_format: str = typer.Option("plain", "--format", help="Output format: plain|json"),
+):
+    """Clean up old snapshots for a topic."""
+    ensure_core_on_path()
+    from kano_backlog_ops.topic import (
+        cleanup_topic_snapshots,
+        TopicNotFoundError,
+        TopicError,
+    )
+
+    try:
+        result = cleanup_topic_snapshots(
+            topic_name,
+            ttl_days=ttl_days,
+            keep_latest=keep_latest,
+            dry_run=not apply,
+        )
+    except TopicNotFoundError as exc:
+        typer.echo(f"❌ {exc.message}", err=True)
+        if exc.suggestion:
+            typer.echo(f"   Suggestion: {exc.suggestion}", err=True)
+        raise typer.Exit(1)
+    except TopicError as exc:
+        typer.echo(f"❌ {exc.message}", err=True)
+        if exc.suggestion:
+            typer.echo(f"   Suggestion: {exc.suggestion}", err=True)
+        raise typer.Exit(1)
+    except Exception as exc:
+        typer.echo(f"❌ Unexpected error: {exc}", err=True)
+        raise typer.Exit(2)
+
+    if output_format == "json":
+        typer.echo(json.dumps(result, ensure_ascii=False, indent=2))
+    else:
+        mode = "DRY RUN" if result["dry_run"] else "APPLY"
+        typer.echo(f"{mode}: Topic '{result['topic']}'")
+        typer.echo(f"  Snapshots scanned: {result['snapshots_scanned']}")
+        typer.echo(f"  Snapshots deleted: {result['snapshots_deleted']}")
+        if result["deleted_files"]:
+            typer.echo("  Deleted files:")
+            for file_path in result["deleted_files"]:
+                typer.echo(f"    - {file_path}")
+
+@app.command("split")
+def split_topic_cmd(
+    source_topic: str = typer.Argument(..., help="Source topic name to split"),
+    agent: str = typer.Option(..., "--agent", help="Agent identity"),
+    config_file: Optional[str] = typer.Option(None, "--config", help="JSON file with split configuration"),
+    new_topic: Optional[List[str]] = typer.Option(None, "--new-topic", help="New topic in format 'name:item1,item2'"),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Show what would be done without making changes"),
+    no_snapshots: bool = typer.Option(False, "--no-snapshots", help="Skip creating snapshots before split"),
+    output_format: str = typer.Option("plain", "--format", help="Output format: plain|json"),
+):
+    """Split a topic into multiple focused subtopics."""
+    ensure_core_on_path()
+    from kano_backlog_ops.topic import (
+        split_topic,
+        TopicNotFoundError,
+        TopicError,
+    )
+
+    # Parse split configuration
+    split_config = {}
+    
+    if config_file:
+        try:
+            with open(config_file, 'r', encoding='utf-8') as f:
+                split_config = json.load(f)
+        except Exception as e:
+            typer.echo(f"❌ Error reading config file: {e}", err=True)
+            raise typer.Exit(1)
+    elif new_topic:
+        for topic_spec in new_topic:
+            if ':' not in topic_spec:
+                typer.echo(f"❌ Invalid topic spec: {topic_spec}. Use format 'name:item1,item2'", err=True)
+                raise typer.Exit(1)
+            
+            name, items_str = topic_spec.split(':', 1)
+            items = [item.strip() for item in items_str.split(',') if item.strip()]
+            split_config[name.strip()] = items
+    else:
+        typer.echo("❌ Must provide either --config file or --new-topic specifications", err=True)
+        raise typer.Exit(1)
+
+    try:
+        result = split_topic(
+            source_topic,
+            split_config,
+            agent=agent,
+            dry_run=dry_run,
+            create_snapshots=not no_snapshots,
+        )
+    except TopicNotFoundError as exc:
+        typer.echo(f"❌ {exc.message}", err=True)
+        if exc.suggestion:
+            typer.echo(f"   Suggestion: {exc.suggestion}", err=True)
+        raise typer.Exit(1)
+    except TopicError as exc:
+        typer.echo(f"❌ {exc.message}", err=True)
+        if exc.suggestion:
+            typer.echo(f"   Suggestion: {exc.suggestion}", err=True)
+        raise typer.Exit(1)
+    except Exception as exc:
+        typer.echo(f"❌ Unexpected error: {exc}", err=True)
+        raise typer.Exit(2)
+
+    if output_format == "json":
+        if dry_run:
+            payload = {
+                "source_topic": result.source_topic,
+                "new_topics": result.new_topics,
+                "conflicts": result.conflicts,
+                "references_to_update": result.references_to_update,
+                "dry_run": True,
+            }
+        else:
+            payload = {
+                "source_topic": result.source_topic,
+                "new_topics": result.new_topics,
+                "items_redistributed": result.items_redistributed,
+                "materials_redistributed": result.materials_redistributed,
+                "references_updated": result.references_updated,
+                "split_at": result.split_at,
+            }
+        typer.echo(json.dumps(payload, ensure_ascii=False, indent=2))
+    else:
+        if dry_run:
+            typer.echo(f"🔍 DRY RUN: Split plan for '{result.source_topic}'")
+            typer.echo(f"  Would create {len(result.new_topics)} new topics:")
+            for topic_info in result.new_topics:
+                typer.echo(f"    - {topic_info['name']}: {len(topic_info['items'])} items")
+            if result.conflicts:
+                typer.echo(f"  ⚠️  Conflicts detected: {len(result.conflicts)}")
+        else:
+            typer.echo(f"✓ Split topic '{result.source_topic}' into {len(result.new_topics)} topics")
+            typer.echo(f"  Split at: {result.split_at}")
+            typer.echo(f"  New topics created:")
+            for topic, items in result.items_redistributed.items():
+                typer.echo(f"    - {topic}: {len(items)} items")
+            if result.references_updated:
+                typer.echo(f"  Updated references in {len(result.references_updated)} topics")
+
+
+@app.command("merge")
+def merge_topics_cmd(
+    target_topic: str = typer.Argument(..., help="Target topic name to merge into"),
+    source_topics: List[str] = typer.Argument(..., help="Source topic names to merge from"),
+    agent: str = typer.Option(..., "--agent", help="Agent identity"),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Show what would be done without making changes"),
+    no_snapshots: bool = typer.Option(False, "--no-snapshots", help="Skip creating snapshots before merge"),
+    delete_sources: bool = typer.Option(False, "--delete-sources", help="Delete source topics after merge"),
+    output_format: str = typer.Option("plain", "--format", help="Output format: plain|json"),
+):
+    """Merge multiple topics into a target topic."""
+    ensure_core_on_path()
+    from kano_backlog_ops.topic import (
+        merge_topics,
+        TopicNotFoundError,
+        TopicError,
+    )
+
+    try:
+        result = merge_topics(
+            target_topic,
+            source_topics,
+            agent=agent,
+            dry_run=dry_run,
+            create_snapshots=not no_snapshots,
+            delete_source_topics=delete_sources,
+        )
+    except TopicNotFoundError as exc:
+        typer.echo(f"❌ {exc.message}", err=True)
+        if exc.suggestion:
+            typer.echo(f"   Suggestion: {exc.suggestion}", err=True)
+        raise typer.Exit(1)
+    except TopicError as exc:
+        typer.echo(f"❌ {exc.message}", err=True)
+        if exc.suggestion:
+            typer.echo(f"   Suggestion: {exc.suggestion}", err=True)
+        raise typer.Exit(1)
+    except Exception as exc:
+        typer.echo(f"❌ Unexpected error: {exc}", err=True)
+        raise typer.Exit(2)
+
+    if output_format == "json":
+        if dry_run:
+            payload = {
+                "target_topic": result.target_topic,
+                "source_topics": result.source_topics,
+                "item_conflicts": result.item_conflicts,
+                "material_conflicts": result.material_conflicts,
+                "references_to_update": result.references_to_update,
+                "dry_run": True,
+            }
+        else:
+            payload = {
+                "target_topic": result.target_topic,
+                "merged_topics": result.merged_topics,
+                "items_merged": result.items_merged,
+                "materials_merged": result.materials_merged,
+                "references_updated": result.references_updated,
+                "merged_at": result.merged_at,
+            }
+        typer.echo(json.dumps(payload, ensure_ascii=False, indent=2))
+    else:
+        if dry_run:
+            typer.echo(f"🔍 DRY RUN: Merge plan for '{result.target_topic}'")
+            typer.echo(f"  Would merge {len(result.source_topics)} topics:")
+            for topic in result.source_topics:
+                typer.echo(f"    - {topic}")
+            if result.item_conflicts:
+                typer.echo(f"  ⚠️  Item conflicts: {len(result.item_conflicts)}")
+            if result.material_conflicts:
+                typer.echo(f"  ⚠️  Material conflicts: {len(result.material_conflicts)}")
+        else:
+            typer.echo(f"✓ Merged {len(result.merged_topics)} topics into '{result.target_topic}'")
+            typer.echo(f"  Merged at: {result.merged_at}")
+            typer.echo(f"  Topics merged:")
+            for topic, items in result.items_merged.items():
+                typer.echo(f"    - {topic}: {len(items)} items")
+            if result.references_updated:
+                typer.echo(f"  Updated references in {len(result.references_updated)} topics")
+            if delete_sources:
+                typer.echo(f"  Deleted {len(result.merged_topics)} source topics")
+
+
+# =============================================================================
+# Shared State Commands (KABSD-TSK-0257)
+# =============================================================================
+
+
+@app.command("list-active")
+def list_active(
+    output_format: str = typer.Option("plain", "--format", help="Output format: plain|json"),
+):
+    """List all active topics across all agents (shared state)."""
+    ensure_core_on_path()
+    from kano_backlog_ops.topic import list_active_topics
+
+    try:
+        result = list_active_topics()
+    except Exception as exc:
+        typer.echo(f"❌ Error listing active topics: {exc}", err=True)
+        raise typer.Exit(2)
+
+    if output_format == "json":
+        typer.echo(json.dumps(result, ensure_ascii=False, indent=2))
+    else:
+        if not result:
+            typer.echo("No active topics")
+        else:
+            typer.echo("Active topics:")
+            for agent_id, info in result.items():
+                typer.echo(f"  {agent_id}: {info['topic_name']}")
+                typer.echo(f"    ID: {info['topic_id']}")
+                typer.echo(f"    Updated: {info['updated_at']}")
+                if info.get('participants'):
+                    typer.echo(f"    Participants: {', '.join(info['participants'])}")
+
+
+@app.command("show-state")
+def show_state(
+    agent: Optional[str] = typer.Option(None, "--agent", help="Filter by agent ID"),
+    output_format: str = typer.Option("plain", "--format", help="Output format: plain|json"),
+):
+    """Show shared topic state (state.json contents)."""
+    ensure_core_on_path()
+    from kano_backlog_ops.topic import load_state_index
+
+    try:
+        state = load_state_index()
+    except Exception as exc:
+        typer.echo(f"❌ Error loading state: {exc}", err=True)
+        raise typer.Exit(2)
+
+    if output_format == "json":
+        payload = state.to_dict()
+        typer.echo(json.dumps(payload, ensure_ascii=False, indent=2))
+    else:
+        typer.echo(f"Repo ID: {state.repo_id}")
+        typer.echo(f"State version: {state.version}")
+        typer.echo("Agents:")
+        for agent_id, agent_state in state.agents.items():
+            if agent and agent != agent_id:
+                continue
+            topic_str = agent_state.active_topic_id or "(none)"
+            typer.echo(f"  {agent_id}: {topic_str}")
+            typer.echo(f"    Updated: {agent_state.updated_at}")
+
+
+@app.command("migrate")
+def migrate(
+    output_format: str = typer.Option("plain", "--format", help="Output format: plain|json"),
+):
+    """Migrate legacy active_topic.<agent>.txt files to shared state.json."""
+    ensure_core_on_path()
+    from kano_backlog_ops.topic import migrate_legacy_active_topics
+
+    try:
+        result = migrate_legacy_active_topics()
+    except Exception as exc:
+        typer.echo(f"❌ Error migrating: {exc}", err=True)
+        raise typer.Exit(2)
+
+    if output_format == "json":
+        typer.echo(json.dumps(result, ensure_ascii=False, indent=2))
+    else:
+        if not result:
+            typer.echo("✓ No legacy files to migrate")
+        else:
+            typer.echo(f"✓ Migrated {len(result)} agent(s):")
+            for agent_id, topic_name in result.items():
+                typer.echo(f"  {agent_id} -> {topic_name}")
+
+
+@app.command("cleanup-legacy")
+def cleanup_legacy(
+    no_dry_run: bool = typer.Option(False, "--no-dry-run", help="Actually delete files (default: dry-run)"),
+    output_format: str = typer.Option("plain", "--format", help="Output format: plain|json"),
+):
+    """Remove legacy active_topic.<agent>.txt files (after migration)."""
+    ensure_core_on_path()
+    from kano_backlog_ops.topic import cleanup_legacy_active_topics
+
+    try:
+        result = cleanup_legacy_active_topics(dry_run=not no_dry_run)
+    except Exception as exc:
+        typer.echo(f"❌ Error cleaning up: {exc}", err=True)
+        raise typer.Exit(2)
+
+    if output_format == "json":
+        payload = {
+            "deleted": [str(p) for p in result],
+            "count": len(result),
+            "dry_run": not no_dry_run,
+        }
+        typer.echo(json.dumps(payload, ensure_ascii=False, indent=2))
+    else:
+        if not result:
+            typer.echo("✓ No legacy files to clean up")
+        else:
+            action = "Would delete" if not no_dry_run else "Deleted"
+            typer.echo(f"✓ {action} {len(result)} file(s):")
+            for path in result:
+                typer.echo(f"  - {path}")
+            if not no_dry_run:
+                typer.echo("  (use --no-dry-run to actually delete)")
+
+
+@app.command("migrate-filenames")
+def migrate_filenames(
+    no_dry_run: bool = typer.Option(False, "--no-dry-run", help="Actually rename files (default: dry-run)"),
+    output_format: str = typer.Option("plain", "--format", help="Output format: plain|json"),
+):
+    """Migrate topic state filenames from {uuid}.json to {slug}_{uuid}.json format."""
+    ensure_core_on_path()
+    from kano_backlog_ops.topic import migrate_topic_state_filenames
+
+    try:
+        result = migrate_topic_state_filenames(dry_run=not no_dry_run)
+    except Exception as exc:
+        typer.echo(f"❌ Error migrating filenames: {exc}", err=True)
+        raise typer.Exit(2)
+
+    if output_format == "json":
+        payload = {
+            "renamed": result,
+            "count": len(result),
+            "dry_run": not no_dry_run,
+        }
+        typer.echo(json.dumps(payload, ensure_ascii=False, indent=2))
+    else:
+        if not result:
+            typer.echo("✓ No files to migrate (all already in new format)")
+        else:
+            action = "Would rename" if not no_dry_run else "Renamed"
+            typer.echo(f"✓ {action} {len(result)} file(s):")
+            for old_name, new_name in result.items():
+                typer.echo(f"  {old_name} → {new_name}")
+            if not no_dry_run:
+                typer.echo("  (use --no-dry-run to actually rename)")
+

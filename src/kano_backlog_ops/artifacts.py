@@ -31,31 +31,37 @@ def _resolve_item_path(item_ref: str, *, product: Optional[str] = None, backlog_
     if item_ref.startswith("/") or ":\\" in item_ref:
         return Path(item_ref).resolve()
 
-    if backlog_root is None:
-        if product:
-            ctx = ConfigLoader.from_path(Path.cwd(), product=product)
-            backlog_root = ctx.product_root
-        else:
-            # Fallback: walk up to find _kano/backlog
-            current = Path.cwd()
-            while current != current.parent:
-                candidate = current / "_kano" / "backlog"
-                if candidate.exists():
-                    backlog_root = candidate
-                    break
-                current = current.parent
-            if backlog_root is None:
-                raise ValueError("Cannot find backlog root")
+    def _find_platform_backlog_root() -> Path:
+        current = Path.cwd()
+        while current != current.parent:
+            candidate = current / "_kano" / "backlog"
+            if candidate.exists():
+                return candidate
+            current = current.parent
+        raise ValueError("Cannot find backlog root")
 
+    if backlog_root is None:
+        backlog_root = _find_platform_backlog_root()
+
+    # Prefer canonical resolution shared with Worksets (supports product layout + ID/UID refs).
+    try:
+        from kano_backlog_ops.workset import _resolve_item_ref
+
+        item_path, _ = _resolve_item_ref(item_ref, backlog_root)
+        return item_path
+    except Exception:
+        pass
+
+    # Fallback: legacy file-name scan under items/ (single-product layout).
     items_root = backlog_root / "items"
-    # Search for item by ID
-    for path in items_root.rglob("*.md"):
-        if path.name.endswith(".index.md"):
-            continue
-        stem = path.stem
-        file_id = stem.split("_", 1)[0] if "_" in stem else stem
-        if file_id == item_ref:
-            return path
+    if items_root.exists():
+        for path in items_root.rglob("*.md"):
+            if path.name.endswith(".index.md"):
+                continue
+            stem = path.stem
+            file_id = stem.split("_", 1)[0] if "_" in stem else stem
+            if file_id == item_ref:
+                return path
 
     raise FileNotFoundError(f"Item not found: {item_ref}")
 
@@ -93,6 +99,12 @@ def attach_artifact(
     ctx = ConfigLoader.from_path(Path.cwd(), product=product) if backlog_root is None else None
     platform_backlog_root = (ctx.backlog_root if ctx else backlog_root)  # _kano/backlog
     product_root = (ctx.product_root if ctx else None)
+
+    # If backlog_root was explicitly provided, derive product_root from it when possible.
+    if backlog_root is not None and product:
+        candidate = backlog_root / "products" / product
+        if candidate.exists():
+            product_root = candidate
 
     # Resolve the item path and ID
     item_path = _resolve_item_path(item_ref, product=product, backlog_root=(product_root or platform_backlog_root))

@@ -1,0 +1,176 @@
+# Feature Development Notes: {{topic_name}}
+
+## Feature Overview
+**Feature**: {{feature_name}}
+**User Story**: {{user_story}}
+**Complexity**: {{complexity}}
+**Target Release**: {{target_release}}
+
+## Requirements Gathering
+
+### Functional Requirements
+<!-- Core functionality the feature must provide -->
+1. Requirement 1 - Description
+2. Requirement 2 - Description
+3. Requirement 3 - Description
+
+### Non-Functional Requirements
+<!-- Performance, security, usability, etc. -->
+- **Performance**: Response time, throughput, scalability
+- **Security**: Authentication, authorization, data protection
+- **Usability**: User experience, accessibility, internationalization
+- **Reliability**: Availability, fault tolerance, recovery
+
+### Acceptance Criteria
+<!-- Specific, testable conditions for feature completion -->
+- [ ] Criterion 1 - Testable condition
+- [ ] Criterion 2 - Testable condition
+- [ ] Criterion 3 - Testable condition
+
+## Design Decisions
+
+### Architecture Decisions
+<!-- Key architectural choices and rationale -->
+
+#### Decision 1: [Title]
+- **Context**: Why this decision was needed
+- **Options**: Alternative approaches considered
+- **Decision**: Chosen approach
+- **Rationale**: Why this option was selected
+- **Consequences**: Implications and trade-offs
+
+#### Decision 2: [Title]
+- **Context**: 
+- **Options**: 
+- **Decision**: 
+- **Rationale**: 
+- **Consequences**: 
+
+### Technology Choices
+<!-- Technology stack and tool selections -->
+- **Frontend**: Technology and rationale
+- **Backend**: Technology and rationale
+- **Database**: Technology and rationale
+- **Infrastructure**: Technology and rationale
+
+## Implementation Planning
+
+### Development Phases
+1. **Phase 1**: Core functionality
+   - Duration: X weeks
+   - Deliverables: List of features
+   - Dependencies: Prerequisites
+
+2. **Phase 2**: Advanced features
+   - Duration: X weeks  
+   - Deliverables: List of features
+   - Dependencies: Prerequisites
+
+3. **Phase 3**: Polish and optimization
+   - Duration: X weeks
+   - Deliverables: List of improvements
+   - Dependencies: Prerequisites
+
+### Task Breakdown
+<!-- High-level task organization -->
+- [ ] **Setup and Infrastructure**
+  - [ ] Development environment setup
+  - [ ] CI/CD pipeline configuration
+  - [ ] Testing framework setup
+
+- [ ] **Core Implementation**
+  - [ ] Backend API development
+  - [ ] Frontend UI development
+  - [ ] Database schema implementation
+
+- [ ] **Integration and Testing**
+  - [ ] Component integration
+  - [ ] End-to-end testing
+  - [ ] Performance optimization
+
+## Development Log
+
+### {{created_date}} - Feature Initiated
+- **Agent**: {{agent}}
+- **Scope**: {{feature_name}}
+- **User Story**: {{user_story}}
+- **Complexity**: {{complexity}}
+
+<!-- Add entries as development progresses -->
+
+## Technical Notes
+
+### Code Organization
+<!-- How code will be structured -->
+
+### API Design
+<!-- API endpoints and data models -->
+
+### Database Design
+<!-- Schema and relationships -->
+
+### UI/UX Design
+<!-- User interface and experience considerations -->
+
+## Testing Strategy
+
+### Unit Testing
+- **Coverage Target**: 80%+
+- **Testing Framework**: [Framework name]
+- **Key Areas**: Core business logic, utilities, data models
+
+### Integration Testing
+- **Scope**: API endpoints, database interactions, external services
+- **Test Data**: Test data management strategy
+- **Environment**: Testing environment setup
+
+### End-to-End Testing
+- **User Scenarios**: Critical user journeys
+- **Automation**: Automated testing approach
+- **Manual Testing**: Manual testing checklist
+
+## Deployment Strategy
+
+### Environment Progression
+1. **Development**: Local development and testing
+2. **Staging**: Integration testing and stakeholder review
+3. **Production**: Live deployment with monitoring
+
+### Rollout Plan
+- **Phased Rollout**: Gradual user exposure strategy
+- **Feature Flags**: Feature toggle implementation
+- **Monitoring**: Performance and error monitoring
+- **Rollback**: Rollback procedures and triggers
+
+## Collaboration Notes
+
+### Team Communication
+- **Daily Standups**: Progress updates and blockers
+- **Sprint Reviews**: Demo and feedback sessions
+- **Retrospectives**: Process improvement discussions
+
+### Stakeholder Updates
+- **Weekly Reports**: Progress and milestone updates
+- **Demo Sessions**: Feature demonstration and feedback
+- **Decision Points**: Key decisions requiring approval
+
+## Resources and References
+
+### Documentation
+- [Design Document](spec/design.md) - Technical design details
+- [Requirements](spec/requirements.md) - Detailed requirements
+- [Tasks](spec/tasks.md) - Implementation task list
+
+### External References
+- [Reference 1](link) - Description
+- [Reference 2](link) - Description
+
+### Tools and Frameworks
+- **Development**: IDE, frameworks, libraries
+- **Testing**: Testing tools and frameworks
+- **Deployment**: CI/CD tools and platforms
+- **Monitoring**: Monitoring and analytics tools
+
+---
+*Feature development notes for {{feature_name}}*
+*Last updated: {{created_datetime}}*

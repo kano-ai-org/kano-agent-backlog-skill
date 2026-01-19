@@ -58,6 +58,46 @@ class ValidationResult:
     warnings: List[str]
 
 
+@dataclass
+class DecisionWritebackResult:
+    """Result of writing back a decision to a work item."""
+
+    item_id: str
+    path: Path
+    added: bool
+    updated: bool
+
+
+@dataclass
+class RemapIdResult:
+    """Result of remapping an item ID."""
+    old_id: str
+    new_id: str
+    old_path: Path
+    new_path: Path
+    updated_files: int
+
+
+@dataclass
+class TrashItemResult:
+    """Result of trashing an item."""
+    item_ref: str
+    source_path: Path
+    trashed_path: Path
+    status: str
+    reason: Optional[str]
+
+
+@dataclass
+class ParentUpdateResult:
+    """Result of updating parent link."""
+    item_ref: str
+    old_parent: Optional[str]
+    new_parent: Optional[str]
+    path: Path
+    status: str
+
+
 _UUID_RE = re.compile(
     r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
 )
@@ -82,6 +122,10 @@ def _resolve_target_root(*, product: Optional[str], backlog_root: Optional[Path]
         resolved = backlog_root.resolve()
         if not resolved.exists():
             raise FileNotFoundError(f"Backlog root not found: {resolved}")
+        if product:
+            candidate = resolved / "products" / product
+            if candidate.exists():
+                return candidate
         return resolved
 
     try:
@@ -99,6 +143,48 @@ def _resolve_target_root(*, product: Optional[str], backlog_root: Optional[Path]
                 return backlog_check
             current = current.parent
         raise ValueError("Cannot find backlog root")
+
+
+def _replace_id_tokens(text: str, old_id: str, new_id: str) -> str:
+    pattern = re.compile(rf"(?<![A-Z0-9-]){re.escape(old_id)}(?![A-Z0-9-])")
+    return pattern.sub(new_id, text)
+
+
+def _infer_item_type_from_path(item_path: Path) -> ItemType:
+    parts = [p.lower() for p in item_path.parts]
+    if "items" in parts:
+        idx = parts.index("items")
+        if idx + 1 < len(parts):
+            item_dir = parts[idx + 1]
+            mapping = {
+                "epic": ItemType.EPIC,
+                "feature": ItemType.FEATURE,
+                "userstory": ItemType.USER_STORY,
+                "task": ItemType.TASK,
+                "bug": ItemType.BUG,
+            }
+            if item_dir in mapping:
+                return mapping[item_dir]
+    return ItemType.TASK
+
+
+def _iter_reference_files(product_root: Path) -> Iterable[Path]:
+    roots = [
+        product_root / "items",
+        product_root / "decisions",
+        product_root / "_meta",
+    ]
+    for root in roots:
+        if not root.exists():
+            continue
+        for path in root.rglob("*.md"):
+            if ".cache" in path.parts:
+                continue
+            yield path
+
+    readme = product_root / "README.md"
+    if readme.exists():
+        yield readme
 
 
 def _iter_item_files(items_root: Path) -> Iterable[Path]:
@@ -176,8 +262,91 @@ def _resolve_item_path(
     return target_root, candidates[0]
 
 
+def _insert_decision_section(lines: List[str], decision_line: str) -> tuple[List[str], bool]:
+    """Insert or append a decision line under a ## Decisions section."""
+    # Find Worklog section to insert before it if needed
+    worklog_idx = worklog.find_worklog_section(lines)
+    insert_limit = worklog_idx if worklog_idx != -1 else len(lines)
+
+    # Find existing Decisions section
+    header_idx = -1
+    for idx, line in enumerate(lines[:insert_limit]):
+        if line.strip().lower() == "## decisions":
+            header_idx = idx
+            break
+
+    if header_idx == -1:
+        # Insert new Decisions section before Worklog (or end)
+        block = ["", "## Decisions", "", f"- {decision_line}"]
+        lines[insert_limit:insert_limit] = block
+        return lines, True
+
+    # Append under existing Decisions section
+    next_heading = insert_limit
+    for idx in range(header_idx + 1, insert_limit):
+        if lines[idx].strip().startswith("#"):
+            next_heading = idx
+            break
+
+    # Avoid duplicate entry
+    for idx in range(header_idx + 1, next_heading):
+        if lines[idx].strip() == f"- {decision_line}":
+            return lines, False
+
+    lines.insert(next_heading, f"- {decision_line}")
+    return lines, True
+
+
+def add_decision_writeback(
+    item_ref: str,
+    decision: str,
+    *,
+    source: Optional[str] = None,
+    agent: str,
+    model: Optional[str] = None,
+    product: Optional[str] = None,
+    backlog_root: Optional[Path] = None,
+) -> DecisionWritebackResult:
+    """Append a decision entry to a work item and log the write-back."""
+    if not decision or not decision.strip():
+        raise ValueError("Decision text cannot be empty")
+
+    target_root, item_path = _resolve_item_path(item_ref, product=product, backlog_root=backlog_root)
+    lines = frontmatter.load_lines(item_path)
+    fm = frontmatter.parse_frontmatter(lines)
+    item_id = fm.get("id", item_ref)
+
+    decision_text = decision.strip()
+    if source:
+        decision_text = f"{decision_text} (source: {source})"
+
+    lines, added = _insert_decision_section(lines, decision_text)
+
+    # Update updated date
+    today = datetime.now().strftime("%Y-%m-%d")
+    try:
+        lines = frontmatter.update_frontmatter_field(lines, "updated", today)
+    except Exception:
+        try:
+            lines = frontmatter.add_frontmatter_field_before_closing(lines, "updated", today)
+        except Exception:
+            pass
+
+    # Append worklog entry
+    message = f"Decision write-back added: {decision_text}"
+    lines = worklog.append_worklog_entry(lines, message, agent, model=model)
+    frontmatter.write_lines(item_path, lines)
+
+    return DecisionWritebackResult(
+        item_id=item_id,
+        path=item_path,
+        added=added,
+        updated=True,
+    )
+
+
 def _state_rank(state: ItemState) -> int:
-    if state in (ItemState.NEW, ItemState.PROPOSED, ItemState.READY):
+    if state in (ItemState.NEW, ItemState.PROPOSED, ItemState.PLANNED, ItemState.READY):
         return 0
     if state in (ItemState.IN_PROGRESS, ItemState.REVIEW, ItemState.BLOCKED):
         return 1
@@ -202,6 +371,53 @@ def _update_item_file_state(
     )
     lines = worklog.append_worklog_entry(lines, message, agent, model=model)
     frontmatter.write_lines(item_path, lines)
+
+
+def update_parent(
+    item_ref: str,
+    *,
+    parent: Optional[str],
+    agent: str,
+    model: Optional[str],
+    product: Optional[str],
+    backlog_root: Optional[Path],
+    apply: bool = False,
+) -> ParentUpdateResult:
+    """Update parent frontmatter field and append worklog."""
+    target_root, item_path = _resolve_item_path(
+        item_ref, product=product, backlog_root=backlog_root
+    )
+    lines = frontmatter.load_lines(item_path)
+    fm = frontmatter.parse_frontmatter(lines)
+    old_parent = fm.get("parent")
+    new_parent = parent or None
+    new_value = "null" if new_parent in (None, "", "null") else new_parent
+    status = "noop"
+
+    if (old_parent or "null") != new_value:
+        try:
+            lines = frontmatter.update_frontmatter_field(lines, "parent", new_value)
+        except ValueError:
+            lines = frontmatter.add_frontmatter_field_before_closing(lines, "parent", new_value)
+        today = item_utils.get_today()
+        try:
+            lines = frontmatter.update_frontmatter_field(lines, "updated", today)
+        except ValueError:
+            lines = frontmatter.add_frontmatter_field_before_closing(lines, "updated", today)
+        message = f"Parent updated: {old_parent or 'null'} -> {new_value}."
+        lines = worklog.append_worklog_entry(lines, message, agent, model=model)
+        status = "would-update"
+        if apply:
+            frontmatter.write_lines(item_path, lines)
+            status = "updated"
+
+    return ParentUpdateResult(
+        item_ref=item_ref,
+        old_parent=(old_parent if old_parent != "null" else None),
+        new_parent=(new_parent if new_value != "null" else None),
+        path=item_path,
+        status=status,
+    )
 
 
 def create_item(
@@ -256,7 +472,7 @@ def create_item(
     if backlog_root is None:
         try:
             ctx = ConfigLoader.from_path(Path.cwd(), product=product)
-            backlog_root = ctx.product_root  # Use product root, not platform root
+            backlog_root = ctx.product_root  # Use product root, not project root
             config_data = ConfigLoader.load_product_config(ctx.product_root)
             product_cfg = config_data.get("product") if isinstance(config_data, dict) else {}
             if isinstance(product_cfg, dict):
@@ -270,8 +486,13 @@ def create_item(
                 f"Error: {e}"
             )
     else:
-        # Explicit backlog_root provided; use it directly and derive prefix
-        prefix = item_utils.derive_prefix(product)
+        # Explicit backlog_root provided; use it directly and try to load prefix from config
+        config_data = ConfigLoader.load_product_config(backlog_root)
+        product_cfg = config_data.get("product") if isinstance(config_data, dict) else {}
+        if isinstance(product_cfg, dict):
+            prefix = product_cfg.get("prefix") or item_utils.derive_prefix(product)
+        else:
+            prefix = item_utils.derive_prefix(product)
     
     # Generate IDs
     type_code_map = {
@@ -361,6 +582,118 @@ def create_item(
         uid=uid,
         path=item_path,
         type=item_type,
+    )
+
+
+def remap_item_id(
+    item_ref: str,
+    *,
+    agent: str,
+    model: Optional[str] = None,
+    product: Optional[str] = None,
+    backlog_root: Optional[Path] = None,
+    new_id: Optional[str] = None,
+    update_refs: bool = True,
+    apply: bool = True,
+) -> RemapIdResult:
+    """Remap an item ID and optionally update references across the product."""
+    target_root, item_path = _resolve_item_path(
+        item_ref, product=product, backlog_root=backlog_root
+    )
+
+    from kano_backlog_core.canonical import CanonicalStore
+
+    store = CanonicalStore(target_root)
+    item = None
+    try:
+        item = store.read(item_path)
+    except Exception:
+        item = None
+
+    file_id = item_path.stem.split("_", 1)[0]
+    if item:
+        old_id = item.id if item.id and item.id == file_id else file_id
+        item_type = item.type
+        title = item.title or item_path.stem.split("_", 1)[-1]
+    else:
+        old_id = file_id
+        item_type = _infer_item_type_from_path(item_path)
+        title = item_path.stem.split("_", 1)[-1]
+
+    type_code_map = {
+        ItemType.EPIC: "EPIC",
+        ItemType.FEATURE: "FTR",
+        ItemType.USER_STORY: "USR",
+        ItemType.TASK: "TSK",
+        ItemType.BUG: "BUG",
+    }
+    type_code = type_code_map[item_type]
+
+    prefix = old_id.split("-", 1)[0] if old_id else "KABSD"
+    if new_id is None:
+        items_root = target_root / "items"
+        next_id = item_utils.find_next_number(items_root, prefix, type_code)
+        new_id = f"{prefix}-{type_code}-{next_id:04d}"
+
+    new_number = int(new_id.split("-")[-1])
+    bucket = item_utils.calculate_bucket(new_number)
+    type_subdir_map = {
+        ItemType.EPIC: "epic",
+        ItemType.FEATURE: "feature",
+        ItemType.USER_STORY: "userstory",
+        ItemType.TASK: "task",
+        ItemType.BUG: "bug",
+    }
+    subdir = type_subdir_map[item_type]
+    new_dir = target_root / "items" / subdir / bucket
+    slug = item_utils.slugify(title)
+    new_path = new_dir / f"{new_id}_{slug}.md"
+
+    updated_files = 0
+    if apply:
+        content = item_path.read_text(encoding="utf-8")
+        content = _replace_id_tokens(content, old_id, new_id)
+        lines = content.splitlines()
+        lines = worklog.append_worklog_entry(
+            lines,
+            f"Remapped ID: {old_id} -> {new_id}.",
+            agent,
+            model=model,
+        )
+        new_dir.mkdir(parents=True, exist_ok=True)
+        updated_text = "\n".join(lines) + "\n"
+        item_path.write_text(updated_text, encoding="utf-8")
+        if new_path.resolve() != item_path.resolve():
+            try:
+                item_path.replace(new_path)
+            except PermissionError:
+                new_path.write_text(updated_text, encoding="utf-8")
+                try:
+                    item_path.unlink()
+                except PermissionError:
+                    try:
+                        item_path.chmod(0o666)
+                        item_path.unlink()
+                    except PermissionError:
+                        pass
+        updated_files += 1
+
+    if update_refs and apply:
+        for path in _iter_reference_files(target_root):
+            if path.resolve() == new_path.resolve():
+                continue
+            text = path.read_text(encoding="utf-8")
+            updated = _replace_id_tokens(text, old_id, new_id)
+            if updated != text:
+                path.write_text(updated, encoding="utf-8")
+                updated_files += 1
+
+    return RemapIdResult(
+        old_id=old_id,
+        new_id=new_id,
+        old_path=item_path,
+        new_path=new_path,
+        updated_files=updated_files,
     )
 
 
@@ -668,6 +1001,61 @@ def get_item(
     if item.file_path is None:
         item.file_path = item_path
     return item
+
+
+def trash_item(
+    item_ref: str,
+    *,
+    agent: str,
+    reason: Optional[str] = None,
+    model: Optional[str] = None,
+    product: Optional[str] = None,
+    backlog_root: Optional[Path] = None,
+    apply: bool = False,
+) -> TrashItemResult:
+    """Move a backlog item file into a per-product _trash folder."""
+    target_root, item_path = _resolve_item_path(
+        item_ref, product=product, backlog_root=backlog_root
+    )
+
+    try:
+        rel_path = item_path.resolve().relative_to(target_root.resolve())
+    except ValueError:
+        raise ValueError(f"Item path is outside product root: {item_path}") from None
+
+    stamp = datetime.now().strftime("%Y%m%d")
+    trash_root = target_root / "_trash" / stamp
+    trashed_path = trash_root / rel_path
+    status = "would-trash"
+
+    if apply:
+        text = item_path.read_text(encoding="utf-8")
+        if "items" in item_path.parts:
+            lines = text.splitlines()
+            message = f"Trashed item: {reason or 'duplicate or obsolete'}."
+            lines = worklog.append_worklog_entry(lines, message, agent, model=model)
+            text = "\n".join(lines) + "\n"
+        trashed_path.parent.mkdir(parents=True, exist_ok=True)
+        if trashed_path.resolve() != item_path.resolve():
+            try:
+                item_path.replace(trashed_path)
+            except PermissionError:
+                trashed_path.write_text(text, encoding="utf-8")
+                try:
+                    item_path.unlink()
+                except PermissionError:
+                    pass
+        else:
+            trashed_path.write_text(text, encoding="utf-8")
+        status = "trashed"
+
+    return TrashItemResult(
+        item_ref=item_ref,
+        source_path=item_path,
+        trashed_path=trashed_path,
+        status=status,
+        reason=reason,
+    )
 
 
 def _update_index_registry(

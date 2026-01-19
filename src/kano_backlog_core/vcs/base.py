@@ -8,19 +8,31 @@ from typing import Optional, Protocol
 
 @dataclass
 class VcsMeta:
-    """VCS metadata for reproducible builds.
-
-    Keep the model explicit and parse-free:
-    - branch: human context (branch/stream/path)
-    - revno: human-friendly revision number
-    - hash: collision-resistant identifier
-    """
-
+    """VCS metadata for reproducible builds."""
     provider: str  # git, p4, svn, none, unknown
-    branch: str  # branch, stream, etc. or "unknown"
-    revno: str  # git commit-count, svn revision, p4 changelist, etc.
-    hash: str  # git commit hash, or derived hash for non-hash providers
+    revision: str = "unknown"  # commit hash, changelist, etc. or "unknown"
+    ref: str = "unknown"  # branch, stream, etc. or "unknown"
+    label: Optional[str] = None  # tag, describe, etc.
     dirty: str = "unknown"  # "true", "false", "unknown"
+    # Compatibility fields for ops.vcs V2 metadata.
+    branch: Optional[str] = None
+    revno: Optional[str] = None
+    hash: Optional[str] = None
+
+    def __post_init__(self) -> None:
+        if self.branch and self.ref in ("", "unknown"):
+            self.ref = self.branch
+        if self.hash and self.revision in ("", "unknown"):
+            self.revision = self.hash
+        elif self.revno and self.revision in ("", "unknown"):
+            self.revision = self.revno
+
+        if self.branch is None:
+            self.branch = self.ref
+        if self.hash is None:
+            self.hash = self.revision
+        if self.revno is None:
+            self.revno = "unknown"
 
 
 class VcsAdapter(Protocol):

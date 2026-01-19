@@ -1,6 +1,6 @@
 """Configuration and context resolution for kano-backlog.
 
-This module resolves platform/product roots and provides an "effective config"
+This module resolves project/product roots and provides an "effective config"
 view by layering config sources.
 
 Layer order (later wins):
@@ -39,10 +39,10 @@ logger = logging.getLogger(__name__)
 
 
 class BacklogContext(BaseModel):
-    """Resolved backlog context with platform and product roots."""
+    """Resolved backlog context with project and product roots."""
 
-    platform_root: Path = Field(..., description="Workspace root")
-    backlog_root: Path = Field(..., description="e.g., platform_root / _kano/backlog")
+    project_root: Path = Field(..., description="Workspace root")
+    backlog_root: Path = Field(..., description="e.g., project_root / _kano/backlog")
     product_root: Path = Field(..., description="e.g., backlog_root / products / <product>")
     sandbox_root: Optional[Path] = Field(
         None, description="e.g., backlog_root.parent / backlog_sandbox / <sandbox>"
@@ -248,18 +248,18 @@ class ConfigLoader:
             BacklogContext with resolved roots
 
         Raises:
-            ConfigError: If platform/product root cannot be determined
+            ConfigError: If project/product root cannot be determined
         """
         resource_path = resource_path.resolve()
 
         # Find backlog root (the _kano/backlog directory)
-        backlog_root = ConfigLoader._find_platform_root(resource_path)
+        backlog_root = ConfigLoader._find_project_root(resource_path)
         if not backlog_root:
             raise ConfigError(
                 f"Could not find _kano/backlog directory from: {resource_path}"
             )
 
-        platform_root = backlog_root.parent.parent  # Go up from _kano/backlog to platform root
+        project_root = backlog_root.parent.parent  # Go up from _kano/backlog to project root
 
         # Determine product (explicit -> inferred -> topic override -> defaults -> single-product)
         product = ConfigLoader._resolve_product_name(
@@ -282,7 +282,7 @@ class ConfigLoader:
             is_sandbox = True
 
         return BacklogContext(
-            platform_root=platform_root,
+            project_root=project_root,
             backlog_root=backlog_root,
             product_root=product_root,
             sandbox_root=sandbox_root,
@@ -291,8 +291,8 @@ class ConfigLoader:
         )
 
     @staticmethod
-    def _find_platform_root(start_path: Path) -> Optional[Path]:
-        """Walk up to find platform root (_kano/backlog directory itself)."""
+    def _find_project_root(start_path: Path) -> Optional[Path]:
+        """Walk up to find project root (_kano/backlog directory itself)."""
         current = start_path if start_path.is_dir() else start_path.parent
         for parent in [current, *current.parents]:
             candidate = parent / "_kano" / "backlog"
@@ -356,5 +356,13 @@ class ConfigLoader:
                 effective = ConfigLoader._deep_merge(effective, layer)
 
         # Compile human-friendly backend blocks into canonical URIs (local-first; no network calls)
-        effective = compile_effective_config(effective, default_filesystem_root=ctx.platform_root)
+        effective = compile_effective_config(effective, default_filesystem_root=ctx.project_root)
         return ctx, effective
+
+    @staticmethod
+    def validate_pipeline_config(config: dict[str, Any]) -> Any:
+        # Avoid circular import if possible, or Import here
+        from .pipeline_config import PipelineConfig
+        pc = PipelineConfig.from_dict(config)
+        pc.validate()
+        return pc

@@ -1,0 +1,50 @@
+{
+  "name": "bugfix",
+  "display_name": "Bug Investigation & Fix",
+  "description": "Template for bug investigation, root cause analysis, and resolution",
+  "version": "1.0.0",
+  "author": "kano-agent-backlog-skill", 
+  "created_at": "2026-01-17T23:59:00Z",
+  "tags": ["bug", "fix", "investigation", "debugging"],
+  "structure": {
+    "directories": [
+      "materials/clips",
+      "materials/links",
+      "materials/extracts",
+      "materials/logs",
+      "synthesis", 
+      "publish"
+    ],
+    "files": {
+      "brief.md": "brief.md.template",
+      "notes.md": "notes.md.template"
+    }
+  },
+  "manifest_defaults": {
+    "status": "open",
+    "has_spec": false
+  },
+  "variables": {
+    "bug_title": {
+      "type": "string",
+      "description": "Brief description of the bug",
+      "required": true
+    },
+    "severity": {
+      "type": "choice",
+      "description": "Bug severity level",
+      "choices": ["critical", "high", "medium", "low"],
+      "default": "medium"
+    },
+    "component": {
+      "type": "string",
+      "description": "Affected system component",
+      "required": true
+    },
+    "reporter": {
+      "type": "string", 
+      "description": "Who reported the bug",
+      "default": "user"
+    }
+  }
+}

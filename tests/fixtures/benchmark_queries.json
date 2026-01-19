@@ -1,0 +1,12 @@
+[
+  {
+    "query_id": "q1",
+    "text": "local-first backlog decisions",
+    "expected_source_ids": ["doc-en-short", "doc-mixed"]
+  },
+  {
+    "query_id": "q2",
+    "text": "你好 世界",
+    "expected_source_ids": ["doc-cjk", "doc-mixed"]
+  }
+]

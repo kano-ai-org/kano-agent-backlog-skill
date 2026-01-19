@@ -1,0 +1,54 @@
+{
+  "name": "feature",
+  "display_name": "Feature Development",
+  "description": "Template for feature development and enhancement topics",
+  "version": "1.0.0", 
+  "author": "kano-agent-backlog-skill",
+  "created_at": "2026-01-17T23:59:00Z",
+  "tags": ["feature", "development", "enhancement"],
+  "structure": {
+    "directories": [
+      "materials/clips",
+      "materials/links",
+      "materials/extracts",
+      "materials/logs", 
+      "synthesis",
+      "publish",
+      "spec"
+    ],
+    "files": {
+      "brief.md": "brief.md.template",
+      "notes.md": "notes.md.template",
+      "spec/requirements.md": "spec/requirements.md.template",
+      "spec/design.md": "spec/design.md.template", 
+      "spec/tasks.md": "spec/tasks.md.template"
+    }
+  },
+  "manifest_defaults": {
+    "status": "open",
+    "has_spec": true
+  },
+  "variables": {
+    "feature_name": {
+      "type": "string",
+      "description": "Name of the feature being developed",
+      "required": true
+    },
+    "user_story": {
+      "type": "string", 
+      "description": "Primary user story for this feature",
+      "required": true
+    },
+    "complexity": {
+      "type": "choice",
+      "description": "Feature complexity level",
+      "choices": ["simple", "moderate", "complex"],
+      "default": "moderate"
+    },
+    "target_release": {
+      "type": "string",
+      "description": "Target release version",
+      "default": "next"
+    }
+  }
+}

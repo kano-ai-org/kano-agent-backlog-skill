@@ -8,6 +8,30 @@ from .derived import DerivedStore, InMemoryDerivedStore
 from .refs import RefParser, RefResolver
 from .state import StateMachine, ReadyValidator, StateAction
 from .audit import AuditLog, WorklogEntry
+from .chunking import (
+    Chunk,
+    ChunkingOptions,
+    build_chunk_id,
+    chunk_text,
+    normalize_text,
+    token_spans,
+)
+from .tokenizer import (
+    DEFAULT_MAX_TOKENS,
+    MODEL_MAX_TOKENS,
+    HeuristicTokenizer,
+    TokenCount,
+    TokenizerAdapter,
+    resolve_model_max_tokens,
+    resolve_tokenizer,
+)
+from .token_budget import (
+    BudgetedChunk,
+    TokenBudgetPolicy,
+    TokenBudgetResult,
+    budget_chunks,
+    enforce_token_budget,
+)
 from .errors import (
     BacklogError,
     ConfigError,
@@ -41,6 +65,25 @@ __all__ = [
     # Audit
     "AuditLog",
     "WorklogEntry",
+    # Chunking
+    "Chunk",
+    "ChunkingOptions",
+    "build_chunk_id",
+    "chunk_text",
+    "normalize_text",
+    "token_spans",
+    "DEFAULT_MAX_TOKENS",
+    "MODEL_MAX_TOKENS",
+    "HeuristicTokenizer",
+    "TokenCount",
+    "TokenizerAdapter",
+    "resolve_model_max_tokens",
+    "resolve_tokenizer",
+    "BudgetedChunk",
+    "TokenBudgetPolicy",
+    "TokenBudgetResult",
+    "budget_chunks",
+    "enforce_token_budget",
     # Errors
     "BacklogError",
     "ConfigError",

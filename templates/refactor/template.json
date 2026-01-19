@@ -1,0 +1,52 @@
+{
+  "name": "refactor",
+  "display_name": "Code Refactoring",
+  "description": "Template for code refactoring and technical debt reduction",
+  "version": "1.0.0",
+  "author": "kano-agent-backlog-skill",
+  "created_at": "2026-01-17T23:59:00Z", 
+  "tags": ["refactor", "technical-debt", "code-quality", "improvement"],
+  "structure": {
+    "directories": [
+      "materials/clips",
+      "materials/links", 
+      "materials/extracts",
+      "materials/logs",
+      "synthesis",
+      "publish"
+    ],
+    "files": {
+      "brief.md": "brief.md.template",
+      "notes.md": "notes.md.template"
+    }
+  },
+  "manifest_defaults": {
+    "status": "open",
+    "has_spec": false
+  },
+  "variables": {
+    "refactor_target": {
+      "type": "string",
+      "description": "What is being refactored (component, module, etc.)",
+      "required": true
+    },
+    "refactor_type": {
+      "type": "choice",
+      "description": "Type of refactoring",
+      "choices": ["performance", "maintainability", "architecture", "security", "technical-debt"],
+      "default": "maintainability"
+    },
+    "scope": {
+      "type": "choice",
+      "description": "Scope of refactoring",
+      "choices": ["function", "class", "module", "component", "system"],
+      "default": "module"
+    },
+    "priority": {
+      "type": "choice",
+      "description": "Refactoring priority",
+      "choices": ["high", "medium", "low"],
+      "default": "medium"
+    }
+  }
+}

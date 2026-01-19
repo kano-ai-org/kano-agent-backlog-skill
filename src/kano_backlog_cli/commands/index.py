@@ -13,6 +13,7 @@ def build(
     product: str | None = typer.Option(None, "--product", help="Product name (builds all if omitted)"),
     backlog_root: Path | None = typer.Option(None, "--backlog-root", help="Backlog root (_kano/backlog)"),
     force: bool = typer.Option(False, "--force/--no-force", help="Rebuild even if index exists"),
+    vectors: bool = typer.Option(False, "--vectors", help="Also build vector index"),
 ):
     """Build the SQLite index from markdown items."""
     ensure_core_on_path()
@@ -35,6 +36,20 @@ def build(
     if result.links_indexed:
         typer.echo(f"  Links: {result.links_indexed}")
     typer.echo(f"  Time: {result.build_time_ms:.1f} ms")
+
+    # Optional: Build vector index
+    if vectors:
+        from kano_backlog_ops.vector_index import build_vector_index
+        typer.echo("\n🔄 Building vector index...")
+        try:
+            vec_result = build_vector_index(product=product or "default", force=force)
+            typer.echo(f"✓ Vector index built")
+            typer.echo(f"  Items: {vec_result.items_processed}")
+            typer.echo(f"  Chunks: {vec_result.chunks_indexed}")
+            typer.echo(f"  Backend: {vec_result.backend_type}")
+            typer.echo(f"  Time: {vec_result.duration_ms:.1f} ms")
+        except Exception as e:
+            typer.echo(f"❌ Vector indexing failed: {e}", err=True)
 
 
 @app.command()

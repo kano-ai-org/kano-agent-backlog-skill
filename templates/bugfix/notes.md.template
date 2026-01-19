@@ -1,0 +1,237 @@
+# Bug Investigation Notes: {{topic_name}}
+
+## Bug Summary
+**Title**: {{bug_title}}
+**Component**: {{component}}
+**Severity**: {{severity}}
+**Reporter**: {{reporter}}
+
+## Initial Report
+
+### Bug Description
+<!-- Original bug report details -->
+
+### Environment Information
+- **Operating System**: 
+- **Browser/Client**: 
+- **Version**: 
+- **Configuration**: 
+
+### User Context
+- **User Role**: 
+- **User Actions**: 
+- **Time of Occurrence**: 
+- **Frequency**: 
+
+## Investigation Log
+
+### {{created_date}} - Investigation Started
+- **Agent**: {{agent}}
+- **Bug**: {{bug_title}}
+- **Component**: {{component}}
+- **Severity**: {{severity}}
+
+<!-- Add entries as investigation progresses -->
+
+## Technical Analysis
+
+### Code Investigation
+<!-- Code-related findings -->
+
+#### Suspected Code Areas
+- **File 1**: `path/to/file.ext` - Reason for suspicion
+- **File 2**: `path/to/file.ext` - Reason for suspicion
+- **File 3**: `path/to/file.ext` - Reason for suspicion
+
+#### Recent Changes Analysis
+```bash
+# Git commands used for analysis
+git log --oneline --since="2 weeks ago" -- path/to/component/
+git blame suspicious_file.ext
+git diff commit1..commit2 -- affected_files
+```
+
+#### Code Patterns Found
+- **Pattern 1**: Description and implications
+- **Pattern 2**: Description and implications
+- **Anti-pattern**: Description and why it's problematic
+
+### System Analysis
+
+#### Log Analysis
+```
+Relevant log entries, error messages, and stack traces
+```
+
+#### Database Investigation
+- **Affected Tables**: List of database tables involved
+- **Data Integrity**: Any data corruption or inconsistency found
+- **Query Performance**: Slow queries or database issues
+- **Transaction Issues**: Deadlocks, timeouts, or rollback issues
+
+#### Configuration Review
+- **System Config**: Relevant system configuration settings
+- **Environment Variables**: Environment-specific settings
+- **Feature Flags**: Feature toggles that might affect behavior
+- **Third-party Config**: External service configurations
+
+### Network and Infrastructure
+- **Network Issues**: Connectivity, latency, or timeout problems
+- **Load Balancing**: Load balancer configuration or behavior
+- **Caching**: Cache invalidation or stale data issues
+- **Resource Constraints**: Memory, CPU, or disk space issues
+
+## Root Cause Analysis
+
+### 5 Whys Analysis
+1. **Why did the bug occur?** 
+   - Answer 1
+2. **Why did Answer 1 happen?**
+   - Answer 2
+3. **Why did Answer 2 happen?**
+   - Answer 3
+4. **Why did Answer 3 happen?**
+   - Answer 4
+5. **Why did Answer 4 happen?**
+   - Root cause identified
+
+### Fishbone Diagram Factors
+- **People**: Human factors (training, knowledge, communication)
+- **Process**: Process issues (procedures, workflows, reviews)
+- **Technology**: Technical factors (code, infrastructure, tools)
+- **Environment**: Environmental factors (load, configuration, timing)
+
+### Timeline Analysis
+- **Bug Introduction**: When and how the bug was introduced
+- **Detection Delay**: Why the bug wasn't caught earlier
+- **Escalation Path**: How the bug was reported and escalated
+
+## Solution Development
+
+### Fix Options Evaluated
+1. **Option 1**: Quick fix approach
+   - **Pros**: Fast implementation, low risk
+   - **Cons**: May not address root cause
+   - **Effort**: Low
+   - **Risk**: Low
+
+2. **Option 2**: Comprehensive fix
+   - **Pros**: Addresses root cause, prevents recurrence
+   - **Cons**: More complex, higher risk
+   - **Effort**: Medium
+   - **Risk**: Medium
+
+3. **Option 3**: Architectural change
+   - **Pros**: Long-term solution, improves system design
+   - **Cons**: High complexity, significant testing needed
+   - **Effort**: High
+   - **Risk**: High
+
+### Selected Approach
+**Chosen Option**: [Selected option and rationale]
+
+### Implementation Details
+```python
+# Pseudo-code or actual code changes
+def fix_implementation():
+    # Description of the fix
+    pass
+```
+
+### Testing Approach
+- **Unit Tests**: Specific tests for the bug scenario
+- **Integration Tests**: Tests for component interactions
+- **Regression Tests**: Tests to prevent future occurrences
+- **Performance Tests**: Tests to ensure no performance degradation
+
+## Verification and Validation
+
+### Test Results
+- [ ] **Unit Tests**: All passing
+- [ ] **Integration Tests**: All passing
+- [ ] **Regression Tests**: All passing
+- [ ] **Manual Testing**: Bug no longer reproducible
+
+### Performance Impact
+- **Before Fix**: Performance metrics before the fix
+- **After Fix**: Performance metrics after the fix
+- **Impact Assessment**: Any performance changes observed
+
+### User Validation
+- **Reporter Feedback**: Confirmation from original reporter
+- **Stakeholder Approval**: Approval from relevant stakeholders
+- **User Acceptance**: User acceptance testing results
+
+## Deployment and Monitoring
+
+### Deployment Strategy
+- **Environment Progression**: Dev -> Staging -> Production
+- **Rollout Plan**: Gradual rollout or full deployment
+- **Rollback Plan**: Steps to rollback if issues occur
+- **Monitoring Plan**: What to monitor post-deployment
+
+### Post-Deployment Monitoring
+- **Error Rates**: Monitor for new errors or increased error rates
+- **Performance Metrics**: Monitor system performance
+- **User Feedback**: Collect user feedback on the fix
+- **Support Tickets**: Monitor support ticket volume
+
+## Lessons Learned
+
+### What Went Well
+- [ ] Effective debugging techniques used
+- [ ] Good collaboration and communication
+- [ ] Proper testing and validation
+- [ ] Successful deployment and monitoring
+
+### What Could Be Improved
+- [ ] Earlier detection methods
+- [ ] Better testing coverage
+- [ ] Improved monitoring and alerting
+- [ ] Enhanced development processes
+
+### Prevention Measures
+- [ ] Code review improvements
+- [ ] Additional automated tests
+- [ ] Enhanced monitoring
+- [ ] Process improvements
+
+## Knowledge Sharing
+
+### Documentation Updates
+- [ ] Code comments added or updated
+- [ ] Technical documentation updated
+- [ ] Troubleshooting guides created
+- [ ] Knowledge base articles written
+
+### Team Communication
+- [ ] Team briefing conducted
+- [ ] Post-mortem meeting held
+- [ ] Lessons learned shared
+- [ ] Process improvements implemented
+
+## References and Resources
+
+### Internal Documentation
+- [Bug Report](link) - Original bug report
+- [Code Repository](link) - Relevant code repository
+- [Monitoring Dashboard](link) - System monitoring dashboard
+
+### External Resources
+- [Documentation](link) - Relevant external documentation
+- [Stack Overflow](link) - Related discussions or solutions
+- [GitHub Issues](link) - Similar issues in open source projects
+
+### Tools and Commands
+```bash
+# Useful debugging commands
+grep -r "error_pattern" /var/log/
+tail -f /var/log/application.log
+docker logs container_name
+kubectl logs pod_name
+```
+
+---
+*Bug investigation notes for {{bug_title}}*
+*Component: {{component}} | Severity: {{severity}}*
+*Last updated: {{created_datetime}}*

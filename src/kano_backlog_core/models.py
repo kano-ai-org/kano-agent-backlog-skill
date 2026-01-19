@@ -21,6 +21,7 @@ class ItemState(str, Enum):
 
     NEW = "New"
     PROPOSED = "Proposed"
+    PLANNED = "Planned"
     READY = "Ready"
     IN_PROGRESS = "InProgress"
     REVIEW = "Review"
