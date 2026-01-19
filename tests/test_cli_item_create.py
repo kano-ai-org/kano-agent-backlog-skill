@@ -90,7 +90,7 @@ def test_item_create_creates_file_and_uses_config_prefix(tmp_path: Path):
         os.chdir(cwd_before)
 
 
-def test_item_create_records_unknown_model_when_missing(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+def test_item_create_omits_model_when_missing(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     _scaffold_product(tmp_path, name="demo-product")
     cwd_before = Path.cwd()
     os.chdir(tmp_path)
@@ -129,7 +129,7 @@ def test_item_create_records_unknown_model_when_missing(tmp_path: Path, monkeypa
         content = created_files[0].read_text(encoding="utf-8")
         assert "# Worklog" in content
         assert "[agent=tester]" in content
-        assert "[model=unknown]" in content
+        assert "[model=" not in content
     finally:
         os.chdir(cwd_before)
 

@@ -6,6 +6,21 @@ This project uses Git tags as releases: `vX.Y.Z`.
 
 ## [Unreleased]
 
+## [0.0.2] - 2026-01-19
+
+### Added
+- Topic templates/archetypes with variable substitution and CLI integration.
+- Topic cross-references (`related_topics`) with bidirectional linking.
+- Topic snapshots (create/list/restore/cleanup) for checkpointing.
+- Topic merge/split operations with dry-run support and history preservation.
+
+### Changed
+- Topic distillation renders human-readable seed item listings (ID/title/type/state) while keeping UID mapping in HTML comments.
+- Artifact attachment resolves items in product layout (`_kano/backlog/products/<product>/items/...`) when `--backlog-root-override` is used with `--product`.
+
+### Documentation
+- Release notes for GitHub Releases: `skills/kano-agent-backlog-skill/docs/releases/0.0.2.md`.
+
 ## [0.0.1] - 2026-01-15
 
 ### Added

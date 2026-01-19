@@ -70,7 +70,7 @@ Use this skill to:
 - Agent Identity: In Worklog and audit logs, use your own identity (e.g., `[agent=antigravity]`), never copy `[agent=codex]` blindly.
 - Always provide an explicit `--agent` value for auditability (some commands currently default to `cli`, but do not rely on it).
 - Model attribution (optional but preferred): provide `--model <name>` (or env `KANO_AGENT_MODEL` / `KANO_MODEL`) when it is known deterministically.
-  - Do not guess model names; if unknown, record `unknown`.
+  - Do not guess model names; if unknown, omit the `[model=...]` segment.
 - **Agent Identity Protocol**: Supply `--agent <ID>` with your real product name (e.g., `cursor`, `copilot`, `windsurf`, `antigravity`).
   - **Forbidden (Placeholders)**: `auto`, `user`, `assistant`, `<AGENT_NAME>`, `$AGENT_NAME`.
 - File operations for backlog/skill artifacts must go through the `kano-backlog` CLI
@@ -298,7 +298,7 @@ Use Topics when:
 
 **Topic lifecycle**:
 1. **Create**: `python skills/kano-agent-backlog-skill/scripts/kano-backlog topic create <topic-name> --agent <id>`
-   - Creates `_kano/backlog/topics/<topic>/` with `manifest.json`, `brief.md`, `notes.md`, and `materials/` subdirectories
+   - Creates `_kano/backlog/topics/<topic>/` with `manifest.json`, `brief.md`, `brief.generated.md`, `notes.md`, and `materials/` subdirectories
 2. **Collect materials**:
    - Add items: `topic add <topic-name> --item <ITEM_ID>`
    - Add code snippets: `topic add-snippet <topic-name> --file <path> --start <line> --end <line> --agent <id>`
@@ -374,7 +374,7 @@ _kano/backlog/.cache/worksets/items/<ITEM_ID>/
 | Shared context for collaboration | ✅ Yes | ❌ No |
 | Single item scratch space | ❌ No | ✅ Yes |
 | Item-specific deliverables | ❌ No | ✅ Yes |
-| Version-controlled distillation | ✅ Yes (brief.md) | ❌ No |
+| Version-controlled distillation | ✅ Yes (brief.generated.md) | ❌ No |
 
 **Best practice**: Start exploration in a Topic, create work items as scope clarifies, then use Worksets for individual item execution.
 
@@ -408,20 +408,20 @@ _kano/backlog/.cache/worksets/items/<ITEM_ID>/
   - `seed_items`: UUID list for precise agent reference
   - `snippet_refs`: file+line+hash for deterministic loading
   - `pinned_docs`: absolute paths for unambiguous reference
-- Keep `brief.md` **human-oriented** and **deterministic** (generated/overwritten by `topic distill`):
-- Keep `brief.md` **human-oriented** and **stable** (do not overwrite automatically):
+- Keep `brief.generated.md` **deterministic** and **tool-owned** (generated/overwritten by `topic distill`):
   - Readable item titles (e.g., "KABSD-TSK-0042: Implement tokenizer adapter")
   - If available, include item path and keep UID in a hidden HTML comment for deterministic mapping
+  - Materials index with items/docs/snippets sorted for repeatability
+- Keep `brief.md` **human-oriented** and **stable** (do not overwrite automatically):
   - Context summary and key decisions
-  - Materials index with human-friendly descriptions
-- Use `brief.generated.md` as the deterministic, tool-owned output of `topic distill`.
+  - Optional: include a human-friendly materials list (do not duplicate raw snippet text)
 - Put human-facing decision support in `_kano/backlog/topics/<topic>/notes.md` (and/or pinned docs), e.g.:
   - Decision to make
   - Options + trade-offs
   - Evidence (ADR links, snippet refs, benchmark/log artifacts)
   - Recommendation + follow-ups
 - **Staleness detection**: Compare current file hash with stored hash to detect if code changed
-- **Distillation**: `topic distill` generates deterministic `brief.md` with materials index (items, docs, snippets sorted for repeatability)
+- **Distillation**: `topic distill` generates deterministic `brief.generated.md` with a repeatable materials index
 
 ---
 END_OF_SKILL_SENTINEL

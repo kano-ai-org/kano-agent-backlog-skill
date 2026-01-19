@@ -132,6 +132,10 @@ def render_item_body(
     )
     
     model_value = resolve_model(None)
+    if model_value.strip().lower() == "unknown":
+        model_part = ""
+    else:
+        model_part = f" [model={model_value}]"
 
     body_sections = [
         "",
@@ -151,7 +155,7 @@ def render_item_body(
         "",
         "# Worklog",
         "",
-        f"{timestamp} [agent={agent}] [model={model_value}] {worklog_message}",
+        f"{timestamp} [agent={agent}]{model_part} {worklog_message}",
     ]
     
     body = "\n".join(body_sections)

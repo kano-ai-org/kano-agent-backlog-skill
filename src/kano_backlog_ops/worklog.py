@@ -17,7 +17,7 @@ def resolve_model(model: Optional[str]) -> str:
     Order:
     1) explicit argument
     2) env vars KANO_AGENT_MODEL, KANO_MODEL
-    3) "unknown"
+    3) "unknown" (placeholder; typically omitted from Worklog output)
     """
     if model and model.strip():
         return model.strip()
@@ -78,7 +78,10 @@ def append_worklog_entry(
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M")
     
     resolved_model = resolve_model(model)
-    entry = f"{timestamp} [agent={agent}] [model={resolved_model}] {message}"
+    if resolved_model.strip().lower() == "unknown":
+        entry = f"{timestamp} [agent={agent}] {message}"
+    else:
+        entry = f"{timestamp} [agent={agent}] [model={resolved_model}] {message}"
     
     lines.append(entry)
     return lines
