@@ -1,3 +1,0 @@
-kano_backlog_cli
-kano_backlog_core
-kano_backlog_ops
