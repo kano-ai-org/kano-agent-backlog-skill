@@ -36,6 +36,7 @@ from .commands import config_cmd as config_cmd  # noqa: E402
 from .commands import snapshot as snapshot_cmd  # noqa: E402
 from .commands import changelog as changelog_cmd  # noqa: E402
 from .commands import benchmark as benchmark_cmd  # noqa: E402
+from .commands import release as release_cmd  # noqa: E402
 from .commands.doctor import doctor as doctor_fn  # noqa: E402
 
 app.add_typer(admin_cmd.app, name="admin", help="Administrative and setup commands")
@@ -61,6 +62,7 @@ admin_cmd.app.add_typer(items_cmd.app, name="items", help="Item maintenance help
 admin_cmd.app.add_typer(adr_cmd.app, name="adr", help="ADR operations")
 admin_cmd.app.add_typer(schema_cmd.app, name="schema", help="Schema validation and fixing")
 admin_cmd.app.add_typer(meta_cmd.app, name="meta", help="Meta file helpers")
+admin_cmd.app.add_typer(release_cmd.app, name="release", help="Release verification workflows")
 app.command(name="doctor")(doctor_fn)
 
 

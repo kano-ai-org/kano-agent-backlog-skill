@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "kano-agent-backlog-skill"
-version = "0.2.0"
+version = "0.0.2"
 description = "Local-first backlog system with audit trail for AI agent collaboration, including core domain library and CLI facade"
 readme = "README.md"
 requires-python = ">=3.10"
