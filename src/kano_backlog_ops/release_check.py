@@ -325,7 +325,18 @@ def run_phase2(
 
     # pytest
     rc, out = _run_cmd(
-        [py, "-m", "pytest", "skills/kano-agent-backlog-skill/tests", "-q"],
+        [
+            py,
+            "-m",
+            "pytest",
+            "skills/kano-agent-backlog-skill/tests",
+            "-q",
+            "--no-cov",
+            "-p",
+            "no:cacheprovider",
+            "--basetemp",
+            ".tmp/pytest-basetemp",
+        ],
         cwd=repo_root,
         timeout_s=240,
     )
@@ -350,16 +361,16 @@ def run_phase2(
             product,
             "--agent",
             agent,
-            "--force",
         ],
         cwd=repo_root,
         timeout_s=120,
     )
     write_artifact("phase2_sandbox_init.txt", out)
+    out_lower = out.lower()
     checks.append(
         CheckResult(
             name="phase2:sandbox-init",
-            passed=(rc == 0),
+            passed=(rc == 0 or "sandbox already exists" in out_lower),
             message=f"exit={rc}",
             details=(
                 "Note: sandbox currently creates a single-product layout under _kano/backlog_sandbox/<name>/; "

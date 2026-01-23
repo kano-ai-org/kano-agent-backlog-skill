@@ -157,7 +157,7 @@ class TokenizationFailedError(TokenizerError):
                  original_error: Exception):
         recovery_suggestions = self._get_recovery_suggestions(adapter_name, original_error)
         super().__init__(
-            f"Tokenization failed with {adapter_name} adapter: {original_error}",
+            f"Tokenization failed with {adapter_name} adapter for model {model_name}: {original_error}",
             adapter_name=adapter_name,
             model_name=model_name,
             recovery_suggestions=recovery_suggestions
@@ -319,6 +319,11 @@ class ErrorRecoveryManager:
         self.recovery_attempts: Dict[str, int] = {}
         self.max_recovery_attempts = 3
         self.degradation_history: Dict[str, List[Dict[str, Any]]] = {}
+
+    def clear_cache(self) -> None:
+        """Clear internal recovery/degradation caches."""
+        self.recovery_attempts.clear()
+        self.degradation_history.clear()
     
     def should_attempt_recovery(self, error_key: str) -> bool:
         """Check if recovery should be attempted for this error."""

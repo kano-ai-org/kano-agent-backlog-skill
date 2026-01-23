@@ -1,22 +1,22 @@
 #!/usr/bin/env python3
 """
-kano - Unified CLI entrypoint for kano-agent-backlog-skill operations.
+kano-backlog - Backlog management CLI for kano-agent-backlog-skill operations.
 
 Per ADR-0013, this is the ONLY executable entrypoint agents should call.
 All backlog operations are exposed as subcommands.
 
 Usage:
-    kano doctor                        # Check environment health
-    kano item create ...               # Create work item
-    kano item update-state ...         # Update item state
-    kano item validate ...             # Validate Ready gate
-    kano view refresh ...              # Refresh dashboards
-    kano backlog init ...              # Initialize backlog
+    kano-backlog doctor                        # Check environment health
+    kano-backlog item create ...               # Create work item
+    kano-backlog item update-state ...         # Update item state
+    kano-backlog item validate ...             # Validate Ready gate
+    kano-backlog view refresh ...              # Refresh dashboards
+    kano-backlog admin init ...                # Initialize backlog
     ...
 
 For full help:
-    kano --help
-    kano <command> --help
+    kano-backlog --help
+    kano-backlog <command> --help
 """
 
 if __name__ == "__main__":

@@ -18,10 +18,10 @@ This document provides comprehensive reference for all tokenizer CLI commands, o
 
 ## Command Overview
 
-All tokenizer commands are accessed through the `kano tokenizer` subcommand:
+All tokenizer commands are accessed through the `kano-backlog tokenizer` subcommand:
 
 ```bash
-kano tokenizer <command> [options]
+kano-backlog tokenizer <command> [options]
 ```
 
 ### Command Categories
@@ -42,27 +42,27 @@ These options are available for most commands:
 Specify configuration file path.
 
 ```bash
-kano tokenizer test --config /path/to/config.toml
-kano tokenizer validate --config my_config.toml
+kano-backlog tokenizer test --config /path/to/config.toml
+kano-backlog tokenizer validate --config my_config.toml
 ```
 
 ### `--help`
 Show command help.
 
 ```bash
-kano tokenizer --help
-kano tokenizer test --help
+kano-backlog tokenizer --help
+kano-backlog tokenizer test --help
 ```
 
 ## Core Commands
 
-### `kano tokenizer status`
+### `kano-backlog tokenizer status`
 
 Show comprehensive system status including configuration, adapters, dependencies, and health.
 
 **Syntax:**
 ```bash
-kano tokenizer status [OPTIONS]
+kano-backlog tokenizer status [OPTIONS]
 ```
 
 **Options:**
@@ -73,16 +73,16 @@ kano tokenizer status [OPTIONS]
 **Examples:**
 ```bash
 # Basic status
-kano tokenizer status
+kano-backlog tokenizer status
 
 # Detailed status
-kano tokenizer status --verbose
+kano-backlog tokenizer status --verbose
 
 # JSON output for scripting
-kano tokenizer status --format json
+kano-backlog tokenizer status --format json
 
 # With custom configuration
-kano tokenizer status --config production_config.toml --verbose
+kano-backlog tokenizer status --config production_config.toml --verbose
 ```
 
 **Sample Output:**
@@ -112,13 +112,13 @@ kano tokenizer status --config production_config.toml --verbose
 - **Error:** No module named 'transformers'
 ```
 
-### `kano tokenizer test`
+### `kano-backlog tokenizer test`
 
 Test tokenizer adapters with sample text.
 
 **Syntax:**
 ```bash
-kano tokenizer test [OPTIONS]
+kano-backlog tokenizer test [OPTIONS]
 ```
 
 **Options:**
@@ -130,19 +130,19 @@ kano tokenizer test [OPTIONS]
 **Examples:**
 ```bash
 # Test with default settings
-kano tokenizer test
+kano-backlog tokenizer test
 
 # Test with custom text
-kano tokenizer test --text "Your custom text here"
+kano-backlog tokenizer test --text "Your custom text here"
 
 # Test specific adapter
-kano tokenizer test --adapter tiktoken --model gpt-4
+kano-backlog tokenizer test --adapter tiktoken --model gpt-4
 
 # Test with configuration file
-kano tokenizer test --config my_config.toml
+kano-backlog tokenizer test --config my_config.toml
 
 # Test with environment override
-KANO_TOKENIZER_ADAPTER=heuristic kano tokenizer test
+KANO_TOKENIZER_ADAPTER=heuristic kano-backlog tokenizer test
 ```
 
 **Sample Output:**
@@ -170,13 +170,13 @@ Primary adapter resolution (auto):
   Is exact: True
 ```
 
-### `kano tokenizer compare`
+### `kano-backlog tokenizer compare`
 
 Compare tokenization results across different adapters.
 
 **Syntax:**
 ```bash
-kano tokenizer compare TEXT [OPTIONS]
+kano-backlog tokenizer compare TEXT [OPTIONS]
 ```
 
 **Arguments:**
@@ -190,16 +190,16 @@ kano tokenizer compare TEXT [OPTIONS]
 **Examples:**
 ```bash
 # Compare all available adapters
-kano tokenizer compare "Sample text to compare"
+kano-backlog tokenizer compare "Sample text to compare"
 
 # Compare specific adapters
-kano tokenizer compare "Sample text" --adapters tiktoken,heuristic
+kano-backlog tokenizer compare "Sample text" --adapters tiktoken,heuristic
 
 # Compare with specific model
-kano tokenizer compare "Sample text" --model gpt-4
+kano-backlog tokenizer compare "Sample text" --model gpt-4
 
 # Show token breakdown
-kano tokenizer compare "Sample text" --show-tokens
+kano-backlog tokenizer compare "Sample text" --show-tokens
 ```
 
 **Sample Output:**
@@ -228,13 +228,13 @@ kano tokenizer compare "Sample text" --show-tokens
 
 ## Configuration Commands
 
-### `kano tokenizer config`
+### `kano-backlog tokenizer config`
 
 Show current configuration with environment overrides applied.
 
 **Syntax:**
 ```bash
-kano tokenizer config [OPTIONS]
+kano-backlog tokenizer config [OPTIONS]
 ```
 
 **Options:**
@@ -244,13 +244,13 @@ kano tokenizer config [OPTIONS]
 **Examples:**
 ```bash
 # Show configuration in JSON
-kano tokenizer config --format json
+kano-backlog tokenizer config --format json
 
 # Show configuration from specific file
-kano tokenizer config --config my_config.toml
+kano-backlog tokenizer config --config my_config.toml
 
 # Show configuration in TOML format
-kano tokenizer config --format toml
+kano-backlog tokenizer config --format toml
 ```
 
 **Sample Output (JSON):**
@@ -272,13 +272,13 @@ kano tokenizer config --format toml
 }
 ```
 
-### `kano tokenizer validate`
+### `kano-backlog tokenizer validate`
 
 Validate tokenizer configuration.
 
 **Syntax:**
 ```bash
-kano tokenizer validate [OPTIONS]
+kano-backlog tokenizer validate [OPTIONS]
 ```
 
 **Options:**
@@ -287,10 +287,10 @@ kano tokenizer validate [OPTIONS]
 **Examples:**
 ```bash
 # Validate default configuration
-kano tokenizer validate
+kano-backlog tokenizer validate
 
 # Validate specific configuration file
-kano tokenizer validate --config my_config.toml
+kano-backlog tokenizer validate --config my_config.toml
 ```
 
 **Sample Output:**
@@ -302,13 +302,13 @@ kano tokenizer validate --config my_config.toml
   Fallback chain: tiktoken → huggingface → heuristic
 ```
 
-### `kano tokenizer create-example`
+### `kano-backlog tokenizer create-example`
 
 Create an example tokenizer configuration file.
 
 **Syntax:**
 ```bash
-kano tokenizer create-example [OPTIONS]
+kano-backlog tokenizer create-example [OPTIONS]
 ```
 
 **Options:**
@@ -318,13 +318,13 @@ kano tokenizer create-example [OPTIONS]
 **Examples:**
 ```bash
 # Create example configuration
-kano tokenizer create-example
+kano-backlog tokenizer create-example
 
 # Create with custom name
-kano tokenizer create-example --output my_config.toml
+kano-backlog tokenizer create-example --output my_config.toml
 
 # Overwrite existing file
-kano tokenizer create-example --output existing_config.toml --force
+kano-backlog tokenizer create-example --output existing_config.toml --force
 ```
 
 **Sample Output:**
@@ -332,16 +332,16 @@ kano tokenizer create-example --output existing_config.toml --force
 ✓ Created example tokenizer configuration: tokenizer_config.toml
 
 Edit the file to customize your tokenizer settings.
-Use 'kano tokenizer validate --config <path>' to validate your changes.
+Use 'kano-backlog tokenizer validate --config <path>' to validate your changes.
 ```
 
-### `kano tokenizer migrate`
+### `kano-backlog tokenizer migrate`
 
 Migrate configuration from old format to new TOML format.
 
 **Syntax:**
 ```bash
-kano tokenizer migrate INPUT_PATH [OPTIONS]
+kano-backlog tokenizer migrate INPUT_PATH [OPTIONS]
 ```
 
 **Arguments:**
@@ -354,13 +354,13 @@ kano tokenizer migrate INPUT_PATH [OPTIONS]
 **Examples:**
 ```bash
 # Migrate JSON to TOML
-kano tokenizer migrate old_config.json
+kano-backlog tokenizer migrate old_config.json
 
 # Migrate with custom output path
-kano tokenizer migrate old_config.json --output new_config.toml
+kano-backlog tokenizer migrate old_config.json --output new_config.toml
 
 # Force overwrite
-kano tokenizer migrate old_config.json --output existing.toml --force
+kano-backlog tokenizer migrate old_config.json --output existing.toml --force
 ```
 
 **Sample Output:**
@@ -368,18 +368,18 @@ kano tokenizer migrate old_config.json --output existing.toml --force
 ✓ Migrated configuration from old_config.json to old_config.toml
 
 Validate the migrated configuration with:
-  kano tokenizer validate --config old_config.toml
+  kano-backlog tokenizer validate --config old_config.toml
 ```
 
 ## Diagnostic Commands
 
-### `kano tokenizer diagnose`
+### `kano-backlog tokenizer diagnose`
 
 Run comprehensive tokenizer diagnostics.
 
 **Syntax:**
 ```bash
-kano tokenizer diagnose [OPTIONS]
+kano-backlog tokenizer diagnose [OPTIONS]
 ```
 
 **Options:**
@@ -390,25 +390,25 @@ kano tokenizer diagnose [OPTIONS]
 **Examples:**
 ```bash
 # Basic diagnostics
-kano tokenizer diagnose
+kano-backlog tokenizer diagnose
 
 # Diagnose specific model
-kano tokenizer diagnose --model gpt-4
+kano-backlog tokenizer diagnose --model gpt-4
 
 # Verbose diagnostics
-kano tokenizer diagnose --verbose
+kano-backlog tokenizer diagnose --verbose
 
 # Diagnose with custom configuration
-kano tokenizer diagnose --config my_config.toml --verbose
+kano-backlog tokenizer diagnose --config my_config.toml --verbose
 ```
 
-### `kano tokenizer health`
+### `kano-backlog tokenizer health`
 
 Check health of a specific tokenizer adapter.
 
 **Syntax:**
 ```bash
-kano tokenizer health ADAPTER [OPTIONS]
+kano-backlog tokenizer health ADAPTER [OPTIONS]
 ```
 
 **Arguments:**
@@ -420,15 +420,15 @@ kano tokenizer health ADAPTER [OPTIONS]
 **Examples:**
 ```bash
 # Check tiktoken health
-kano tokenizer health tiktoken
+kano-backlog tokenizer health tiktoken
 
 # Check with specific model
-kano tokenizer health huggingface --model bert-base-uncased
+kano-backlog tokenizer health huggingface --model bert-base-uncased
 
 # Check all adapters
 for adapter in heuristic tiktoken huggingface; do
     echo "Checking $adapter:"
-    kano tokenizer health $adapter
+    kano-backlog tokenizer health $adapter
     echo
 done
 ```
@@ -443,13 +443,13 @@ done
    Max tokens: 8192
 ```
 
-### `kano tokenizer dependencies`
+### `kano-backlog tokenizer dependencies`
 
 Check status of tokenizer dependencies.
 
 **Syntax:**
 ```bash
-kano tokenizer dependencies [OPTIONS]
+kano-backlog tokenizer dependencies [OPTIONS]
 ```
 
 **Options:**
@@ -459,13 +459,13 @@ kano tokenizer dependencies [OPTIONS]
 **Examples:**
 ```bash
 # Basic dependency check
-kano tokenizer dependencies
+kano-backlog tokenizer dependencies
 
 # Detailed dependency information
-kano tokenizer dependencies --verbose
+kano-backlog tokenizer dependencies --verbose
 
 # Force refresh cache
-kano tokenizer dependencies --refresh
+kano-backlog tokenizer dependencies --refresh
 ```
 
 **Sample Output:**
@@ -487,16 +487,16 @@ kano tokenizer dependencies --refresh
   • Consider using tiktoken for OpenAI models
 
 ❌ Missing Dependencies: transformers
-   Use 'kano tokenizer install-guide' for installation instructions
+   Use 'kano-backlog tokenizer install-guide' for installation instructions
 ```
 
-### `kano tokenizer adapter-status`
+### `kano-backlog tokenizer adapter-status`
 
 Show status of tokenizer adapters including dependency checks.
 
 **Syntax:**
 ```bash
-kano tokenizer adapter-status [OPTIONS]
+kano-backlog tokenizer adapter-status [OPTIONS]
 ```
 
 **Options:**
@@ -505,10 +505,10 @@ kano tokenizer adapter-status [OPTIONS]
 **Examples:**
 ```bash
 # Show all adapter status
-kano tokenizer adapter-status
+kano-backlog tokenizer adapter-status
 
 # Show specific adapter status
-kano tokenizer adapter-status --adapter tiktoken
+kano-backlog tokenizer adapter-status --adapter tiktoken
 ```
 
 **Sample Output:**
@@ -534,13 +534,13 @@ kano tokenizer adapter-status --adapter tiktoken
 
 ## Performance Commands
 
-### `kano tokenizer benchmark`
+### `kano-backlog tokenizer benchmark`
 
 Benchmark tokenizer adapter performance and accuracy.
 
 **Syntax:**
 ```bash
-kano tokenizer benchmark [OPTIONS]
+kano-backlog tokenizer benchmark [OPTIONS]
 ```
 
 **Options:**
@@ -553,19 +553,19 @@ kano tokenizer benchmark [OPTIONS]
 **Examples:**
 ```bash
 # Basic benchmark
-kano tokenizer benchmark
+kano-backlog tokenizer benchmark
 
 # Benchmark with custom text
-kano tokenizer benchmark --text "$(cat large_document.txt)"
+kano-backlog tokenizer benchmark --text "$(cat large_document.txt)"
 
 # Benchmark specific adapters
-kano tokenizer benchmark --adapters tiktoken,heuristic --iterations 50
+kano-backlog tokenizer benchmark --adapters tiktoken,heuristic --iterations 50
 
 # JSON output for analysis
-kano tokenizer benchmark --format json > benchmark_results.json
+kano-backlog tokenizer benchmark --format json > benchmark_results.json
 
 # CSV output for spreadsheet analysis
-kano tokenizer benchmark --format csv > benchmark_results.csv
+kano-backlog tokenizer benchmark --format csv > benchmark_results.csv
 ```
 
 **Sample Output (Markdown):**
@@ -609,13 +609,13 @@ kano tokenizer benchmark --format csv > benchmark_results.csv
 
 ## Utility Commands
 
-### `kano tokenizer env`
+### `kano-backlog tokenizer env`
 
 Show available environment variables for tokenizer configuration.
 
 **Syntax:**
 ```bash
-kano tokenizer env
+kano-backlog tokenizer env
 ```
 
 **Sample Output:**
@@ -653,16 +653,16 @@ Tokenizer Configuration Environment Variables:
 Example usage:
   export KANO_TOKENIZER_ADAPTER=heuristic
   export KANO_TOKENIZER_HEURISTIC_CHARS_PER_TOKEN=3.5
-  kano tokenizer test
+  kano-backlog tokenizer test
 ```
 
-### `kano tokenizer install-guide`
+### `kano-backlog tokenizer install-guide`
 
 Show installation guide for missing dependencies.
 
 **Syntax:**
 ```bash
-kano tokenizer install-guide
+kano-backlog tokenizer install-guide
 ```
 
 **Sample Output:**
@@ -688,7 +688,7 @@ pip install "transformers>=4.21.0"
 **Verification:**
 ```bash
 python -c "import transformers; print('Transformers version:', transformers.__version__)"
-kano tokenizer health huggingface
+kano-backlog tokenizer health huggingface
 ```
 
 ## Optional Dependencies
@@ -710,19 +710,19 @@ pip install torch --index-url https://download.pytorch.org/whl/cu118
 ## Verification Commands
 After installation, verify your setup:
 ```bash
-kano tokenizer dependencies
-kano tokenizer status
-kano tokenizer test
+kano-backlog tokenizer dependencies
+kano-backlog tokenizer status
+kano-backlog tokenizer test
 ```
 ```
 
-### `kano tokenizer list-models`
+### `kano-backlog tokenizer list-models`
 
 List supported models and their token limits.
 
 **Syntax:**
 ```bash
-kano tokenizer list-models [OPTIONS]
+kano-backlog tokenizer list-models [OPTIONS]
 ```
 
 **Options:**
@@ -732,16 +732,16 @@ kano tokenizer list-models [OPTIONS]
 **Examples:**
 ```bash
 # List all supported models
-kano tokenizer list-models
+kano-backlog tokenizer list-models
 
 # List OpenAI models only
-kano tokenizer list-models --adapter tiktoken
+kano-backlog tokenizer list-models --adapter tiktoken
 
 # List HuggingFace models only
-kano tokenizer list-models --adapter huggingface
+kano-backlog tokenizer list-models --adapter huggingface
 
 # JSON output for scripting
-kano tokenizer list-models --format json
+kano-backlog tokenizer list-models --format json
 ```
 
 **Sample Output:**
@@ -776,20 +776,20 @@ kano tokenizer list-models --format json
 ### Examples
 ```bash
 # Use with embedding command
-kano embedding build --tokenizer-model text-embedding-3-small
+kano-backlog embedding build --tokenizer-model text-embedding-3-small
 
 # Test tokenization
-kano tokenizer test --model bert-base-uncased --adapter huggingface
+kano-backlog tokenizer test --model bert-base-uncased --adapter huggingface
 ```
 ```
 
-### `kano tokenizer recommend`
+### `kano-backlog tokenizer recommend`
 
 Get adapter recommendation for a specific model and requirements.
 
 **Syntax:**
 ```bash
-kano tokenizer recommend MODEL [OPTIONS]
+kano-backlog tokenizer recommend MODEL [OPTIONS]
 ```
 
 **Arguments:**
@@ -801,13 +801,13 @@ kano tokenizer recommend MODEL [OPTIONS]
 **Examples:**
 ```bash
 # Get recommendation for OpenAI model
-kano tokenizer recommend gpt-4
+kano-backlog tokenizer recommend gpt-4
 
 # Get recommendation for HuggingFace model
-kano tokenizer recommend bert-base-uncased
+kano-backlog tokenizer recommend bert-base-uncased
 
 # Get recommendation with requirements
-kano tokenizer recommend gpt-4 --requirements "accuracy=high,speed=medium"
+kano-backlog tokenizer recommend gpt-4 --requirements "accuracy=high,speed=medium"
 ```
 
 **Sample Output:**
@@ -829,10 +829,10 @@ kano tokenizer recommend gpt-4 --requirements "accuracy=high,speed=medium"
 ## Usage Example
 ```bash
 # Use recommended adapter in embedding command
-kano embedding build --tokenizer-adapter tiktoken --tokenizer-model gpt-4
+kano-backlog embedding build --tokenizer-adapter tiktoken --tokenizer-model gpt-4
 
 # Test the adapter
-kano tokenizer test --text 'Sample text' --adapter tiktoken --model gpt-4
+kano-backlog tokenizer test --text 'Sample text' --adapter tiktoken --model gpt-4
 ```
 ```
 
@@ -842,70 +842,70 @@ kano tokenizer test --text 'Sample text' --adapter tiktoken --model gpt-4
 
 ```bash
 # 1. Check system status
-kano tokenizer status
+kano-backlog tokenizer status
 
 # 2. Test basic functionality
-kano tokenizer test
+kano-backlog tokenizer test
 
 # 3. Compare adapters
-kano tokenizer compare "Your sample text"
+kano-backlog tokenizer compare "Your sample text"
 
 # 4. Validate configuration
-kano tokenizer validate
+kano-backlog tokenizer validate
 ```
 
 ### Configuration Workflow
 
 ```bash
 # 1. Create example configuration
-kano tokenizer create-example --output my_config.toml
+kano-backlog tokenizer create-example --output my_config.toml
 
 # 2. Edit configuration file
 # (edit my_config.toml)
 
 # 3. Validate configuration
-kano tokenizer validate --config my_config.toml
+kano-backlog tokenizer validate --config my_config.toml
 
 # 4. Test configuration
-kano tokenizer test --config my_config.toml
+kano-backlog tokenizer test --config my_config.toml
 
 # 5. Benchmark performance
-kano tokenizer benchmark --config my_config.toml
+kano-backlog tokenizer benchmark --config my_config.toml
 ```
 
 ### Troubleshooting Workflow
 
 ```bash
 # 1. Check overall health
-kano tokenizer status --verbose
+kano-backlog tokenizer status --verbose
 
 # 2. Check dependencies
-kano tokenizer dependencies --verbose
+kano-backlog tokenizer dependencies --verbose
 
 # 3. Check adapter health
-kano tokenizer health tiktoken
-kano tokenizer health huggingface
-kano tokenizer health heuristic
+kano-backlog tokenizer health tiktoken
+kano-backlog tokenizer health huggingface
+kano-backlog tokenizer health heuristic
 
 # 4. Run diagnostics
-kano tokenizer diagnose --verbose
+kano-backlog tokenizer diagnose --verbose
 
 # 5. Get installation guide
-kano tokenizer install-guide
+kano-backlog tokenizer install-guide
 ```
 
 ### Performance Analysis Workflow
 
 ```bash
 # 1. Benchmark current setup
-kano tokenizer benchmark --format json > baseline.json
+kano-backlog tokenizer benchmark --format json > baseline.json
 
 # 2. Test with different configurations
 export KANO_TOKENIZER_ADAPTER=heuristic
-kano tokenizer benchmark --format json > heuristic.json
+kano-backlog tokenizer benchmark --format json > heuristic.json
 
 export KANO_TOKENIZER_ADAPTER=tiktoken
-kano tokenizer benchmark --format json > tiktoken.json
+kano-backlog tokenizer benchmark --format json > tiktoken.json
 
 # 3. Compare results
 # (analyze JSON files)
@@ -917,20 +917,20 @@ kano tokenizer benchmark --format json > tiktoken.json
 
 ```bash
 # 1. Create production configuration
-kano tokenizer create-example --output production_config.toml
+kano-backlog tokenizer create-example --output production_config.toml
 # (edit production_config.toml)
 
 # 2. Validate configuration
-kano tokenizer validate --config production_config.toml
+kano-backlog tokenizer validate --config production_config.toml
 
 # 3. Test with production-like data
-kano tokenizer test --config production_config.toml --text "$(cat sample_production_data.txt)"
+kano-backlog tokenizer test --config production_config.toml --text "$(cat sample_production_data.txt)"
 
 # 4. Benchmark performance
-kano tokenizer benchmark --config production_config.toml --iterations 50
+kano-backlog tokenizer benchmark --config production_config.toml --iterations 50
 
 # 5. Check system health
-kano tokenizer status --config production_config.toml --verbose
+kano-backlog tokenizer status --config production_config.toml --verbose
 
 # 6. Deploy configuration
 cp production_config.toml /etc/kano/tokenizer.toml
@@ -943,9 +943,9 @@ cp production_config.toml /etc/kano/tokenizer.toml
 Most commands support `--format json` for machine-readable output:
 
 ```bash
-kano tokenizer status --format json
-kano tokenizer benchmark --format json
-kano tokenizer config --format json
+kano-backlog tokenizer status --format json
+kano-backlog tokenizer benchmark --format json
+kano-backlog tokenizer config --format json
 ```
 
 **Example JSON Output:**
@@ -982,8 +982,8 @@ kano tokenizer config --format json
 Benchmark and list commands support CSV output:
 
 ```bash
-kano tokenizer benchmark --format csv
-kano tokenizer list-models --format csv
+kano-backlog tokenizer benchmark --format csv
+kano-backlog tokenizer list-models --format csv
 ```
 
 ### TOML/YAML Formats
@@ -991,10 +991,10 @@ kano tokenizer list-models --format csv
 Configuration commands support multiple formats:
 
 ```bash
-kano tokenizer config --format toml
-kano tokenizer config --format yaml
+kano-backlog tokenizer config --format toml
+kano-backlog tokenizer config --format yaml
 ```
 
 ---
 
-This CLI reference provides comprehensive documentation for all tokenizer adapter commands. Use `kano tokenizer <command> --help` for detailed help on any specific command.
+This CLI reference provides comprehensive documentation for all tokenizer adapter commands. Use `kano-backlog tokenizer <command> --help` for detailed help on any specific command.

@@ -415,7 +415,10 @@ class TestPerformanceMonitor:
     def test_alert_cooldown(self):
         """Test alert cooldown mechanism."""
         collector = TelemetryCollector()
-        thresholds = AlertThresholds(max_error_rate=0.1)  # 10% error rate threshold
+        thresholds = AlertThresholds(
+            max_error_rate=0.1,  # 10% error rate threshold
+            min_operations_per_second=0.0,  # Disable throughput alerts for this test
+        )
         monitor = PerformanceMonitor(collector, thresholds)
         
         alerts_received = []

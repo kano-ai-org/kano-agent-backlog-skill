@@ -23,10 +23,10 @@ console = Console()
 
 def _collect_cli_remotely() -> List[snapshot_ops.CliCommand]:
     """
-    Collect CLI tree by running 'kano --help' and parsing output.
+    Collect CLI tree by running 'kano-backlog --help' and parsing output.
     This simulates an external audit of the surface.
     """
-    # Find the kano script wrapper or module
+    # Find the kano-backlog script wrapper or module
     # We try to run the same command that invoked us, or default to standard locations
     cmd = [sys.executable, "skills/kano-agent-backlog-skill/scripts/kano-backlog"]
     if not Path("skills/kano-agent-backlog-skill/scripts/kano-backlog").exists():
@@ -53,7 +53,7 @@ def _collect_cli_remotely() -> List[snapshot_ops.CliCommand]:
         
         # PROVISIONAL: Just return top-level help as one node to prove connectivity
         return [snapshot_ops.CliCommand(
-            name="kano",
+            name="kano-backlog",
             help="Full CLI Help Output (Recursive parsing TODO)",
             subcommands=[]
         )]

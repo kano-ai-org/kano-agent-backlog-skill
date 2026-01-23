@@ -51,19 +51,19 @@ This guide provides comprehensive performance tuning recommendations, benchmarki
 **Quick Performance Check:**
 ```bash
 # Test current setup
-kano tokenizer benchmark
+kano-backlog tokenizer benchmark
 
 # Test with your typical content
-kano tokenizer benchmark --text "$(cat typical_document.txt)"
+kano-backlog tokenizer benchmark --text "$(cat typical_document.txt)"
 
 # Compare adapters
-kano tokenizer benchmark --adapters heuristic,tiktoken,huggingface
+kano-backlog tokenizer benchmark --adapters heuristic,tiktoken,huggingface
 ```
 
 **Detailed Benchmarking:**
 ```bash
 # Comprehensive benchmark with multiple iterations
-kano tokenizer benchmark \
+kano-backlog tokenizer benchmark \
   --text "$(cat sample_document.txt)" \
   --iterations 50 \
   --format json > benchmark_results.json
@@ -85,7 +85,7 @@ for size in 1000 5000 10000 50000 100000; do
     echo "Testing ${size} characters:"
     head -c $size large_document.txt > test_${size}.txt
     
-    kano tokenizer benchmark \
+    kano-backlog tokenizer benchmark \
       --text "$(cat test_${size}.txt)" \
       --iterations 10 \
       --format json | jq -r '.results[] | "\(.adapter): \(.avg_time_ms)ms"'
@@ -110,8 +110,8 @@ for adapter in "${adapters[@]}"; do
     echo "Testing $adapter:"
     
     # Check if adapter is available
-    if kano tokenizer health $adapter >/dev/null 2>&1; then
-        result=$(kano tokenizer benchmark \
+    if kano-backlog tokenizer health $adapter >/dev/null 2>&1; then
+        result=$(kano-backlog tokenizer benchmark \
           --adapters $adapter \
           --text "$test_text" \
           --iterations 20 \
@@ -338,7 +338,7 @@ for ratio in 3.0 3.5 4.0 4.5 5.0; do
     export KANO_TOKENIZER_HEURISTIC_CHARS_PER_TOKEN=$ratio
     
     # Compare with exact adapter
-    result=$(kano tokenizer compare "$test_text" --adapters heuristic,tiktoken --format json 2>/dev/null)
+    result=$(kano-backlog tokenizer compare "$test_text" --adapters heuristic,tiktoken --format json 2>/dev/null)
     
     if [ $? -eq 0 ]; then
         heuristic_tokens=$(echo $result | jq -r '.results[] | select(.adapter=="heuristic") | .count')
@@ -383,7 +383,7 @@ for encoding in "${encodings[@]}"; do
     export KANO_TOKENIZER_TIKTOKEN_ENCODING=$encoding
     echo "Testing encoding: $encoding"
     
-    time kano tokenizer test --adapter tiktoken --text "$(cat test_document.txt)"
+    time kano-backlog tokenizer test --adapter tiktoken --text "$(cat test_document.txt)"
 done
 
 # Let system auto-detect (usually optimal)
@@ -410,7 +410,7 @@ models=(
 
 for model in "${models[@]}"; do
     echo "Testing model: $model"
-    kano tokenizer benchmark \
+    kano-backlog tokenizer benchmark \
       --adapters huggingface \
       --model "$model" \
       --iterations 5
@@ -495,7 +495,7 @@ export HF_HOME=/mnt/ssd/huggingface_cache
 export PIP_CACHE_DIR=/mnt/ssd/pip_cache
 
 # Pre-warm caches
-kano tokenizer test --adapter huggingface --model bert-base-uncased
+kano-backlog tokenizer test --adapter huggingface --model bert-base-uncased
 ```
 
 **Network Optimization:**
@@ -674,10 +674,10 @@ def process_large_document_chunked(file_path, chunk_size=10000):
 **Built-in Metrics:**
 ```bash
 # Regular performance checks
-kano tokenizer benchmark --format json > daily_benchmark.json
+kano-backlog tokenizer benchmark --format json > daily_benchmark.json
 
 # Monitor over time
-echo "$(date): $(kano tokenizer benchmark --format json | jq '.results[0].avg_time_ms')" >> performance_log.txt
+echo "$(date): $(kano-backlog tokenizer benchmark --format json | jq '.results[0].avg_time_ms')" >> performance_log.txt
 ```
 
 **Custom Monitoring:**
@@ -786,7 +786,7 @@ python -m memory_profiler profile_memory.py
 pip install py-spy
 
 # Profile running process
-kano tokenizer benchmark --iterations 1000 &
+kano-backlog tokenizer benchmark --iterations 1000 &
 PID=$!
 py-spy record -o profile.svg -p $PID
 ```
@@ -826,19 +826,19 @@ trust_remote_code = false # Security best practice
 **Pre-Deployment Testing:**
 ```bash
 # 1. Validate configuration
-kano tokenizer validate --config production_config.toml
+kano-backlog tokenizer validate --config production_config.toml
 
 # 2. Test all adapters
-kano tokenizer test --config production_config.toml
+kano-backlog tokenizer test --config production_config.toml
 
 # 3. Benchmark performance
-kano tokenizer benchmark --config production_config.toml --iterations 50
+kano-backlog tokenizer benchmark --config production_config.toml --iterations 50
 
 # 4. Check dependencies
-kano tokenizer dependencies --verbose
+kano-backlog tokenizer dependencies --verbose
 
 # 5. Test with production-like data
-kano tokenizer benchmark --text "$(cat production_sample.txt)" --iterations 20
+kano-backlog tokenizer benchmark --text "$(cat production_sample.txt)" --iterations 20
 ```
 
 **Production Monitoring:**
@@ -851,7 +851,7 @@ echo "Tokenizer Health Check - $(date)"
 echo "================================"
 
 # System status
-kano tokenizer status --format json > /tmp/tokenizer_status.json
+kano-backlog tokenizer status --format json > /tmp/tokenizer_status.json
 
 # Check if any adapters failed
 failed_adapters=$(cat /tmp/tokenizer_status.json | jq -r '.adapters | to_entries[] | select(.value.available == false) | .key')
@@ -864,7 +864,7 @@ else
 fi
 
 # Performance check
-avg_time=$(kano tokenizer benchmark --iterations 5 --format json | jq -r '.results[0].avg_time_ms')
+avg_time=$(kano-backlog tokenizer benchmark --iterations 5 --format json | jq -r '.results[0].avg_time_ms')
 if (( $(echo "$avg_time > 100" | bc -l) )); then
     echo "WARNING: Performance degraded (${avg_time}ms)"
     exit 1

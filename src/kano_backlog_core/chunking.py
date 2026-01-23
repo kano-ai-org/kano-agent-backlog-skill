@@ -239,8 +239,8 @@ def _sentence_boundary_chars(text: str) -> List[int]:
     # Enhanced sentence ending pattern with better context awareness
     # For CJK text, we don't require whitespace after punctuation
     sentence_pattern = re.compile(
-        r"(?:[.!?]+|[。！？]+)"  # Sentence ending punctuation
-        r"(?=\s|$|[\"\'""''）】〉》」』]|[^\w\s]|[\u4e00-\u9fff\u3040-\u30ff\uac00-\ud7af])"  # Followed by whitespace, end, quotes, or CJK chars
+        r"(?:[.!?]+|[\u3002\uFF01\uFF1F]+)"  # Sentence ending punctuation
+        r"(?=\s|$|[\"'\uFF09\u3011\u3009\u300B\u300D\u300F]|[^\w\s]|[\u4E00-\u9FFF\u3040-\u30FF\uAC00-\uD7AF])"  # Followed by whitespace, end, quotes, or CJK chars
     )
     
     # Common abbreviations that shouldn't trigger sentence breaks
@@ -639,6 +639,9 @@ def chunk_text_with_tokenizer(
     """
     if not source_id:
         raise ValueError("source_id must be non-empty")
+
+    if not isinstance(text, str):
+        raise TypeError("text must be a string")
     
     # Resolve tokenizer if not provided
     if tokenizer is None:
@@ -691,6 +694,8 @@ def _chunk_text_with_adapter(
         return []
     
     normalized = normalize_text(text)
+    if not normalized.strip():
+        return []
     
     # Get paragraph and sentence boundaries in character space
     para_boundaries = _paragraph_boundary_chars(normalized)

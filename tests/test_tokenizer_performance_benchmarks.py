@@ -17,6 +17,7 @@ Performance Targets (from design):
 """
 
 import pytest
+import os
 import time
 import gc
 import json
@@ -50,6 +51,12 @@ from kano_backlog_core.token_budget import (
     TokenBudgetManager,
     budget_chunks,
     TokenBudgetPolicy,
+)
+
+RUN_PERF_TESTS = os.environ.get("KANO_RUN_PERF_TESTS", "").lower() in ("1", "true", "yes", "on")
+pytestmark = pytest.mark.skipif(
+    not RUN_PERF_TESTS,
+    reason="Performance benchmarks are opt-in; set KANO_RUN_PERF_TESTS=1 to run.",
 )
 
 

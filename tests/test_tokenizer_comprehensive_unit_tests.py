@@ -12,7 +12,7 @@ with extensive mocking and edge case coverage.
 """
 
 import pytest
-from unittest.mock import Mock, patch, MagicMock, call
+from unittest.mock import Mock, patch, MagicMock, PropertyMock, call
 from typing import Any, Dict, List, Optional
 import sys
 import importlib
@@ -251,7 +251,7 @@ class TestTiktokenAdapterMocked:
     
     def test_initialization_without_tiktoken(self):
         """Test TiktokenAdapter initialization when tiktoken is not available."""
-        with patch.dict('sys.modules', {'tiktoken': None}):
+        with patch("kano_backlog_core.tokenizer.tiktoken", None):
             with pytest.raises(ImportError, match="tiktoken package required"):
                 TiktokenAdapter("gpt-4")
     
@@ -435,23 +435,26 @@ class TestHuggingFaceAdapterMocked:
     
     def test_initialization_without_transformers(self):
         """Test HuggingFaceAdapter initialization when transformers is not available."""
-        with patch.dict('sys.modules', {'transformers': None}):
+        with patch('kano_backlog_core.tokenizer.transformers', None):
             with pytest.raises(ImportError, match="transformers package required"):
                 HuggingFaceAdapter("bert-base-uncased")
     
     def test_model_name_validation(self):
         """Test model name validation."""
-        # Test invalid model names
-        invalid_names = [
-            "",  # Empty
+        # Empty/None should fail base adapter validation.
+        for invalid_name in ["", None]:
+            with pytest.raises(ValueError, match="model_name must be non-empty"):
+                HuggingFaceAdapter(invalid_name)
+
+        # Other invalid formats should fail HuggingFace-specific validation.
+        invalid_format_names = [
             "   ",  # Whitespace only
             "invalid/model/with/too/many/slashes",
             "model-with-@-symbol",
             "model with spaces",
-            None,  # None
         ]
-        
-        for invalid_name in invalid_names:
+
+        for invalid_name in invalid_format_names:
             with pytest.raises(ValueError, match="Invalid HuggingFace model name format"):
                 HuggingFaceAdapter(invalid_name)
     
@@ -656,7 +659,7 @@ class TestTokenizerRegistryIsolated:
         
         # Test creating custom adapter
         adapter = registry.resolve("custom", "test-model")
-        assert isinstance(adapter, MockCustomAdapter)
+        assert adapter.adapter_id == "custom"
         assert adapter.custom_option == "test_value"
     
     def test_adapter_registration_validation(self):
@@ -691,21 +694,23 @@ class TestTokenizerRegistryIsolated:
         with pytest.raises(ValueError, match="Unknown adapter in fallback chain"):
             registry.set_fallback_chain(["unknown_adapter"])
     
-    @patch('kano_backlog_core.tokenizer.HeuristicTokenizer')
-    def test_adapter_resolution_success(self, mock_heuristic_class):
+    def test_adapter_resolution_success(self):
         """Test successful adapter resolution."""
         registry = TokenizerRegistry()
         
-        # Mock adapter instance
         mock_adapter = Mock()
         mock_adapter.adapter_id = "heuristic"
-        mock_heuristic_class.return_value = mock_adapter
         
-        # Test direct resolution
-        adapter = registry.resolve("heuristic", "test-model", max_tokens=1024)
+        with patch.object(
+            registry, "_create_adapter_with_recovery", return_value=mock_adapter
+        ) as mock_create, patch.object(
+            registry, "_wrap_with_enhancements", return_value=mock_adapter
+        ) as mock_wrap:
+            adapter = registry.resolve("heuristic", "test-model", max_tokens=1024)
         
         assert adapter is mock_adapter
-        mock_heuristic_class.assert_called_once_with("test-model", max_tokens=1024)
+        mock_create.assert_called_once_with("heuristic", "test-model", 1024)
+        mock_wrap.assert_called_once()
     
     def test_adapter_resolution_with_fallback(self):
         """Test adapter resolution with fallback chain."""
@@ -721,6 +726,13 @@ class TestTokenizerRegistryIsolated:
         def working_adapter(*args, **kwargs):
             mock_adapter = Mock()
             mock_adapter.adapter_id = "heuristic"
+            mock_adapter.count_tokens.return_value = TokenCount(
+                count=1,
+                method="heuristic",
+                tokenizer_id="heuristic:test-model",
+                is_exact=False,
+                model_max_tokens=DEFAULT_MAX_TOKENS,
+            )
             return mock_adapter
         
         # Set up registry with failing tiktoken and working heuristic
@@ -825,7 +837,9 @@ class TestTokenizerRegistryIsolated:
             
             mock_dep_manager.check_all_dependencies.return_value = mock_report
             
-            report = registry.get_dependency_report()
+            with patch.object(registry, "get_adapter_status_with_dependencies") as mock_status:
+                mock_status.return_value = {}
+                report = registry.get_dependency_report()
             
             assert report["overall_health"] == "healthy"
             assert report["python_version"] == "3.9.0"
@@ -1089,19 +1103,20 @@ class TestIntegrationScenarios:
         registry = TokenizerRegistry()
         registry.set_fallback_chain(config.fallback_chain)
         
-        # Mock tiktoken to fail, heuristic to succeed
-        with patch('kano_backlog_core.tokenizer.TiktokenAdapter') as mock_tiktoken:
-            mock_tiktoken.side_effect = ImportError("tiktoken not available")
-            
-            # Should fall back to heuristic
-            adapter = registry.resolve(
-                adapter_name=config.adapter,
-                model_name=config.model,
-                **config.get_adapter_options("heuristic")
-            )
-            
-            assert adapter.adapter_id == "heuristic"
-            assert adapter.chars_per_token == 3.5
+        def failing_tiktoken(*args, **kwargs):
+            raise ImportError("tiktoken not available")
+
+        registry._adapters["tiktoken"] = (failing_tiktoken, {})
+
+        # Should fall back to heuristic
+        adapter = registry.resolve(
+            adapter_name=config.adapter,
+            model_name=config.model,
+            **config.get_adapter_options("heuristic")
+        )
+        
+        assert adapter.adapter_id == "heuristic"
+        assert adapter.chars_per_token == 3.5
     
     def test_configuration_driven_error_recovery(self):
         """Test configuration-driven error recovery scenarios."""
@@ -1118,65 +1133,73 @@ class TestIntegrationScenarios:
         registry = TokenizerRegistry()
         registry.set_fallback_chain(config.fallback_chain)
         
-        # Mock tiktoken to fail
-        with patch('kano_backlog_core.tokenizer.TiktokenAdapter') as mock_tiktoken:
-            mock_tiktoken.side_effect = ImportError("tiktoken not available")
-            
-            # Should fall back to heuristic (skipping huggingface)
-            adapter = registry.resolve(
-                adapter_name=config.adapter,
-                model_name=config.model,
-                max_tokens=config.max_tokens
-            )
-            
-            assert adapter.adapter_id == "heuristic"
-            assert adapter.max_tokens() == 8192
+        def failing_tiktoken(*args, **kwargs):
+            raise ImportError("tiktoken not available")
+
+        registry._adapters["tiktoken"] = (failing_tiktoken, {})
+
+        # Should fall back to heuristic (skipping huggingface)
+        adapter = registry.resolve(
+            adapter_name=config.adapter,
+            model_name=config.model,
+            max_tokens=config.max_tokens
+        )
+        
+        assert adapter.adapter_id == "heuristic"
+        assert adapter.max_tokens() == 8192
     
     def test_comprehensive_error_scenario(self):
         """Test comprehensive error scenario with multiple failures."""
         registry = TokenizerRegistry()
         
-        # Mock all adapters to fail with different errors
-        with patch('kano_backlog_core.tokenizer.TiktokenAdapter') as mock_tiktoken, \
-             patch('kano_backlog_core.tokenizer.HuggingFaceAdapter') as mock_hf, \
-             patch('kano_backlog_core.tokenizer.HeuristicTokenizer') as mock_heuristic:
-            
-            mock_tiktoken.side_effect = ImportError("tiktoken not found")
-            mock_hf.side_effect = ImportError("transformers not found")
-            mock_heuristic.side_effect = ValueError("Heuristic configuration error")
-            
-            # Should raise FallbackChainExhaustedError
-            with pytest.raises(FallbackChainExhaustedError) as exc_info:
-                registry.resolve("tiktoken", "gpt-4")
-            
-            error = exc_info.value
-            assert len(error.attempted_adapters) == 3
-            assert len(error.errors) == 3
-            assert "gpt-4" in str(error)
+        def failing_tiktoken(*args, **kwargs):
+            raise ImportError("tiktoken not found")
+
+        def failing_huggingface(*args, **kwargs):
+            raise ImportError("transformers not found")
+
+        def failing_heuristic(*args, **kwargs):
+            raise ValueError("Heuristic configuration error")
+
+        registry._adapters["tiktoken"] = (failing_tiktoken, {})
+        registry._adapters["huggingface"] = (failing_huggingface, {})
+        registry._adapters["heuristic"] = (failing_heuristic, {})
+        registry.set_fallback_chain(["tiktoken", "huggingface", "heuristic"])
+
+        # Should raise FallbackChainExhaustedError
+        with pytest.raises(FallbackChainExhaustedError) as exc_info:
+            registry.resolve("tiktoken", "gpt-4")
+        
+        error = exc_info.value
+        assert len(error.attempted_adapters) == 3
+        assert len(error.errors) == 3
+        assert "gpt-4" in str(error)
     
     def test_performance_under_error_conditions(self):
         """Test performance characteristics under error conditions."""
         import time
         
         registry = TokenizerRegistry()
+        registry.set_fallback_chain(["tiktoken", "heuristic"])
         
-        # Mock adapter to fail quickly
-        with patch('kano_backlog_core.tokenizer.TiktokenAdapter') as mock_tiktoken:
-            mock_tiktoken.side_effect = ImportError("tiktoken not found")
-            
-            start_time = time.time()
-            
-            # Multiple fallback attempts should still be fast
-            for i in range(10):
-                try:
-                    registry.resolve("tiktoken", f"model-{i}")
-                except Exception:
-                    pass
-            
-            elapsed = time.time() - start_time
-            
-            # Should complete quickly even with errors
-            assert elapsed < 2.0  # Less than 2 seconds for 10 attempts
+        def failing_tiktoken(*args, **kwargs):
+            raise ImportError("tiktoken not found")
+
+        registry._adapters["tiktoken"] = (failing_tiktoken, {})
+
+        start_time = time.time()
+        
+        # Multiple fallback attempts should still be fast
+        for i in range(10):
+            try:
+                registry.resolve("tiktoken", f"model-{i}")
+            except Exception:
+                pass
+        
+        elapsed = time.time() - start_time
+        
+        # Should complete quickly even with errors
+        assert elapsed < 2.0  # Less than 2 seconds for 10 attempts
 
 
 if __name__ == "__main__":

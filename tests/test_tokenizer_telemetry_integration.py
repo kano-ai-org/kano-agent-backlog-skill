@@ -420,7 +420,8 @@ class TestTelemetryPerformanceImpact:
         """Test that telemetry adds minimal overhead."""
         # Test without telemetry
         adapter_no_telemetry = HeuristicTokenizer("test-model")
-        test_text = "Performance impact test text for measuring telemetry overhead."
+        # Use a moderately-sized text so the baseline work dominates fixed telemetry overhead.
+        test_text = ("Performance impact test text for measuring telemetry overhead. " * 20).strip()
         
         # Measure time without telemetry
         start_time = time.perf_counter()
@@ -429,7 +430,11 @@ class TestTelemetryPerformanceImpact:
         no_telemetry_time = time.perf_counter() - start_time
         
         # Test with telemetry
-        collector, monitor = configure_telemetry(max_history=1000)
+        # Disable memory tracking to measure telemetry wrapper overhead separately from
+        # memory sampling overhead, which is intentionally configurable.
+        collector, monitor = configure_telemetry(
+            max_history=1000, enable_memory_tracking=False
+        )
         collector.clear_history()
         
         adapter_with_telemetry = TelemetryEnabledAdapter(

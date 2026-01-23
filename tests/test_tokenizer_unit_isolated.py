@@ -156,8 +156,10 @@ class TestTiktokenAdapterMocked:
     
     def test_initialization_without_tiktoken(self):
         """Test TiktokenAdapter initialization when tiktoken is not available."""
-        # Mock tiktoken import to fail
-        with patch.dict('sys.modules', {'tiktoken': None}):
+        # Mock tokenizer module's optional dependency to simulate missing tiktoken.
+        from kano_backlog_core import tokenizer as tokenizer_module
+
+        with patch.object(tokenizer_module, "tiktoken", None):
             with pytest.raises(ImportError, match="tiktoken package required"):
                 from kano_backlog_core.tokenizer import TiktokenAdapter
                 TiktokenAdapter("gpt-4")
@@ -429,7 +431,7 @@ class TestTokenizerRegistryMocked:
         
         # Test creating custom adapter
         adapter = registry.resolve("custom", "test-model")
-        assert isinstance(adapter, MockCustomAdapter)
+        assert adapter.adapter_id == "custom"
         assert adapter.custom_option == "test_value"
     
     def test_adapter_registration_validation(self):
@@ -476,7 +478,7 @@ class TestTokenizerRegistryMocked:
         
         adapter = registry.resolve("heuristic", "test-model", max_tokens=1024)
         
-        assert isinstance(adapter, HeuristicTokenizer)
+        assert adapter.adapter_id == "heuristic"
         assert adapter.model_name == "test-model"
         assert adapter.max_tokens() == 1024
 

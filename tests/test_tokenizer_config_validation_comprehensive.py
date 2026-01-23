@@ -455,6 +455,9 @@ class TestConfigurationFileParsingEdgeCases:
     
     def test_file_permission_errors(self):
         """Test handling of file permission errors."""
+        if os.name == "nt":
+            pytest.skip("chmod-based permission tests are not reliable on Windows")
+
         # Create a file and make it unreadable
         with tempfile.NamedTemporaryFile(mode="w", suffix=".toml", delete=False) as f:
             f.write('adapter = "test"')

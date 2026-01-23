@@ -26,6 +26,10 @@ from kano_backlog_core.tokenizer import (
     DEFAULT_MAX_TOKENS,
     MODEL_MAX_TOKENS,
 )
+from kano_backlog_core.tokenizer_errors import (
+    FallbackChainExhaustedError,
+    TokenizationFailedError,
+)
 
 # Check if tiktoken is available
 try:
@@ -85,7 +89,7 @@ class TestHeuristicTokenizer:
     def test_heuristic_tokenizer_none_text_raises(self) -> None:
         """Test HeuristicTokenizer raises error for None text."""
         tokenizer = HeuristicTokenizer("test-model")
-        with pytest.raises(ValueError, match="text must be a string"):
+        with pytest.raises(TokenizationFailedError, match="text must be a string"):
             tokenizer.count_tokens(None)
 
     def test_heuristic_max_tokens_default(self) -> None:
@@ -506,7 +510,7 @@ class TestTokenizerRegistry:
         registry = TokenizerRegistry()
         
         adapter = registry.resolve("heuristic", "test-model")
-        assert isinstance(adapter, HeuristicTokenizer)
+        assert adapter.adapter_id == "heuristic"
         assert adapter.model_name == "test-model"
 
     @pytest.mark.skipif(not TIKTOKEN_AVAILABLE, reason="tiktoken not installed")
@@ -515,7 +519,7 @@ class TestTokenizerRegistry:
         registry = TokenizerRegistry()
         
         adapter = registry.resolve("tiktoken", "text-embedding-3-small")
-        assert isinstance(adapter, TiktokenAdapter)
+        assert adapter.adapter_id == "tiktoken"
         assert adapter.model_name == "text-embedding-3-small"
 
     @pytest.mark.skipif(not TRANSFORMERS_AVAILABLE, reason="transformers not installed")
@@ -524,7 +528,7 @@ class TestTokenizerRegistry:
         registry = TokenizerRegistry()
         
         adapter = registry.resolve("huggingface", "sentence-transformers/all-MiniLM-L6-v2")
-        assert isinstance(adapter, HuggingFaceAdapter)
+        assert adapter.adapter_id == "huggingface"
         assert adapter.model_name == "sentence-transformers/all-MiniLM-L6-v2"
 
     def test_registry_resolve_auto_fallback(self) -> None:
@@ -538,16 +542,11 @@ class TestTokenizerRegistry:
 
     def test_registry_resolve_unknown_adapter(self) -> None:
         """Test resolving unknown adapter with empty fallback chain raises error."""
-        registry = TokenizerRegistry()
-        
-        # Set empty fallback chain to force error
-        registry.set_fallback_chain(["heuristic"])  # Only heuristic
-        
-        # Now try to resolve an unknown adapter that's not in fallback chain
-        with pytest.raises(RuntimeError, match="No tokenizer adapter available"):
-            # Create a registry with no fallback options
-            empty_registry = TokenizerRegistry()
-            empty_registry._adapters.clear()  # Remove all adapters
+        # Create a registry with no adapters available.
+        empty_registry = TokenizerRegistry()
+        empty_registry._adapters.clear()  # Remove all adapters
+
+        with pytest.raises(FallbackChainExhaustedError, match="All tokenizer adapters failed"):
             empty_registry.resolve("unknown_adapter", "test-model")
 
     def test_registry_resolve_with_max_tokens(self) -> None:
@@ -570,7 +569,7 @@ class TestResolveTokenizerWithFallback:
     def test_resolve_with_fallback_heuristic(self) -> None:
         """Test resolve_tokenizer_with_fallback returns HeuristicTokenizer."""
         tokenizer = resolve_tokenizer_with_fallback("heuristic", "test-model")
-        assert isinstance(tokenizer, HeuristicTokenizer)
+        assert tokenizer.adapter_id == "heuristic"
         assert tokenizer.model_name == "test-model"
 
     def test_resolve_with_fallback_auto(self) -> None:
@@ -590,7 +589,7 @@ class TestResolveTokenizerWithFallback:
         tokenizer = resolve_tokenizer_with_fallback(
             "heuristic", "test-model", registry=custom_registry
         )
-        assert isinstance(tokenizer, HeuristicTokenizer)
+        assert tokenizer.adapter_id == "heuristic"
 
 
 class TestTiktokenAdapterWithoutTiktoken:

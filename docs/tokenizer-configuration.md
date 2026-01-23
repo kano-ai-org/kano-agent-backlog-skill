@@ -31,10 +31,10 @@ Tokenizer adapter configuration follows this precedence order (highest to lowest
 export KANO_TOKENIZER_ADAPTER=tiktoken
 
 # 2. Configuration file
-kano tokenizer test --config my_config.toml
+kano-backlog tokenizer test --config my_config.toml
 
 # 3. Default configuration (lowest precedence)
-kano tokenizer test  # Uses built-in defaults
+kano-backlog tokenizer test  # Uses built-in defaults
 ```
 
 ### Configuration File Locations
@@ -423,7 +423,7 @@ chars_per_token = 4.0
 **Usage:**
 ```bash
 export KANO_TOKENIZER_CONFIG=dev_config.toml
-kano tokenizer test
+kano-backlog tokenizer test
 ```
 
 ### Production OpenAI Configuration
@@ -642,8 +642,8 @@ chars_per_token = 4.0
   env:
     KANO_TOKENIZER_CONFIG: ci_config.toml
   run: |
-    kano tokenizer test
-    kano tokenizer validate
+    kano-backlog tokenizer test
+    kano-backlog tokenizer validate
 ```
 
 ## Migration Guide
@@ -683,7 +683,7 @@ encoding = "cl100k_base"
 
 **Migration Command:**
 ```bash
-kano tokenizer migrate old_config.json --output new_config.toml
+kano-backlog tokenizer migrate old_config.json --output new_config.toml
 ```
 
 ### From Environment-Only to Configuration File
@@ -707,7 +707,7 @@ chars_per_token = 4.2
 
 **Migration Steps:**
 1. Create configuration file with current settings
-2. Test configuration: `kano tokenizer validate --config new_config.toml`
+2. Test configuration: `kano-backlog tokenizer validate --config new_config.toml`
 3. Update deployment to use configuration file
 4. Remove environment variables (optional)
 
@@ -738,10 +738,10 @@ chars_per_token = 4.0
 **Validate Configuration File:**
 ```bash
 # Validate TOML syntax and values
-kano tokenizer validate --config your_config.toml
+kano-backlog tokenizer validate --config your_config.toml
 
 # Show parsed configuration
-kano tokenizer config --config your_config.toml --format json
+kano-backlog tokenizer config --config your_config.toml --format json
 ```
 
 **Common Validation Errors:**
@@ -778,23 +778,23 @@ fallback_chain = ["tiktoken", "heuristic"]
 **Test Configuration:**
 ```bash
 # Test with sample text
-kano tokenizer test --config your_config.toml
+kano-backlog tokenizer test --config your_config.toml
 
 # Test all adapters in fallback chain
-kano tokenizer test --config your_config.toml --verbose
+kano-backlog tokenizer test --config your_config.toml --verbose
 
 # Benchmark performance
-kano tokenizer benchmark --config your_config.toml
+kano-backlog tokenizer benchmark --config your_config.toml
 ```
 
 **Test Environment Variable Overrides:**
 ```bash
 # Test override
 export KANO_TOKENIZER_ADAPTER=heuristic
-kano tokenizer test --config your_config.toml
+kano-backlog tokenizer test --config your_config.toml
 
 # Verify override took effect
-kano tokenizer config --config your_config.toml --format json | jq '.adapter'
+kano-backlog tokenizer config --config your_config.toml --format json | jq '.adapter'
 ```
 
 ### Configuration Debugging
@@ -802,22 +802,22 @@ kano tokenizer config --config your_config.toml --format json | jq '.adapter'
 **Debug Configuration Loading:**
 ```bash
 # Show effective configuration
-kano tokenizer config --format json
+kano-backlog tokenizer config --format json
 
 # Show configuration with specific file
-kano tokenizer config --config your_config.toml --format json
+kano-backlog tokenizer config --config your_config.toml --format json
 
 # Show environment variables
-kano tokenizer env
+kano-backlog tokenizer env
 ```
 
 **Debug Adapter Resolution:**
 ```bash
 # Show which adapter will be used
-kano tokenizer diagnose --config your_config.toml
+kano-backlog tokenizer diagnose --config your_config.toml
 
 # Test adapter availability
-kano tokenizer adapter-status
+kano-backlog tokenizer adapter-status
 ```
 
 ### Configuration Best Practices
@@ -836,14 +836,14 @@ kano tokenizer adapter-status
 **Create Configuration Template:**
 ```bash
 # Create example configuration
-kano tokenizer create-example --output template_config.toml
+kano-backlog tokenizer create-example --output template_config.toml
 
 # Customize for your needs
 cp template_config.toml my_config.toml
 # Edit my_config.toml
 
 # Validate customized configuration
-kano tokenizer validate --config my_config.toml
+kano-backlog tokenizer validate --config my_config.toml
 ```
 
 ---

@@ -252,14 +252,7 @@ class TestAdapterSpecificErrorHandling:
     
     def test_tiktoken_adapter_dependency_error(self):
         """Test TiktokenAdapter dependency error handling."""
-        with patch('builtins.__import__') as mock_import:
-            def import_side_effect(name, *args, **kwargs):
-                if name == 'tiktoken':
-                    raise ImportError("No module named 'tiktoken'")
-                return __import__(name, *args, **kwargs)
-            
-            mock_import.side_effect = import_side_effect
-            
+        with patch("kano_backlog_core.tokenizer.tiktoken", None):
             with pytest.raises(ImportError, match="tiktoken package required"):
                 TiktokenAdapter("gpt-4")
 

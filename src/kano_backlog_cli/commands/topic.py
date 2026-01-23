@@ -1,7 +1,7 @@
 """
 Topic CLI commands for managing topic-based context groupings.
 
-This module provides the `kano topic` command group for:
+This module provides the `kano-backlog topic` command group for:
 - Creating topics for context grouping
 - Adding items to topics
 - Pinning documents to topics

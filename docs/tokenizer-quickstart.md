@@ -8,10 +8,10 @@ This guide gets you up and running with tokenizer adapters quickly, covering the
 
 ```bash
 # Check overall health
-kano tokenizer status
+kano-backlog tokenizer status
 
 # Check which adapters are available
-kano tokenizer adapter-status
+kano-backlog tokenizer adapter-status
 ```
 
 **Expected Output:**
@@ -51,20 +51,20 @@ pip install tiktoken
 pip install transformers
 
 # Verify installation
-kano tokenizer dependencies
+kano-backlog tokenizer dependencies
 ```
 
 ## 3. Test Basic Functionality (30 seconds)
 
 ```bash
 # Test with sample text
-kano tokenizer test
+kano-backlog tokenizer test
 
 # Test specific adapter
-kano tokenizer test --adapter tiktoken --model gpt-4
+kano-backlog tokenizer test --adapter tiktoken --model gpt-4
 
 # Compare adapters
-kano tokenizer compare "This is a sample text for tokenization testing."
+kano-backlog tokenizer compare "This is a sample text for tokenization testing."
 ```
 
 **Expected Output:**
@@ -93,7 +93,7 @@ Text length: 58 characters
 
 ```bash
 # Create configuration for OpenAI models
-kano tokenizer create-example --output openai_config.toml
+kano-backlog tokenizer create-example --output openai_config.toml
 
 # Edit the file to use tiktoken
 cat > openai_config.toml << 'EOF'
@@ -110,8 +110,8 @@ chars_per_token = 4.0
 EOF
 
 # Test configuration
-kano tokenizer validate --config openai_config.toml
-kano tokenizer test --config openai_config.toml
+kano-backlog tokenizer validate --config openai_config.toml
+kano-backlog tokenizer test --config openai_config.toml
 ```
 
 ### Option B: HuggingFace Models
@@ -133,8 +133,8 @@ chars_per_token = 4.0
 EOF
 
 # Test configuration
-kano tokenizer validate --config huggingface_config.toml
-kano tokenizer test --config huggingface_config.toml
+kano-backlog tokenizer validate --config huggingface_config.toml
+kano-backlog tokenizer test --config huggingface_config.toml
 ```
 
 ### Option C: Development/Fast Setup
@@ -142,19 +142,19 @@ kano tokenizer test --config huggingface_config.toml
 ```bash
 # Use heuristic adapter (no dependencies required)
 export KANO_TOKENIZER_ADAPTER=heuristic
-kano tokenizer test
+kano-backlog tokenizer test
 ```
 
 ## 5. Integration with Embedding Pipeline (30 seconds)
 
 ```bash
 # Use tokenizer in embedding commands
-kano embedding build --tokenizer-adapter tiktoken --tokenizer-model gpt-4
+kano-backlog embedding build --tokenizer-adapter tiktoken --tokenizer-model gpt-4
 
 # Or set environment variables
 export KANO_TOKENIZER_ADAPTER=tiktoken
 export KANO_TOKENIZER_MODEL=gpt-4
-kano embedding build
+kano-backlog embedding build
 ```
 
 ## Common Use Cases
@@ -172,7 +172,7 @@ export KANO_TOKENIZER_MODEL=gpt-4
 
 **Test:**
 ```bash
-kano tokenizer test --text "Your API request text here"
+kano-backlog tokenizer test --text "Your API request text here"
 ```
 
 ### Use Case 2: HuggingFace Model Processing
@@ -188,7 +188,7 @@ export KANO_TOKENIZER_MODEL=sentence-transformers/all-MiniLM-L6-v2
 
 **Test:**
 ```bash
-kano tokenizer test --text "Your document text here"
+kano-backlog tokenizer test --text "Your document text here"
 ```
 
 ### Use Case 3: Development/Testing
@@ -203,7 +203,7 @@ export KANO_TOKENIZER_HEURISTIC_CHARS_PER_TOKEN=4.0
 
 **Test:**
 ```bash
-kano tokenizer test --text "Development test text"
+kano-backlog tokenizer test --text "Development test text"
 ```
 
 ### Use Case 4: Production Multi-Model
@@ -234,8 +234,8 @@ EOF
 
 **Test:**
 ```bash
-kano tokenizer validate --config production_config.toml
-kano tokenizer test --config production_config.toml
+kano-backlog tokenizer validate --config production_config.toml
+kano-backlog tokenizer test --config production_config.toml
 ```
 
 ## Quick Troubleshooting
@@ -246,7 +246,7 @@ kano tokenizer test --config production_config.toml
 ```bash
 # Use heuristic adapter as fallback
 export KANO_TOKENIZER_ADAPTER=heuristic
-kano tokenizer test
+kano-backlog tokenizer test
 ```
 
 ### Problem: "tiktoken package required"
@@ -254,7 +254,7 @@ kano tokenizer test
 **Solution:**
 ```bash
 pip install tiktoken
-kano tokenizer test --adapter tiktoken
+kano-backlog tokenizer test --adapter tiktoken
 ```
 
 ### Problem: "transformers package required"
@@ -262,7 +262,7 @@ kano tokenizer test --adapter tiktoken
 **Solution:**
 ```bash
 pip install transformers
-kano tokenizer test --adapter huggingface
+kano-backlog tokenizer test --adapter huggingface
 ```
 
 ### Problem: Token counts seem inaccurate
@@ -270,10 +270,10 @@ kano tokenizer test --adapter huggingface
 **Solution:**
 ```bash
 # Compare adapters to see differences
-kano tokenizer compare "Your text here"
+kano-backlog tokenizer compare "Your text here"
 
 # Use exact adapter for your model type
-kano tokenizer recommend your-model-name
+kano-backlog tokenizer recommend your-model-name
 ```
 
 ### Problem: Slow performance
@@ -300,27 +300,27 @@ export KANO_TOKENIZER_HUGGINGFACE_USE_FAST=true
 
 ```bash
 # Benchmark your setup
-kano tokenizer benchmark --text "$(cat your_typical_document.txt)"
+kano-backlog tokenizer benchmark --text "$(cat your_typical_document.txt)"
 
 # Get model recommendations
-kano tokenizer recommend gpt-4
-kano tokenizer recommend bert-base-uncased
+kano-backlog tokenizer recommend gpt-4
+kano-backlog tokenizer recommend bert-base-uncased
 
 # Monitor system health
-kano tokenizer status --verbose
+kano-backlog tokenizer status --verbose
 
 # Create custom configuration
-kano tokenizer create-example --output my_config.toml
+kano-backlog tokenizer create-example --output my_config.toml
 # Edit my_config.toml for your needs
-kano tokenizer validate --config my_config.toml
+kano-backlog tokenizer validate --config my_config.toml
 ```
 
 ### Production Deployment
 
 1. **Choose Configuration:** Create appropriate config file for your environment
-2. **Validate Setup:** Run `kano tokenizer status` and `kano tokenizer test`
-3. **Performance Test:** Run `kano tokenizer benchmark` with your typical content
-4. **Monitor Health:** Set up regular `kano tokenizer status` checks
+2. **Validate Setup:** Run `kano-backlog tokenizer status` and `kano-backlog tokenizer test`
+3. **Performance Test:** Run `kano-backlog tokenizer benchmark` with your typical content
+4. **Monitor Health:** Set up regular `kano-backlog tokenizer status` checks
 5. **Update Dependencies:** Keep `tiktoken` and `transformers` packages updated
 
 ---

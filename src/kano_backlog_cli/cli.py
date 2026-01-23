@@ -6,7 +6,7 @@ import typer
 
 from .util import configure_stdio, ensure_core_on_path, resolve_product_root
 
-app = typer.Typer(help="kano: Backlog management CLI (MVP)")
+app = typer.Typer(help="kano-backlog: Backlog management CLI (MVP)")
 
 
 @app.callback()

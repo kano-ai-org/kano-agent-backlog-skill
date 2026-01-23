@@ -20,37 +20,37 @@ This guide provides detailed solutions for common tokenizer adapter problems, er
 ### Step 1: Check System Health
 ```bash
 # Get overall system status
-kano tokenizer status
+kano-backlog tokenizer status
 
 # Check what's broken
-kano tokenizer diagnose --verbose
+kano-backlog tokenizer diagnose --verbose
 
 # Check dependencies
-kano tokenizer dependencies
+kano-backlog tokenizer dependencies
 ```
 
 ### Step 2: Test Basic Functionality
 ```bash
 # Test with simple text
-kano tokenizer test --text "Hello world"
+kano-backlog tokenizer test --text "Hello world"
 
 # Test specific adapter
-kano tokenizer test --adapter heuristic --text "Hello world"
+kano-backlog tokenizer test --adapter heuristic --text "Hello world"
 
 # Compare adapters
-kano tokenizer compare "Hello world"
+kano-backlog tokenizer compare "Hello world"
 ```
 
 ### Step 3: Check Configuration
 ```bash
 # Validate configuration
-kano tokenizer validate
+kano-backlog tokenizer validate
 
 # Show effective configuration
-kano tokenizer config --format json
+kano-backlog tokenizer config --format json
 
 # Check environment variables
-kano tokenizer env
+kano-backlog tokenizer env
 ```
 
 ## Common Error Messages
@@ -69,7 +69,7 @@ FallbackChainExhaustedError: No tokenizer available. Errors: [tiktoken: No modul
 **Quick Fix - Use Heuristic:**
 ```bash
 export KANO_TOKENIZER_ADAPTER=heuristic
-kano tokenizer test
+kano-backlog tokenizer test
 ```
 
 **Install Dependencies:**
@@ -81,7 +81,7 @@ pip install tiktoken
 pip install transformers
 
 # Verify installation
-kano tokenizer dependencies
+kano-backlog tokenizer dependencies
 ```
 
 **Check Python Environment:**
@@ -113,7 +113,7 @@ pip install tiktoken
 python -c "import tiktoken; print('TikToken version:', tiktoken.__version__)"
 
 # Test adapter
-kano tokenizer health tiktoken
+kano-backlog tokenizer health tiktoken
 ```
 
 **Alternative Installation Methods:**
@@ -192,27 +192,27 @@ OSError: Can't load tokenizer for 'unknown-model'. Make sure that 'unknown-model
 **Check Supported Models:**
 ```bash
 # List all supported models
-kano tokenizer list-models
+kano-backlog tokenizer list-models
 
 # Check specific adapter models
-kano tokenizer list-models --adapter huggingface
-kano tokenizer list-models --adapter tiktoken
+kano-backlog tokenizer list-models --adapter huggingface
+kano-backlog tokenizer list-models --adapter tiktoken
 ```
 
 **Use Valid Model Names:**
 ```bash
 # For HuggingFace models
-kano tokenizer test --adapter huggingface --model bert-base-uncased
+kano-backlog tokenizer test --adapter huggingface --model bert-base-uncased
 
 # For OpenAI models
-kano tokenizer test --adapter tiktoken --model gpt-4
+kano-backlog tokenizer test --adapter tiktoken --model gpt-4
 ```
 
 **Get Model Recommendations:**
 ```bash
 # Get recommendation for your use case
-kano tokenizer recommend bert-base-uncased
-kano tokenizer recommend gpt-4
+kano-backlog tokenizer recommend bert-base-uncased
+kano-backlog tokenizer recommend gpt-4
 ```
 
 ### 5. "Configuration validation failed"
@@ -239,10 +239,10 @@ trust_remote_code = false  # Must be boolean, not "false"
 **Validate Configuration:**
 ```bash
 # Check configuration syntax
-kano tokenizer validate --config your_config.toml
+kano-backlog tokenizer validate --config your_config.toml
 
 # Show parsed configuration
-kano tokenizer config --config your_config.toml --format json
+kano-backlog tokenizer config --config your_config.toml --format json
 ```
 
 **Fix Environment Variables:**
@@ -270,7 +270,7 @@ TokenizationFailedError: Tokenization failed for adapter 'tiktoken' with model '
 **Check Text Content:**
 ```bash
 # Test with simple text first
-kano tokenizer test --adapter tiktoken --text "Hello world"
+kano-backlog tokenizer test --adapter tiktoken --text "Hello world"
 
 # Check for problematic characters
 python -c "
@@ -284,11 +284,11 @@ print('Control chars:', [c for c in text if ord(c) < 32])
 **Try Different Adapters:**
 ```bash
 # Compare results
-kano tokenizer compare "your problematic text"
+kano-backlog tokenizer compare "your problematic text"
 
 # Use fallback
 export KANO_TOKENIZER_ADAPTER=heuristic
-kano tokenizer test --text "your problematic text"
+kano-backlog tokenizer test --text "your problematic text"
 ```
 
 ## Dependency Issues
@@ -377,7 +377,7 @@ export HF_ENDPOINT=https://hf-mirror.com
 
 # Download manually and use local path
 # Download model files to local directory, then:
-kano tokenizer test --adapter huggingface --model /path/to/local/model
+kano-backlog tokenizer test --adapter huggingface --model /path/to/local/model
 ```
 
 ### Python Environment Issues
@@ -475,14 +475,14 @@ env | grep KANO_TOKENIZER
 export KANO_TOKENIZER_ADAPTER=heuristic  # Not just KANO_TOKENIZER_ADAPTER=heuristic
 
 # Check variable precedence
-kano tokenizer config --format json | jq '.adapter'
+kano-backlog tokenizer config --format json | jq '.adapter'
 
 # Clear conflicting variables
 unset KANO_TOKENIZER_ADAPTER
 export KANO_TOKENIZER_ADAPTER=heuristic
 
 # Test immediately
-kano tokenizer test
+kano-backlog tokenizer test
 ```
 
 **Issue: Boolean Environment Variables**
@@ -513,7 +513,7 @@ export KANO_TOKENIZER_HUGGINGFACE_USE_FAST=0        # numeric
 **Solutions:**
 ```bash
 # Specify config file explicitly
-kano tokenizer test --config /path/to/your/config.toml
+kano-backlog tokenizer test --config /path/to/your/config.toml
 
 # Check default locations
 ls -la tokenizer_config.toml
@@ -521,10 +521,10 @@ ls -la config.toml
 ls -la ~/.config/kano/tokenizer.toml
 
 # Create config in current directory
-kano tokenizer create-example --output tokenizer_config.toml
+kano-backlog tokenizer create-example --output tokenizer_config.toml
 
 # Verify config is loaded
-kano tokenizer config --config tokenizer_config.toml
+kano-backlog tokenizer config --config tokenizer_config.toml
 ```
 
 ## Performance Issues
@@ -536,13 +536,13 @@ kano tokenizer config --config tokenizer_config.toml
 **Diagnosis:**
 ```bash
 # Benchmark current performance
-kano tokenizer benchmark --iterations 10
+kano-backlog tokenizer benchmark --iterations 10
 
 # Test with different adapters
-kano tokenizer benchmark --adapters heuristic,tiktoken --iterations 10
+kano-backlog tokenizer benchmark --adapters heuristic,tiktoken --iterations 10
 
 # Profile with large text
-time kano tokenizer test --text "$(cat large_file.txt)"
+time kano-backlog tokenizer test --text "$(cat large_file.txt)"
 ```
 
 **Solutions:**
@@ -586,7 +586,7 @@ export HF_HOME=/path/to/ssd/cache
 **Diagnosis:**
 ```bash
 # Monitor memory during tokenization
-kano tokenizer test --text "$(cat large_file.txt)" &
+kano-backlog tokenizer test --text "$(cat large_file.txt)" &
 PID=$!
 while kill -0 $PID 2>/dev/null; do
     ps -o pid,vsz,rss,comm -p $PID
@@ -655,7 +655,7 @@ adapter.count_tokens("warmup")  # Prime the adapter
 **Solutions:**
 ```bash
 # Check model encoding
-kano tokenizer list-models --adapter tiktoken | grep your-model
+kano-backlog tokenizer list-models --adapter tiktoken | grep your-model
 
 # Use correct encoding
 export KANO_TOKENIZER_TIKTOKEN_ENCODING=cl100k_base  # For GPT-4, GPT-3.5-turbo
@@ -663,7 +663,7 @@ export KANO_TOKENIZER_TIKTOKEN_ENCODING=p50k_base    # For text-davinci-003
 
 # Let system auto-detect
 unset KANO_TOKENIZER_TIKTOKEN_ENCODING
-kano tokenizer test --adapter tiktoken --model gpt-4
+kano-backlog tokenizer test --adapter tiktoken --model gpt-4
 ```
 
 **Issue: Legacy Model Support**
@@ -674,11 +674,11 @@ kano tokenizer test --adapter tiktoken --model gpt-4
 **Solutions:**
 ```bash
 # Check supported models
-kano tokenizer list-models --adapter tiktoken
+kano-backlog tokenizer list-models --adapter tiktoken
 
 # Use manual encoding for unsupported models
 export KANO_TOKENIZER_TIKTOKEN_ENCODING=p50k_base
-kano tokenizer test --adapter tiktoken --model your-legacy-model
+kano-backlog tokenizer test --adapter tiktoken --model your-legacy-model
 ```
 
 ### HuggingFace Model Issues
@@ -694,10 +694,10 @@ kano tokenizer test --adapter tiktoken --model your-legacy-model
 curl -s "https://huggingface.co/api/models/your-model-name" | jq .
 
 # Use correct model identifier
-kano tokenizer test --adapter huggingface --model "organization/model-name"
+kano-backlog tokenizer test --adapter huggingface --model "organization/model-name"
 
 # For local models, use full path
-kano tokenizer test --adapter huggingface --model "/path/to/local/model"
+kano-backlog tokenizer test --adapter huggingface --model "/path/to/local/model"
 ```
 
 **Issue: Slow Model Loading**
@@ -733,7 +733,7 @@ curl -s "https://huggingface.co/api/models/your-model-name" | jq '.siblings[] | 
 ```bash
 # Use heuristic adapter for unknown models
 export KANO_TOKENIZER_ADAPTER=heuristic
-kano tokenizer test --model your-custom-model
+kano-backlog tokenizer test --model your-custom-model
 
 # Add custom model to configuration
 [tokenizer]
@@ -796,7 +796,7 @@ docker run -v ~/.cache/huggingface:/root/.cache/huggingface your-image
 - name: Test tokenizers
   run: |
     export KANO_TOKENIZER_ADAPTER=heuristic  # Fallback for CI
-    kano tokenizer test
+    kano-backlog tokenizer test
 ```
 
 ### Windows-Specific Issues
@@ -809,11 +809,11 @@ docker run -v ~/.cache/huggingface:/root/.cache/huggingface your-image
 **Solutions:**
 ```bash
 # Use forward slashes or raw strings
-kano tokenizer validate --config "C:/path/to/config.toml"
+kano-backlog tokenizer validate --config "C:/path/to/config.toml"
 
 # Or use environment variable
 set KANO_TOKENIZER_CONFIG=C:\path\to\config.toml
-kano tokenizer validate
+kano-backlog tokenizer validate
 ```
 
 **Issue: PowerShell Environment Variables**
@@ -825,7 +825,7 @@ kano tokenizer validate
 ```powershell
 # Set environment variables in PowerShell
 $env:KANO_TOKENIZER_ADAPTER = "heuristic"
-kano tokenizer test
+kano-backlog tokenizer test
 
 # Or use permanent setting
 [Environment]::SetEnvironmentVariable("KANO_TOKENIZER_ADAPTER", "heuristic", "User")
@@ -867,7 +867,7 @@ nslookup pypi.org
 # Test with proxy
 export HTTP_PROXY=http://proxy:port
 export HTTPS_PROXY=http://proxy:port
-kano tokenizer test --adapter huggingface
+kano-backlog tokenizer test --adapter huggingface
 ```
 
 ### Memory Debugging
@@ -938,7 +938,7 @@ pip uninstall tiktoken transformers -y
 pip install tiktoken transformers
 
 # Test basic functionality
-kano tokenizer test --adapter heuristic
+kano-backlog tokenizer test --adapter heuristic
 ```
 
 **Factory Reset Configuration:**
@@ -948,10 +948,10 @@ rm -f tokenizer_config.toml
 rm -f ~/.config/kano/tokenizer.toml
 
 # Create fresh configuration
-kano tokenizer create-example --output tokenizer_config.toml --force
+kano-backlog tokenizer create-example --output tokenizer_config.toml --force
 
 # Validate fresh configuration
-kano tokenizer validate --config tokenizer_config.toml
+kano-backlog tokenizer validate --config tokenizer_config.toml
 ```
 
 ### Getting Support
@@ -963,13 +963,13 @@ mkdir tokenizer_debug
 cd tokenizer_debug
 
 # System information
-kano tokenizer status --format json > system_status.json
-kano tokenizer dependencies --verbose > dependencies.txt
-kano tokenizer config --format json > config.json
+kano-backlog tokenizer status --format json > system_status.json
+kano-backlog tokenizer dependencies --verbose > dependencies.txt
+kano-backlog tokenizer config --format json > config.json
 
 # Test results
-kano tokenizer test --verbose > test_results.txt 2>&1
-kano tokenizer benchmark --format json > benchmark.json 2>&1
+kano-backlog tokenizer test --verbose > test_results.txt 2>&1
+kano-backlog tokenizer benchmark --format json > benchmark.json 2>&1
 
 # Environment
 env | grep -E "(KANO|PYTHON|PATH)" > environment.txt

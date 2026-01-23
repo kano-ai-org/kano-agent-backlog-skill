@@ -234,7 +234,10 @@ class TelemetryCollector:
         operation_id = f"tok_{self._operation_counter}_{int(time.time() * 1000)}"
         
         start_time = time.perf_counter()
-        start_memory = self._get_memory_usage()
+        try:
+            start_memory = self._get_memory_usage()
+        except Exception:
+            start_memory = None
         timestamp = datetime.now()
         
         error_occurred = False
@@ -270,7 +273,10 @@ class TelemetryCollector:
             end_time = time.perf_counter()
             processing_time_ms = (end_time - start_time) * 1000
             
-            end_memory = self._get_memory_usage()
+            try:
+                end_memory = self._get_memory_usage()
+            except Exception:
+                end_memory = None
             memory_used_mb = None
             if start_memory is not None and end_memory is not None:
                 memory_used_mb = max(0, end_memory - start_memory)

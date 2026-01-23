@@ -208,7 +208,9 @@ def create_example_config(
         typer.echo(f"✓ Created example tokenizer configuration: {output_path}")
         typer.echo()
         typer.echo("Edit the file to customize your tokenizer settings.")
-        typer.echo("Use 'kano tokenizer validate --config <path>' to validate your changes.")
+        typer.echo(
+            "Use 'kano-backlog tokenizer validate --config <path>' to validate your changes."
+        )
         
     except Exception as e:
         typer.echo(f"Error creating example configuration: {e}", err=True)
@@ -253,7 +255,7 @@ def migrate_config(
         typer.echo(f"✓ Migrated configuration from {input_path} to {output_path}")
         typer.echo()
         typer.echo("Validate the migrated configuration with:")
-        typer.echo(f"  kano tokenizer validate --config {output_path}")
+        typer.echo(f"  kano-backlog tokenizer validate --config {output_path}")
         
     except Exception as e:
         typer.echo(f"Error migrating configuration: {e}", err=True)
@@ -361,7 +363,187 @@ def check_adapter_health(
         raise typer.Exit(1)
 
 
-@app.command("env")
+@app.command("cache-stats")
+def show_cache_stats() -> None:
+    """Show token count cache statistics."""
+    ensure_core_on_path()
+    
+    try:
+        from kano_backlog_core.tokenizer_cache import get_global_cache_stats
+        
+        stats = get_global_cache_stats()
+        
+        if stats is None:
+            typer.echo("❌ No global cache initialized")
+            return
+        
+        typer.echo("📊 Token Count Cache Statistics:")
+        typer.echo()
+        typer.echo(f"  Cache Size: {stats.cache_size} / {stats.max_size}")
+        typer.echo(f"  Hit Rate: {stats.hit_rate:.2%}")
+        typer.echo(f"  Total Requests: {stats.total_requests}")
+        typer.echo(f"  Hits: {stats.hits}")
+        typer.echo(f"  Misses: {stats.misses}")
+        typer.echo(f"  Evictions: {stats.evictions}")
+        typer.echo(f"  Memory Usage: {stats.memory_usage_bytes:,} bytes")
+        
+        if stats.total_requests > 0:
+            efficiency = (stats.hits / stats.total_requests) * 100
+            if efficiency >= 80:
+                typer.echo(f"  ✅ Cache efficiency: {efficiency:.1f}% (Excellent)")
+            elif efficiency >= 60:
+                typer.echo(f"  ⚠️  Cache efficiency: {efficiency:.1f}% (Good)")
+            else:
+                typer.echo(f"  ❌ Cache efficiency: {efficiency:.1f}% (Poor)")
+        
+    except Exception as e:
+        typer.echo(f"Error getting cache statistics: {e}", err=True)
+        raise typer.Exit(1)
+
+
+@app.command("accuracy")
+def validate_accuracy(
+    adapter: Optional[str] = typer.Option(
+        None,
+        "--adapter",
+        help="Specific adapter to validate (default: all available)"
+    ),
+    model: str = typer.Option(
+        "gpt-3.5-turbo",
+        "--model",
+        help="Model name for validation"
+    ),
+    output: Optional[Path] = typer.Option(
+        None,
+        "--output",
+        help="Output file for detailed report (JSON format)"
+    ),
+    verbose: bool = typer.Option(
+        False,
+        "--verbose",
+        help="Show detailed results"
+    ),
+) -> None:
+    """Validate tokenizer accuracy against reference test cases."""
+    ensure_core_on_path()
+    
+    try:
+        from kano_backlog_core.tokenizer import get_default_registry
+        from kano_backlog_core.tokenizer_accuracy import create_default_validator
+        
+        registry = get_default_registry()
+        validator = create_default_validator()
+        
+        # Get adapters to test
+        if adapter:
+            # Test specific adapter
+            try:
+                test_adapter = registry._create_adapter(adapter, model)
+                adapters = [test_adapter]
+                typer.echo(f"Testing {adapter} adapter with model {model}")
+            except Exception as e:
+                typer.echo(f"Error creating {adapter} adapter: {e}", err=True)
+                raise typer.Exit(1)
+        else:
+            # Test all available adapters
+            adapters = []
+            for adapter_name in ["heuristic", "tiktoken", "huggingface"]:
+                try:
+                    test_adapter = registry._create_adapter(adapter_name, model)
+                    adapters.append(test_adapter)
+                except Exception as e:
+                    typer.echo(f"⚠️  Skipping {adapter_name} adapter: {e}")
+            
+            if not adapters:
+                typer.echo("❌ No adapters available for testing", err=True)
+                raise typer.Exit(1)
+            
+            typer.echo(f"Testing {len(adapters)} adapters with model {model}")
+        
+        typer.echo()
+        
+        # Run validation
+        with typer.progressbar(adapters, label="Validating adapters") as progress:
+            reports = {}
+            for test_adapter in progress:
+                report = validator.validate_adapter(test_adapter, model)
+                reports[test_adapter.adapter_id] = report
+        
+        # Display results
+        typer.echo("\n📊 Accuracy Validation Results:")
+        typer.echo("=" * 50)
+        
+        for adapter_id, report in reports.items():
+            grade = report.get_accuracy_grade()
+            grade_emoji = {
+                "A+": "🏆", "A": "🥇", "B+": "🥈", "B": "🥉", 
+                "C": "⚠️", "D": "❌"
+            }.get(grade, "❓")
+            
+            typer.echo(f"\n{grade_emoji} {adapter_id.upper()} - Grade: {grade}")
+            typer.echo(f"   Test cases: {report.test_cases_count}")
+            typer.echo(f"   Within 1 token: {report.accuracy_within_1_token:.1%}")
+            typer.echo(f"   Within 5%: {report.accuracy_within_5_percent:.1%}")
+            typer.echo(f"   Within 10%: {report.accuracy_within_10_percent:.1%}")
+            typer.echo(f"   Mean absolute error: {report.mean_absolute_error:.2f} tokens")
+            typer.echo(f"   Mean relative error: {report.mean_relative_error:.1%}")
+            typer.echo(f"   Avg processing time: {report.mean_processing_time_ms:.2f}ms")
+            
+            if verbose and report.results:
+                typer.echo(f"\n   Detailed results (first 5):")
+                for i, result in enumerate(report.results[:5]):
+                    text_preview = result.test_case.text[:40] + "..." if len(result.test_case.text) > 40 else result.test_case.text
+                    rel_error = f"{result.relative_error:.1%}" if result.relative_error != float('inf') else "∞"
+                    typer.echo(f"     {i+1}. '{text_preview}'")
+                    typer.echo(f"        Expected: {result.test_case.expected_tokens}, Got: {result.predicted_tokens}, Error: {result.absolute_error} ({rel_error})")
+        
+        # Save detailed report if requested
+        if output:
+            validator.save_report(reports, output)
+            typer.echo(f"\n💾 Detailed report saved to: {output}")
+        
+        # Summary
+        typer.echo(f"\n📋 Summary:")
+        best_adapter = min(reports.items(), key=lambda x: x[1].mean_relative_error)
+        typer.echo(f"   Best accuracy: {best_adapter[0]} ({best_adapter[1].mean_relative_error:.1%} mean error)")
+        
+        fastest_adapter = min(reports.items(), key=lambda x: x[1].mean_processing_time_ms)
+        typer.echo(f"   Fastest: {fastest_adapter[0]} ({fastest_adapter[1].mean_processing_time_ms:.2f}ms avg)")
+        
+    except Exception as e:
+        typer.echo(f"Error validating accuracy: {e}", err=True)
+        raise typer.Exit(1)
+
+
+@app.command("cache-clear")
+def clear_cache(
+    confirm: bool = typer.Option(
+        False,
+        "--confirm",
+        help="Skip confirmation prompt"
+    ),
+) -> None:
+    """Clear the token count cache."""
+    ensure_core_on_path()
+    
+    if not confirm:
+        confirmed = typer.confirm("Are you sure you want to clear the token count cache?")
+        if not confirmed:
+            typer.echo("Cache clearing cancelled.")
+            return
+    
+    try:
+        from kano_backlog_core.tokenizer_cache import clear_global_cache
+        
+        clear_global_cache()
+        typer.echo("✅ Token count cache cleared successfully")
+        
+    except Exception as e:
+        typer.echo(f"Error clearing cache: {e}", err=True)
+        raise typer.Exit(1)
+
+
+@app.command("env-vars")
 def show_environment_variables() -> None:
     """Show available environment variables for tokenizer configuration."""
     typer.echo("Tokenizer Configuration Environment Variables:")
@@ -389,7 +571,7 @@ def show_environment_variables() -> None:
     typer.echo("Example usage:")
     typer.echo("  export KANO_TOKENIZER_ADAPTER=heuristic")
     typer.echo("  export KANO_TOKENIZER_HEURISTIC_CHARS_PER_TOKEN=3.5")
-    typer.echo("  kano tokenizer test")
+    typer.echo("  kano-backlog tokenizer test")
 
 
 @app.command("dependencies")
@@ -459,7 +641,9 @@ def check_dependencies(
         missing = report.get_missing_dependencies()
         if missing:
             typer.echo(f"❌ Missing Dependencies: {', '.join(missing)}")
-            typer.echo("   Use 'kano tokenizer install-guide' for installation instructions")
+            typer.echo(
+                "   Use 'kano-backlog tokenizer install-guide' for installation instructions"
+            )
             typer.echo()
         
         # Show incompatible dependencies
@@ -719,10 +903,10 @@ def show_comprehensive_status(
         
         # Quick Actions
         typer.echo("## Quick Actions")
-        typer.echo("- **Test Adapters:** `kano tokenizer test`")
-        typer.echo("- **Check Dependencies:** `kano tokenizer dependencies`")
-        typer.echo("- **Validate Config:** `kano tokenizer validate`")
-        typer.echo("- **Installation Guide:** `kano tokenizer install-guide`")
+        typer.echo("- **Test Adapters:** `kano-backlog tokenizer test`")
+        typer.echo("- **Check Dependencies:** `kano-backlog tokenizer dependencies`")
+        typer.echo("- **Validate Config:** `kano-backlog tokenizer validate`")
+        typer.echo("- **Installation Guide:** `kano-backlog tokenizer install-guide`")
         
     except Exception as e:
         typer.echo(f"Error getting tokenizer status: {e}", err=True)
@@ -1209,7 +1393,7 @@ def recommend_adapter(
         
         if recommended not in available_adapters:
             typer.echo(f"⚠️  **Note:** Recommended adapter '{recommended}' is not currently available.")
-            typer.echo("   Check dependencies with: `kano tokenizer dependencies`")
+            typer.echo("   Check dependencies with: `kano-backlog tokenizer dependencies`")
             typer.echo()
         
         # Model-specific reasoning
@@ -1276,10 +1460,14 @@ def recommend_adapter(
         typer.echo("## Usage Example")
         typer.echo(f"```bash")
         typer.echo(f"# Use recommended adapter in embedding command")
-        typer.echo(f"kano embedding build --tokenizer-adapter {recommended} --tokenizer-model {model}")
+        typer.echo(
+            f"kano-backlog embedding build --tokenizer-adapter {recommended} --tokenizer-model {model}"
+        )
         typer.echo()
         typer.echo(f"# Test the adapter")
-        typer.echo(f"kano tokenizer test --text 'Sample text' --adapter {recommended} --model {model}")
+        typer.echo(
+            f"kano-backlog tokenizer test --text 'Sample text' --adapter {recommended} --model {model}"
+        )
         typer.echo(f"```")
         
     except Exception as e:
@@ -1407,10 +1595,10 @@ def list_supported_models(
             typer.echo("### Examples")
             typer.echo("```bash")
             typer.echo("# Use with embedding command")
-            typer.echo("kano embedding build --tokenizer-model text-embedding-3-small")
+            typer.echo("kano-backlog embedding build --tokenizer-model text-embedding-3-small")
             typer.echo()
             typer.echo("# Test tokenization")
-            typer.echo("kano tokenizer test --model bert-base-uncased --adapter huggingface")
+            typer.echo("kano-backlog tokenizer test --model bert-base-uncased --adapter huggingface")
             typer.echo("```")
         
     except Exception as e:
@@ -1765,16 +1953,16 @@ def health_check(
         typer.echo("## Quick Actions")
         if health_status.status == "critical":
             typer.echo("- **Immediate:** Check error logs and fix critical issues")
-            typer.echo("- **Monitor:** `kano tokenizer monitor --window 5`")
-            typer.echo("- **Dependencies:** `kano tokenizer dependencies`")
+            typer.echo("- **Monitor:** `kano-backlog tokenizer monitor --window 5`")
+            typer.echo("- **Dependencies:** `kano-backlog tokenizer dependencies`")
         elif health_status.status == "warning":
-            typer.echo("- **Monitor:** `kano tokenizer monitor --window 10`")
-            typer.echo("- **Performance:** `kano tokenizer benchmark`")
-            typer.echo("- **Status:** `kano tokenizer status --verbose`")
+            typer.echo("- **Monitor:** `kano-backlog tokenizer monitor --window 10`")
+            typer.echo("- **Performance:** `kano-backlog tokenizer benchmark`")
+            typer.echo("- **Status:** `kano-backlog tokenizer status --verbose`")
         else:
-            typer.echo("- **Monitor:** `kano tokenizer telemetry`")
-            typer.echo("- **Benchmark:** `kano tokenizer benchmark`")
-            typer.echo("- **Status:** `kano tokenizer status`")
+            typer.echo("- **Monitor:** `kano-backlog tokenizer telemetry`")
+            typer.echo("- **Benchmark:** `kano-backlog tokenizer benchmark`")
+            typer.echo("- **Status:** `kano-backlog tokenizer status`")
         
     except Exception as e:
         typer.echo(f"Error performing health check: {e}", err=True)
@@ -1866,10 +2054,10 @@ def check_alerts(
             typer.echo()
         
         typer.echo("### General Actions")
-        typer.echo("- Monitor system performance: `kano tokenizer monitor`")
-        typer.echo("- Check system health: `kano tokenizer health-check`")
-        typer.echo("- Review telemetry data: `kano tokenizer telemetry`")
-        typer.echo("- Benchmark adapters: `kano tokenizer benchmark`")
+        typer.echo("- Monitor system performance: `kano-backlog tokenizer monitor`")
+        typer.echo("- Check system health: `kano-backlog tokenizer health-check`")
+        typer.echo("- Review telemetry data: `kano-backlog tokenizer telemetry`")
+        typer.echo("- Benchmark adapters: `kano-backlog tokenizer benchmark`")
         
     except Exception as e:
         typer.echo(f"Error checking alerts: {e}", err=True)

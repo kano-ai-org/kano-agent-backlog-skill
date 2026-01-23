@@ -25,16 +25,28 @@ from .tokenizer_dependencies import (
     check_adapter_readiness,
 )
 
-# Import telemetry components (lazy import to avoid circular dependencies)
-try:
-    from .tokenizer_telemetry import get_default_collector
-    _TELEMETRY_AVAILABLE = True
-except ImportError:
-    _TELEMETRY_AVAILABLE = False
+from .tokenizer_cache import (
+    TokenCountCache,
+    CachingTokenizerAdapter,
+    get_global_cache,
+    CacheStats
+)
 
 logger = logging.getLogger(__name__)
 
 DEFAULT_MAX_TOKENS = 8192
+
+# Optional dependency: tiktoken
+try:
+    import tiktoken  # type: ignore
+except ImportError:  # pragma: no cover - optional dependency
+    tiktoken = None  # type: ignore
+
+# Optional dependency: transformers
+try:
+    import transformers  # type: ignore
+except ImportError:  # pragma: no cover - optional dependency
+    transformers = None  # type: ignore
 
 # Model to max tokens mapping with expanded OpenAI model support
 MODEL_MAX_TOKENS: Dict[str, int] = {
@@ -115,6 +127,14 @@ class TokenCount:
     tokenizer_id: str
     is_exact: bool
     model_max_tokens: Optional[int] = None
+
+
+# Import telemetry components after TokenCount is defined to avoid circular imports.
+try:
+    from .tokenizer_telemetry import get_default_collector
+    _TELEMETRY_AVAILABLE = True
+except ImportError:  # pragma: no cover - telemetry is optional
+    _TELEMETRY_AVAILABLE = False
 
 
 class TokenizerAdapter(ABC):
@@ -336,12 +356,10 @@ class TiktokenAdapter(TokenizerAdapter):
         super().__init__(model_name, max_tokens)
         
         # Extract tiktoken-specific options
-        encoding_name = kwargs.get("encoding")
+        encoding_name = kwargs.get("encoding_name") or kwargs.get("encoding")
         
         # Check if tiktoken is available
-        try:
-            import tiktoken
-        except ImportError:
+        if tiktoken is None:
             raise ImportError(
                 "tiktoken package required for TiktokenAdapter. "
                 "Install with: pip install tiktoken"
@@ -373,36 +391,44 @@ class TiktokenAdapter(TokenizerAdapter):
         Returns:
             Tuple of (encoding, encoding_name)
         """
-        # First try to get encoding directly for the model
+        # First try tiktoken's model-based resolution.
+        #
+        # In tests we often patch `kano_backlog_core.tokenizer.tiktoken` with a MagicMock.
+        # If `encoding_for_model()` isn't configured, it may return a mock object whose
+        # `.name` is not a real string; detect that and fall back to explicit mappings.
         try:
             encoding = tiktoken_module.encoding_for_model(model_name)
-            return encoding, encoding.name
+            encoding_name = getattr(encoding, "name", None)
+            if isinstance(encoding_name, str) and encoding_name:
+                return encoding, encoding_name
         except KeyError:
-            # Model not found, try our mapping
-            if model_name in MODEL_TO_ENCODING:
-                encoding_name = MODEL_TO_ENCODING[model_name]
-                try:
-                    encoding = tiktoken_module.get_encoding(encoding_name)
-                    logger.debug(f"Using {encoding_name} encoding for model {model_name}")
-                    return encoding, encoding_name
-                except Exception as e:
-                    logger.warning(f"Failed to load {encoding_name} encoding: {e}")
-            
-            # Fallback to cl100k_base (most common for newer models)
+            pass
+
+        # Prefer our explicit mapping for well-known models (deterministic and easy to mock).
+        if model_name in MODEL_TO_ENCODING:
+            encoding_name = MODEL_TO_ENCODING[model_name]
             try:
-                encoding = tiktoken_module.get_encoding("cl100k_base")
-                logger.info(f"Using cl100k_base fallback encoding for unknown model: {model_name}")
-                return encoding, "cl100k_base"
+                encoding = tiktoken_module.get_encoding(encoding_name)
+                logger.debug(f"Using {encoding_name} encoding for model {model_name}")
+                return encoding, encoding_name
             except Exception as e:
-                logger.warning(f"Failed to load cl100k_base encoding: {e}")
-                
-                # Final fallback to p50k_base
-                try:
-                    encoding = tiktoken_module.get_encoding("p50k_base")
-                    logger.info(f"Using p50k_base fallback encoding for model: {model_name}")
-                    return encoding, "p50k_base"
-                except Exception as e:
-                    raise RuntimeError(f"Failed to load any tiktoken encoding: {e}")
+                logger.warning(f"Failed to load {encoding_name} encoding: {e}")
+
+        # Fallback to cl100k_base (most common for newer models)
+        try:
+            encoding = tiktoken_module.get_encoding("cl100k_base")
+            logger.info(f"Using cl100k_base fallback encoding for unknown model: {model_name}")
+            return encoding, "cl100k_base"
+        except Exception as e:
+            logger.warning(f"Failed to load cl100k_base encoding: {e}")
+
+        # Final fallback to p50k_base
+        try:
+            encoding = tiktoken_module.get_encoding("p50k_base")
+            logger.info(f"Using p50k_base fallback encoding for model: {model_name}")
+            return encoding, "p50k_base"
+        except Exception as e:
+            raise RuntimeError(f"Failed to load any tiktoken encoding: {e}")
 
     @property
     def adapter_id(self) -> str:
@@ -533,24 +559,24 @@ class HuggingFaceAdapter(TokenizerAdapter):
     """
 
     def __init__(self, model_name: str, max_tokens: Optional[int] = None, **kwargs) -> None:
-        # Validate model name format before calling parent constructor
-        if model_name and not self._is_valid_model_name(model_name):
-            raise ValueError(f"Invalid HuggingFace model name format: {model_name}")
-        
         super().__init__(model_name, max_tokens)
+
+        # Validate model name format (after base non-empty validation).
+        if not self._is_valid_model_name(model_name):
+            raise ValueError(f"Invalid HuggingFace model name format: {model_name}")
         
         # Extract HuggingFace-specific options
         self._use_fast = kwargs.get("use_fast", True)
         self._trust_remote_code = kwargs.get("trust_remote_code", False)
-        
-        try:
-            from transformers import AutoTokenizer
-            
-            # Load tokenizer with error handling and options
-            self._tokenizer = self._load_tokenizer_safely(AutoTokenizer, model_name)
-            
-        except ImportError:
+
+        if transformers is None:
             raise ImportError("transformers package required for HuggingFaceAdapter")
+
+        try:
+            # Load tokenizer with error handling and options
+            self._tokenizer = self._load_tokenizer_safely(
+                transformers.AutoTokenizer, model_name
+            )
         except Exception as e:
             raise ValueError(f"Failed to load HuggingFace tokenizer for {model_name}: {e}")
 
@@ -564,7 +590,10 @@ class HuggingFaceAdapter(TokenizerAdapter):
         # - simple model names (e.g., bert-base-uncased)
         # - microsoft/model-name, facebook/model-name, etc.
         import re
-        pattern = r'^[a-zA-Z0-9]([a-zA-Z0-9._-]*[a-zA-Z0-9])?(/[a-zA-Z0-9]([a-zA-Z0-9._-]*[a-zA-Z0-9])?)*$'
+        pattern = (
+            r"^[a-zA-Z0-9](?:[a-zA-Z0-9._-]*[a-zA-Z0-9])?"
+            r"(?:/[a-zA-Z0-9](?:[a-zA-Z0-9._-]*[a-zA-Z0-9])?)?$"
+        )
         return bool(re.match(pattern, model_name))
 
     def _load_tokenizer_safely(self, AutoTokenizer, model_name: str):
@@ -623,7 +652,6 @@ class HuggingFaceAdapter(TokenizerAdapter):
             
             # Try graceful fallback to heuristic counting
             try:
-                from .chunking import token_spans
                 spans = token_spans(text)
                 
                 logger.info(f"Using heuristic fallback for HuggingFace tokenization failure")
@@ -782,8 +810,12 @@ class TokenizerRegistry:
                 )
                 logger.info(f"Successfully created {adapter_name_clean} adapter for model {model_name}")
                 
-                # Wrap with telemetry if enabled
-                return self._wrap_with_telemetry(adapter, was_fallback=False)
+                # Wrap with enhancements (caching + telemetry)
+                return self._wrap_with_enhancements(
+                    adapter, 
+                    cache_config=kwargs.get('cache_config'),
+                    was_fallback=False
+                )
             except Exception as e:
                 error_msg = f"{adapter_name_clean}: {e}"
                 errors.append(error_msg)
@@ -845,10 +877,15 @@ class TokenizerRegistry:
                 recovery_key = f"{fallback_name}:{model_name}"
                 self._error_recovery.reset_recovery_attempts(recovery_key)
                 
-                # Wrap with telemetry, marking as fallback
+                # Wrap with enhancements, marking as fallback
                 was_fallback = len(attempted_adapters) > 0
                 fallback_from = attempted_adapters[0] if attempted_adapters else None
-                return self._wrap_with_telemetry(adapter, was_fallback=was_fallback, fallback_from=fallback_from)
+                return self._wrap_with_enhancements(
+                    adapter, 
+                    cache_config=kwargs.get('cache_config'),
+                    was_fallback=was_fallback, 
+                    fallback_from=fallback_from
+                )
                 
             except Exception as e:
                 error_msg = f"{fallback_name}: {e}"
@@ -1123,7 +1160,10 @@ class TokenizerRegistry:
             
             # For heuristic fallback, use conservative settings
             if fallback_adapter == "heuristic":
-                fallback_kwargs.setdefault("chars_per_token", 4.0)
+                if "chars_per_token" in kwargs:
+                    fallback_kwargs["chars_per_token"] = kwargs["chars_per_token"]
+                else:
+                    fallback_kwargs.setdefault("chars_per_token", 4.0)
             
             fallback_instance = fallback_class(model_name, **fallback_kwargs)
             
@@ -1154,6 +1194,9 @@ class TokenizerRegistry:
                     
                     if "max_tokens" in kwargs:
                         heuristic_kwargs["max_tokens"] = kwargs["max_tokens"]
+                    
+                    if "chars_per_token" in kwargs:
+                        heuristic_kwargs["chars_per_token"] = kwargs["chars_per_token"]
                     
                     heuristic_instance = heuristic_class(model_name, **heuristic_kwargs)
                     
@@ -1481,6 +1524,45 @@ class TokenizerRegistry:
             "recommendations": recommendations
         }
     
+    def _wrap_with_enhancements(
+        self, 
+        adapter: TokenizerAdapter, 
+        cache_config: Optional[Dict[str, Any]] = None,
+        was_fallback: bool = False, 
+        fallback_from: Optional[str] = None
+    ) -> TokenizerAdapter:
+        """Wrap adapter with caching and telemetry enhancements.
+        
+        Args:
+            adapter: The tokenizer adapter to wrap
+            cache_config: Cache configuration (enabled, max_size, ttl_seconds)
+            was_fallback: Whether this adapter was used as a fallback
+            fallback_from: Name of the adapter that failed (if fallback)
+            
+        Returns:
+            Enhanced adapter with caching and telemetry
+        """
+        enhanced_adapter = adapter
+        
+        # Add caching if enabled
+        if cache_config and cache_config.get("enabled", True):
+            try:
+                cache = get_global_cache(
+                    max_size=cache_config.get("max_size", 1000),
+                    ttl_seconds=cache_config.get("ttl_seconds")
+                )
+                enhanced_adapter = CachingTokenizerAdapter(enhanced_adapter, cache)
+                logger.debug(f"Added caching to {adapter.adapter_id} adapter")
+            except Exception as e:
+                logger.warning(f"Failed to add caching to adapter: {e}")
+        
+        # Add telemetry if available
+        enhanced_adapter = self._wrap_with_telemetry(
+            enhanced_adapter, was_fallback, fallback_from
+        )
+        
+        return enhanced_adapter
+        
     def _wrap_with_telemetry(
         self, 
         adapter: TokenizerAdapter, 

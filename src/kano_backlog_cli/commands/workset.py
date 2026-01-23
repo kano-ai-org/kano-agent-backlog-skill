@@ -1,7 +1,7 @@
 """
 Workset CLI commands for managing per-item workset caches.
 
-This module provides the `kano workset` command group for:
+This module provides the `kano-backlog workset` command group for:
 - Initializing worksets for backlog items
 - Refreshing worksets from canonical files
 - Getting next actions from workset plans

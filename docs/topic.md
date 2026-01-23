@@ -26,7 +26,7 @@ Topics live in the backlog tree so the deterministic brief can be shared:
 _kano/backlog/topics/<topic-name>/
   manifest.json     # Topic metadata: seed_items, pinned_docs, snippet_refs, timestamps, status
   brief.md          # Stable, human-maintained brief (do not overwrite automatically)
-  brief.generated.md# Deterministic distilled brief (generated/overwritten by `kano topic distill`)
+  brief.generated.md# Deterministic distilled brief (generated/overwritten by `kano-backlog topic distill`)
   notes.md          # Human-oriented notes/decision pack (freeform; intended for collaboration)
   materials/        # Raw collected materials (treated as cache; typically gitignored)
     clips/
@@ -72,12 +72,12 @@ Suggested `notes.md` sections:
 
 ## CLI Commands
 
-All topic commands are accessed via `kano topic <subcommand>`.
+All topic commands are accessed via `kano-backlog topic <subcommand>`.
 
 ### Create a Topic
 
 ```bash
-kano topic create <topic-name> --agent <agent-name> [--no-notes] [--format plain|json]
+kano-backlog topic create <topic-name> --agent <agent-name> [--no-notes] [--format plain|json]
 ```
 
 Creates a new topic:
@@ -89,14 +89,14 @@ Creates a new topic:
 ### Create a Topic with Spec
 
 ```bash
-kano topic create complex-feature --agent kiro --with-spec
+kano-backlog topic create complex-feature --agent kiro --with-spec
 ```
 This generates the **Spec Triad** (Requirements, Design, Tasks) in a specific `spec/` subdirectory, enabling rigorous feature definition (Medium-Term Memory).
 
 ### Add Items to Topic
 
 ```bash
-kano topic add <topic-name> --item <id> [--format plain|json]
+kano-backlog topic add <topic-name> --item <id> [--format plain|json]
 ```
 
 Adds a backlog item to the topic:
@@ -108,7 +108,7 @@ Adds a backlog item to the topic:
 ### Pin Documents
 
 ```bash
-kano topic pin <topic-name> --doc <path> [--format plain|json]
+kano-backlog topic pin <topic-name> --doc <path> [--format plain|json]
 ```
 
 Pins a document to the topic:
@@ -120,7 +120,7 @@ Pins a document to the topic:
 ### Switch Active Topic
 
 ```bash
-kano topic switch <topic-name> --agent <agent-name> [--format plain|json]
+kano-backlog topic switch <topic-name> --agent <agent-name> [--format plain|json]
 ```
 
 Switches the active topic for an agent:
@@ -131,7 +131,7 @@ Switches the active topic for an agent:
 ### Collect a Code Snippet
 
 ```bash
-kano topic add-snippet <topic-name> --file <path> --start <line> --end <line> [--agent <agent>] [--snapshot]
+kano-backlog topic add-snippet <topic-name> --file <path> --start <line> --end <line> [--agent <agent>] [--snapshot]
 ```
 
 Collects a reference-first code snippet into the topic manifest:
@@ -141,7 +141,7 @@ Collects a reference-first code snippet into the topic manifest:
 ### Distill Deterministic Brief
 
 ```bash
-kano topic distill <topic-name>
+kano-backlog topic distill <topic-name>
 ```
 
 Generates/overwrites `brief.generated.md` deterministically from the manifest + materials index.
@@ -156,8 +156,8 @@ This workflow helps humans verify that topic decisions were written back.
 1) Generate a decision audit report for a topic:
 
 ```bash
-kano topic decision-audit <topic-name>
-kano topic decision-audit <topic-name> --format json
+kano-backlog topic decision-audit <topic-name>
+kano-backlog topic decision-audit <topic-name> --format json
 ```
 
 This writes a deterministic report to:
@@ -181,9 +181,9 @@ This appends the decision under a `## Decisions` section in the item body (creat
 ### Close and Cleanup
 
 ```bash
-kano topic close <topic-name> --agent <agent-name>
-kano topic cleanup --ttl-days 14
-kano topic cleanup --ttl-days 14 --apply
+kano-backlog topic close <topic-name> --agent <agent-name>
+kano-backlog topic cleanup --ttl-days 14
+kano-backlog topic cleanup --ttl-days 14 --apply
 ```
 
 Closing marks the topic as closed; cleanup removes raw materials after TTL (and may optionally delete closed topics depending on implementation flags).
@@ -191,7 +191,7 @@ Closing marks the topic as closed; cleanup removes raw materials after TTL (and 
 ### Export Context Bundle
 
 ```bash
-kano topic export-context <topic-name> [--format markdown|json]
+kano-backlog topic export-context <topic-name> [--format markdown|json]
 ```
 
 Exports topic context as a bundle:
@@ -203,7 +203,7 @@ Exports topic context as a bundle:
 ### List Topics
 
 ```bash
-kano topic list [--agent <agent-name>] [--format plain|json]
+kano-backlog topic list [--agent <agent-name>] [--format plain|json]
 ```
 
 Lists all topics:
@@ -228,10 +228,10 @@ Say this to your agent:
 "Create a topic named <topic-name> for <problem>, add items <ITEM_1>, <ITEM_2>, pin <DOC_PATH>, then distill a generated brief." 
 
 The agent will do:
-- `kano topic create <topic-name> --agent <agent-id>`
-- `kano topic add <topic-name> --item <ITEM_1>` (repeat for other items)
-- `kano topic pin <topic-name> --doc <DOC_PATH>` (optional)
-- `kano topic distill <topic-name>`
+- `kano-backlog topic create <topic-name> --agent <agent-id>`
+- `kano-backlog topic add <topic-name> --item <ITEM_1>` (repeat for other items)
+- `kano-backlog topic pin <topic-name> --doc <DOC_PATH>` (optional)
+- `kano-backlog topic distill <topic-name>`
 
 Expected output:
 - `_kano/backlog/topics/<topic-name>/manifest.json` updated with seed items/pinned docs
@@ -243,7 +243,7 @@ Say this to your agent:
 "Run a decision write-back audit for topic <topic-name> and show which work items are missing decisions. Save the report under publish/." 
 
 The agent will do:
-- `kano topic decision-audit <topic-name> --format plain`
+- `kano-backlog topic decision-audit <topic-name> --format plain`
 
 Expected output:
 - `_kano/backlog/topics/<topic-name>/publish/decision-audit.md`
@@ -268,42 +268,42 @@ Expected output:
 
 ```bash
 # 1. Create topic for your work area
-kano topic create auth-refactor --agent kiro
+kano-backlog topic create auth-refactor --agent kiro
 
 # 2. Add related items
-kano topic add auth-refactor --item TASK-0042
-kano topic add auth-refactor --item TASK-0043
-kano topic add auth-refactor --item BUG-0012
+kano-backlog topic add auth-refactor --item TASK-0042
+kano-backlog topic add auth-refactor --item TASK-0043
+kano-backlog topic add auth-refactor --item BUG-0012
 
 # 3. Pin relevant documents
-kano topic pin auth-refactor --doc _kano/backlog/decisions/ADR-0015.md
-kano topic pin auth-refactor --doc docs/auth-design.md
+kano-backlog topic pin auth-refactor --doc _kano/backlog/decisions/ADR-0015.md
+kano-backlog topic pin auth-refactor --doc docs/auth-design.md
 
 # 4. Switch to the topic
-kano topic switch auth-refactor --agent kiro
+kano-backlog topic switch auth-refactor --agent kiro
 ```
 
 ### Context Switching
 
 ```bash
 # Check current topics
-kano topic list --agent kiro
+kano-backlog topic list --agent kiro
 
 # Switch to different focus area
-kano topic switch payment-flow --agent kiro
+kano-backlog topic switch payment-flow --agent kiro
 
 # Export context for agent consumption
-kano topic export-context payment-flow --format json
+kano-backlog topic export-context payment-flow --format json
 ```
 
 ### Loading Context into Agent
 
 ```bash
 # Export as markdown for human review
-kano topic export-context auth-refactor
+kano-backlog topic export-context auth-refactor
 
 # Export as JSON for programmatic use
-kano topic export-context auth-refactor --format json
+kano-backlog topic export-context auth-refactor --format json
 ```
 
 ## Integration with Worksets
@@ -316,13 +316,13 @@ Topics and worksets work together:
 Typical flow:
 ```bash
 # Switch to topic
-kano topic switch auth-refactor --agent kiro
+kano-backlog topic switch auth-refactor --agent kiro
 
 # Initialize workset for specific item
-kano workset init --item TASK-0042 --agent kiro
+kano-backlog workset init --item TASK-0042 --agent kiro
 
 # Work on item with workset
-kano workset next --item TASK-0042
+kano-backlog workset next --item TASK-0042
 
 # When done, switch topic or continue with next item
 ```

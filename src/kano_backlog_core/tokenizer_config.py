@@ -12,6 +12,7 @@ Features:
 """
 
 import logging
+import math
 import os
 import warnings
 from dataclasses import dataclass, field
@@ -43,7 +44,12 @@ DEFAULT_CONFIG = {
     "model": "text-embedding-3-small",
     "max_tokens": None,
     "fallback_chain": ["tiktoken", "huggingface", "heuristic"],
-    "options": {}
+    "options": {},
+    "cache": {
+        "enabled": True,
+        "max_size": 1000,
+        "ttl_seconds": None
+    }
 }
 
 # Adapter-specific default configurations
@@ -71,6 +77,9 @@ class TokenizerConfig:
     fallback_chain: List[str] = field(default_factory=lambda: ["tiktoken", "huggingface", "heuristic"])
     options: Dict[str, Any] = field(default_factory=dict)
     
+    # Cache configuration
+    cache: Dict[str, Any] = field(default_factory=lambda: DEFAULT_CONFIG["cache"].copy())
+    
     # Adapter-specific configurations
     heuristic: Dict[str, Any] = field(default_factory=lambda: ADAPTER_DEFAULTS["heuristic"].copy())
     tiktoken: Dict[str, Any] = field(default_factory=lambda: ADAPTER_DEFAULTS["tiktoken"].copy())
@@ -82,21 +91,23 @@ class TokenizerConfig:
         self.heuristic = {**ADAPTER_DEFAULTS["heuristic"], **self.heuristic}
         self.tiktoken = {**ADAPTER_DEFAULTS["tiktoken"], **self.tiktoken}
         self.huggingface = {**ADAPTER_DEFAULTS["huggingface"], **self.huggingface}
+        self.cache = {**DEFAULT_CONFIG["cache"], **self.cache}
         
         self.validate()
     
     def validate(self) -> None:
         """Validate configuration values."""
-        if not self.adapter:
+        if not isinstance(self.adapter, str) or not self.adapter.strip():
             raise ConfigError("Tokenizer adapter must be specified")
         
-        if not self.model:
+        if not isinstance(self.model, str) or not self.model.strip():
             raise ConfigError("Tokenizer model must be specified")
         
-        if self.max_tokens is not None and self.max_tokens <= 0:
-            raise ConfigError("max_tokens must be positive if specified")
+        if self.max_tokens is not None:
+            if not isinstance(self.max_tokens, int) or self.max_tokens <= 0:
+                raise ConfigError("max_tokens must be positive if specified")
         
-        if not self.fallback_chain:
+        if not isinstance(self.fallback_chain, list) or not self.fallback_chain:
             raise ConfigError("Fallback chain must not be empty")
         
         # Validate fallback chain contains known adapters
@@ -109,6 +120,7 @@ class TokenizerConfig:
         self._validate_heuristic_options()
         self._validate_tiktoken_options()
         self._validate_huggingface_options()
+        self._validate_cache_options()
     
     def _validate_heuristic_options(self) -> None:
         """Validate heuristic adapter options."""
@@ -132,6 +144,20 @@ class TokenizerConfig:
         if not isinstance(trust_remote_code, bool):
             raise ConfigError("huggingface.trust_remote_code must be a boolean")
     
+    def _validate_cache_options(self) -> None:
+        """Validate cache configuration options."""
+        enabled = self.cache.get("enabled", True)
+        if not isinstance(enabled, bool):
+            raise ConfigError("cache.enabled must be a boolean")
+        
+        max_size = self.cache.get("max_size", 1000)
+        if not isinstance(max_size, int) or max_size <= 0:
+            raise ConfigError("cache.max_size must be a positive integer")
+        
+        ttl_seconds = self.cache.get("ttl_seconds")
+        if ttl_seconds is not None and (not isinstance(ttl_seconds, (int, float)) or ttl_seconds <= 0):
+            raise ConfigError("cache.ttl_seconds must be a positive number if specified")
+    
     def get_adapter_options(self, adapter_name: str) -> Dict[str, Any]:
         """Get options for a specific adapter."""
         adapter_name = adapter_name.lower().strip()
@@ -153,6 +179,7 @@ class TokenizerConfig:
             "max_tokens": self.max_tokens,
             "fallback_chain": self.fallback_chain,
             "options": self.options,
+            "cache": self.cache,
             "heuristic": self.heuristic,
             "tiktoken": self.tiktoken,
             "huggingface": self.huggingface
@@ -172,6 +199,7 @@ class TokenizerConfig:
         heuristic = {**ADAPTER_DEFAULTS["heuristic"], **data.get("heuristic", {})}
         tiktoken = {**ADAPTER_DEFAULTS["tiktoken"], **data.get("tiktoken", {})}
         huggingface = {**ADAPTER_DEFAULTS["huggingface"], **data.get("huggingface", {})}
+        cache = {**DEFAULT_CONFIG["cache"], **data.get("cache", {})}
         
         return cls(
             adapter=adapter,
@@ -179,6 +207,7 @@ class TokenizerConfig:
             max_tokens=max_tokens,
             fallback_chain=fallback_chain,
             options=options,
+            cache=cache,
             heuristic=heuristic,
             tiktoken=tiktoken,
             huggingface=huggingface
@@ -263,7 +292,10 @@ class TokenizerConfigLoader:
                     # Type conversion for known keys
                     if adapter_name == "heuristic" and config_key == "chars_per_token":
                         try:
-                            adapter_config[config_key] = float(env_value)
+                            parsed = float(env_value)
+                            if not math.isfinite(parsed):
+                                raise ValueError("chars_per_token must be finite")
+                            adapter_config[config_key] = parsed
                         except ValueError:
                             logger.warning(f"Invalid {env_key} value: {env_value}")
                     elif adapter_name == "huggingface" and config_key in ["use_fast", "trust_remote_code"]:
@@ -317,15 +349,46 @@ class TokenizerConfigMigrator:
     def migrate_pipeline_config(old_config: Dict[str, Any]) -> Dict[str, Any]:
         """Migrate old pipeline configuration format to new tokenizer configuration format."""
         result = DEFAULT_CONFIG.copy()
+        result["cache"] = DEFAULT_CONFIG["cache"].copy()
+        result["options"] = DEFAULT_CONFIG["options"].copy()
+        result["heuristic"] = ADAPTER_DEFAULTS["heuristic"].copy()
+        result["tiktoken"] = ADAPTER_DEFAULTS["tiktoken"].copy()
+        result["huggingface"] = ADAPTER_DEFAULTS["huggingface"].copy()
         
         # Extract tokenizer section from pipeline config
         tokenizer_config = old_config.get("tokenizer", {})
+        if not isinstance(tokenizer_config, dict):
+            return result
+
+        options = tokenizer_config.get("options", {})
+        if options is None:
+            options = {}
+
+        has_adapter = isinstance(tokenizer_config.get("adapter"), str) and bool(
+            tokenizer_config.get("adapter", "").strip()
+        )
+        has_model = isinstance(tokenizer_config.get("model"), str) and bool(
+            tokenizer_config.get("model", "").strip()
+        )
+        has_max_tokens = tokenizer_config.get("max_tokens") is not None
+        has_fallback_chain = isinstance(tokenizer_config.get("fallback_chain"), list) and bool(
+            tokenizer_config.get("fallback_chain")
+        )
+        has_options = isinstance(options, dict) and bool(options)
+
+        # Ignore incomplete tokenizer sections to avoid accidental config drift.
+        # - adapter-only: ignore unless additional tokenizer settings exist
+        # - options-only: ignore unless adapter/model context exists
+        if has_adapter and not (has_model or has_max_tokens or has_fallback_chain or has_options):
+            return result
+        if has_options and not (has_adapter or has_model or has_max_tokens or has_fallback_chain):
+            return result
         
         # Map old field names to new field names
-        if "adapter" in tokenizer_config:
+        if has_adapter:
             result["adapter"] = tokenizer_config["adapter"]
         
-        if "model" in tokenizer_config:
+        if has_model:
             result["model"] = tokenizer_config["model"]
         
         if "max_tokens" in tokenizer_config:
@@ -334,23 +397,31 @@ class TokenizerConfigMigrator:
         if "fallback_chain" in tokenizer_config:
             result["fallback_chain"] = tokenizer_config["fallback_chain"]
         
-        if "options" in tokenizer_config:
+        if "options" in tokenizer_config and isinstance(tokenizer_config["options"], dict):
             result["options"] = tokenizer_config["options"]
         
         # Extract adapter-specific configurations from options
-        options = tokenizer_config.get("options", {})
+        options = result.get("options", {})
+        if not isinstance(options, dict):
+            options = {}
         
         # Migrate heuristic options
-        if "heuristic" in options:
-            result["heuristic"] = {**ADAPTER_DEFAULTS["heuristic"], **options["heuristic"]}
         if "chars_per_token" in options:
+            if "heuristic" not in result:
+                result["heuristic"] = ADAPTER_DEFAULTS["heuristic"].copy()
             result["heuristic"]["chars_per_token"] = options["chars_per_token"]
+        if "heuristic" in options:
+            base = result.get("heuristic", ADAPTER_DEFAULTS["heuristic"].copy())
+            result["heuristic"] = {**ADAPTER_DEFAULTS["heuristic"], **base, **options["heuristic"]}
         
         # Migrate tiktoken options
-        if "tiktoken" in options:
-            result["tiktoken"] = {**ADAPTER_DEFAULTS["tiktoken"], **options["tiktoken"]}
         if "encoding" in options:
+            if "tiktoken" not in result:
+                result["tiktoken"] = ADAPTER_DEFAULTS["tiktoken"].copy()
             result["tiktoken"]["encoding"] = options["encoding"]
+        if "tiktoken" in options:
+            base = result.get("tiktoken", ADAPTER_DEFAULTS["tiktoken"].copy())
+            result["tiktoken"] = {**ADAPTER_DEFAULTS["tiktoken"], **base, **options["tiktoken"]}
         
         # Migrate huggingface options
         if "huggingface" in options:
@@ -448,6 +519,12 @@ model = "text-embedding-3-small"
 # Fallback chain when primary adapter fails (tried in order)
 fallback_chain = ["tiktoken", "huggingface", "heuristic"]
 
+# Token count caching configuration
+[tokenizer.cache]
+enabled = true        # Enable/disable token count caching
+max_size = 1000      # Maximum number of cached results
+# ttl_seconds = 3600 # Optional: Cache expiration time in seconds
+
 # Heuristic adapter configuration (fast approximation)
 [tokenizer.heuristic]
 chars_per_token = 4.0  # Average characters per token for estimation
@@ -465,6 +542,8 @@ trust_remote_code = false # Security: don't execute remote code from model repos
 # KANO_TOKENIZER_ADAPTER - Override adapter selection
 # KANO_TOKENIZER_MODEL - Override model name
 # KANO_TOKENIZER_MAX_TOKENS - Override max tokens
+# KANO_TOKENIZER_CACHE_ENABLED - Override cache enabled (true/false)
+# KANO_TOKENIZER_CACHE_MAX_SIZE - Override cache max size (integer)
 # KANO_TOKENIZER_HEURISTIC_CHARS_PER_TOKEN - Override chars per token ratio
 # KANO_TOKENIZER_HUGGINGFACE_USE_FAST - Override use_fast setting (true/false)
 # KANO_TOKENIZER_HUGGINGFACE_TRUST_REMOTE_CODE - Override trust_remote_code (true/false)

@@ -496,7 +496,8 @@ class HealthChecker:
     def check_system_health(self, window_minutes: int = 15) -> HealthStatus:
         """Perform comprehensive system health check."""
         reporter = TelemetryReporter(self._collector, self._monitor)
-        dashboard_data = reporter.generate_dashboard_data(window_hours=window_minutes/60)
+        window_hours = max(1, (window_minutes + 59) // 60)
+        dashboard_data = reporter.generate_dashboard_data(window_hours=window_hours)
         return dashboard_data.health_status
     
     def get_health_summary(self) -> Dict[str, Any]:
