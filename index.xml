@@ -10,13 +10,49 @@
     <link>https://dorgonman.github.io/kano-agent-backlog-skill/skill-guide</link>
     <guid>https://dorgonman.github.io/kano-agent-backlog-skill/skill-guide</guid>
     <description>Local-first backlog workflow. Use when planning work, creating/updating backlog items, writing ADRs, enforcing Ready gate, generating views, or maintaining derived indexes (SQLite/FTS/embeddings).</description>
-    <pubDate>Fri, 23 Jan 2026 11:28:53 GMT</pubDate>
+    <pubDate>Fri, 23 Jan 2026 16:24:37 GMT</pubDate>
   </item><item>
     <title>Kano Agent Backlog Skill</title>
     <link>https://dorgonman.github.io/kano-agent-backlog-skill/</link>
     <guid>https://dorgonman.github.io/kano-agent-backlog-skill/</guid>
     <description>kano-agent-backlog-skill AI Agent Skills for Spec-Driven Agentic Programming | Local-first backlog | Multi-agent collaboration | Durable decision trail Local-first backlog ...</description>
-    <pubDate>Fri, 23 Jan 2026 11:28:53 GMT</pubDate>
+    <pubDate>Fri, 23 Jan 2026 16:24:37 GMT</pubDate>
+  </item><item>
+    <title>PROCESS</title>
+    <link>https://dorgonman.github.io/kano-agent-backlog-skill/demo/docs/releases/PROCESS</link>
+    <guid>https://dorgonman.github.io/kano-agent-backlog-skill/demo/docs/releases/PROCESS</guid>
+    <description>Release Process (Demo Repo) This repo treats releases as a documentation + backlog milestone exercise. Keep everything local-first and auditable (no server runtime).</description>
+    <pubDate>Fri, 23 Jan 2026 16:24:37 GMT</pubDate>
+  </item><item>
+    <title>0.0.1</title>
+    <link>https://dorgonman.github.io/kano-agent-backlog-skill/demo/docs/releases/0.0.1</link>
+    <guid>https://dorgonman.github.io/kano-agent-backlog-skill/demo/docs/releases/0.0.1</guid>
+    <description>0.0.1 — Initial local-first backlog workflow (MVP) This is the first public cut of the Kano Agent Backlog demo workspace: a local-first, file-based backlog that supports agent collaboration ...</description>
+    <pubDate>Fri, 23 Jan 2026 16:24:37 GMT</pubDate>
+  </item><item>
+    <title>0.0.2</title>
+    <link>https://dorgonman.github.io/kano-agent-backlog-skill/demo/docs/releases/0.0.2</link>
+    <guid>https://dorgonman.github.io/kano-agent-backlog-skill/demo/docs/releases/0.0.2</guid>
+    <description>0.0.2 — Topics system hardening + embedding pipeline foundations This release focuses on two areas: Topic system enhancements to make multi-session, multi-agent context management ...</description>
+    <pubDate>Fri, 23 Jan 2026 16:24:37 GMT</pubDate>
+  </item><item>
+    <title>CLAUDE</title>
+    <link>https://dorgonman.github.io/kano-agent-backlog-skill/demo/CLAUDE</link>
+    <guid>https://dorgonman.github.io/kano-agent-backlog-skill/demo/CLAUDE</guid>
+    <description>CLAUDE.md IMPORTANT This repo uses a “canonical source + adapters” layout. 📖 Global Instructions For project-wide rules, architecture, and backlog discipline, please READ AND FOLLOW: 👉 @AGENTS.md 📦 Agent Skills This repo provides specialized skills in the following locations.</description>
+    <pubDate>Fri, 23 Jan 2026 16:24:37 GMT</pubDate>
+  </item><item>
+    <title>AGENTS</title>
+    <link>https://dorgonman.github.io/kano-agent-backlog-skill/demo/AGENTS</link>
+    <guid>https://dorgonman.github.io/kano-agent-backlog-skill/demo/AGENTS</guid>
+    <description>AGENTS External File Loading CRITICAL: When you encounter a file reference (e.g., @rules/general.md, @docs/architecture.md), use your Read tool to load it on a need-to-know basis ...</description>
+    <pubDate>Fri, 23 Jan 2026 16:24:37 GMT</pubDate>
+  </item><item>
+    <title>README</title>
+    <link>https://dorgonman.github.io/kano-agent-backlog-skill/demo/README</link>
+    <guid>https://dorgonman.github.io/kano-agent-backlog-skill/demo/README</guid>
+    <description>kano-agent-backlog-skill-demo AI Agent Skills for Spec-Driven Agentic Programming | File-based backlog management | Multi-agent collaboration | Local-first architecture ...</description>
+    <pubDate>Fri, 23 Jan 2026 16:24:37 GMT</pubDate>
   </item>
     </channel>
   </rss>

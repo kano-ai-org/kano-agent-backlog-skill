@@ -1,7 +1,25 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml"><url>
+    <loc>https://dorgonman.github.io/kano-agent-backlog-skill/demo/AGENTS</loc>
+    <lastmod>2026-01-23T16:24:37.573Z</lastmod>
+  </url><url>
+    <loc>https://dorgonman.github.io/kano-agent-backlog-skill/demo/CLAUDE</loc>
+    <lastmod>2026-01-23T16:24:37.581Z</lastmod>
+  </url><url>
+    <loc>https://dorgonman.github.io/kano-agent-backlog-skill/demo/README</loc>
+    <lastmod>2026-01-23T16:24:37.565Z</lastmod>
+  </url><url>
+    <loc>https://dorgonman.github.io/kano-agent-backlog-skill/demo/docs/releases/0.0.1</loc>
+    <lastmod>2026-01-23T16:24:37.600Z</lastmod>
+  </url><url>
+    <loc>https://dorgonman.github.io/kano-agent-backlog-skill/demo/docs/releases/0.0.2</loc>
+    <lastmod>2026-01-23T16:24:37.597Z</lastmod>
+  </url><url>
+    <loc>https://dorgonman.github.io/kano-agent-backlog-skill/demo/docs/releases/PROCESS</loc>
+    <lastmod>2026-01-23T16:24:37.604Z</lastmod>
+  </url><url>
     <loc>https://dorgonman.github.io/kano-agent-backlog-skill/</loc>
-    <lastmod>2026-01-23T11:28:53.430Z</lastmod>
+    <lastmod>2026-01-23T16:24:37.624Z</lastmod>
   </url><url>
     <loc>https://dorgonman.github.io/kano-agent-backlog-skill/skill-guide</loc>
-    <lastmod>2026-01-23T11:28:53.451Z</lastmod>
+    <lastmod>2026-01-23T16:24:37.627Z</lastmod>
   </url></urlset>
