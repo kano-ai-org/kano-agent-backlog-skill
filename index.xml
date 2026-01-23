@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<rss version="2.0">
+    <channel>
+      <title>🪴 Quartz 4.0</title>
+      <link>https://quartz.jzhao.xyz</link>
+      <description>Last 10 notes on 🪴 Quartz 4.0</description>
+      <generator>Quartz -- quartz.jzhao.xyz</generator>
+      <item>
+    <title>skill-guide</title>
+    <link>https://quartz.jzhao.xyz/skill-guide</link>
+    <guid>https://quartz.jzhao.xyz/skill-guide</guid>
+    <description>Local-first backlog workflow. Use when planning work, creating/updating backlog items, writing ADRs, enforcing Ready gate, generating views, or maintaining derived indexes (SQLite/FTS/embeddings).</description>
+    <pubDate>Fri, 23 Jan 2026 11:28:53 GMT</pubDate>
+  </item><item>
+    <title>index</title>
+    <link>https://quartz.jzhao.xyz/</link>
+    <guid>https://quartz.jzhao.xyz/</guid>
+    <description>kano-agent-backlog-skill AI Agent Skills for Spec-Driven Agentic Programming | Local-first backlog | Multi-agent collaboration | Durable decision trail Local-first backlog ...</description>
+    <pubDate>Fri, 23 Jan 2026 11:28:53 GMT</pubDate>
+  </item>
+    </channel>
+  </rss>
