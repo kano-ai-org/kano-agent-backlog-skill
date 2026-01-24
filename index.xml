@@ -2,15 +2,15 @@
 <rss version="2.0">
     <channel>
       <title>Kano Agent Backlog Skill</title>
-      <link>https://dorgonman.github.io/kano-agent-backlog-skill</link>
+      <link>https://https://dorgonman.github.io/kano-agent-backlog-skill</link>
       <description>Last 10 notes on Kano Agent Backlog Skill</description>
       <generator>Quartz -- quartz.jzhao.xyz</generator>
       <item>
     <title>index</title>
-    <link>https://dorgonman.github.io/kano-agent-backlog-skill/cli/</link>
-    <guid>https://dorgonman.github.io/kano-agent-backlog-skill/cli/</guid>
+    <link>https://https:/dorgonman.github.io/kano-agent-backlog-skill/cli/</link>
+    <guid>https://https:/dorgonman.github.io/kano-agent-backlog-skill/cli/</guid>
     <description>CLI Reference kano-backlog Usage: kano-backlog [OPTIONS] COMMAND [ARGS].. kano-backlog: Backlog management CLI (MVP) +- Options -------------------------------------------------------------------+ | --install-completion Install completion for the current shell.</description>
-    <pubDate>Sat, 24 Jan 2026 05:33:13 GMT</pubDate>
+    <pubDate>Sat, 24 Jan 2026 05:37:33 GMT</pubDate>
   </item>
     </channel>
   </rss>
