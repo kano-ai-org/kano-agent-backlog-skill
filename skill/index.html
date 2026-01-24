@@ -1,12 +1,591 @@
 <!DOCTYPE html>
-<html lang="en"><head><title>Skill Documentation</title><meta charset="utf-8"/><link rel="preconnect" href="https://fonts.googleapis.com"/><link rel="preconnect" href="https://fonts.gstatic.com"/><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM Plex Mono&amp;family=Schibsted Grotesk:wght@400;700&amp;family=Source Sans Pro:ital,wght@0,400;0,600;1,400;1,600&amp;display=swap"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><meta property="og:title" content="Skill Documentation"/><meta property="og:description" content="Skill Documentation Core skill implementation and reference Skill Guide Skill README API Reference Changelog ."/><meta property="og:image" content="https://https://dorgonman.github.io/kano-agent-backlog-skill/static/og-image.png"/><meta property="og:width" content="1200"/><meta property="og:height" content="675"/><link rel="icon" href="../static/icon.png"/><meta name="description" content="Skill Documentation Core skill implementation and reference Skill Guide Skill README API Reference Changelog ."/><meta name="generator" content="Quartz"/><link href="../index.css" rel="stylesheet" type="text/css" spa-preserve/><link href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css" rel="stylesheet" type="text/css" spa-preserve/><script src="../prescript.js" type="application/javascript" spa-preserve></script><script type="application/javascript" spa-preserve>const fetchData = fetch("../static/contentIndex.json").then(data => data.json())</script></head><body data-slug="skill/index"><div id="quartz-root" class="page"><div id="quartz-body"><div class="left sidebar"><h2 class="page-title"><a href="..">Kano Agent Backlog Skill</a></h2><div class="spacer mobile-only"></div><div class="search"><button class="search-button" id="search-button"><p>Search</p><svg role="img" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 19.9 19.7"><title>Search</title><g class="search-path" fill="none"><path stroke-linecap="square" d="M18.5 18.3l-5.4-5.4"></path><circle cx="8" cy="8" r="7"></circle></g></svg></button><div id="search-container"><div id="search-space"><input autocomplete="off" id="search-bar" name="search" type="text" aria-label="Search for something" placeholder="Search for something"/><div id="search-layout" data-preview="true"></div></div></div></div><button class="darkmode" id="darkmode"><svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" version="1.1" id="dayIcon" x="0px" y="0px" viewBox="0 0 35 35" style="enable-background:new 0 0 35 35" xml:space="preserve" aria-label="Dark mode"><title>Dark mode</title><path d="M6,17.5C6,16.672,5.328,16,4.5,16h-3C0.672,16,0,16.672,0,17.5    S0.672,19,1.5,19h3C5.328,19,6,18.328,6,17.5z M7.5,26c-0.414,0-0.789,0.168-1.061,0.439l-2,2C4.168,28.711,4,29.086,4,29.5    C4,30.328,4.671,31,5.5,31c0.414,0,0.789-0.168,1.06-0.44l2-2C8.832,28.289,9,27.914,9,27.5C9,26.672,8.329,26,7.5,26z M17.5,6    C18.329,6,19,5.328,19,4.5v-3C19,0.672,18.329,0,17.5,0S16,0.672,16,1.5v3C16,5.328,16.671,6,17.5,6z M27.5,9    c0.414,0,0.789-0.168,1.06-0.439l2-2C30.832,6.289,31,5.914,31,5.5C31,4.672,30.329,4,29.5,4c-0.414,0-0.789,0.168-1.061,0.44    l-2,2C26.168,6.711,26,7.086,26,7.5C26,8.328,26.671,9,27.5,9z M6.439,8.561C6.711,8.832,7.086,9,7.5,9C8.328,9,9,8.328,9,7.5    c0-0.414-0.168-0.789-0.439-1.061l-2-2C6.289,4.168,5.914,4,5.5,4C4.672,4,4,4.672,4,5.5c0,0.414,0.168,0.789,0.439,1.06    L6.439,8.561z M33.5,16h-3c-0.828,0-1.5,0.672-1.5,1.5s0.672,1.5,1.5,1.5h3c0.828,0,1.5-0.672,1.5-1.5S34.328,16,33.5,16z     M28.561,26.439C28.289,26.168,27.914,26,27.5,26c-0.828,0-1.5,0.672-1.5,1.5c0,0.414,0.168,0.789,0.439,1.06l2,2    C28.711,30.832,29.086,31,29.5,31c0.828,0,1.5-0.672,1.5-1.5c0-0.414-0.168-0.789-0.439-1.061L28.561,26.439z M17.5,29    c-0.829,0-1.5,0.672-1.5,1.5v3c0,0.828,0.671,1.5,1.5,1.5s1.5-0.672,1.5-1.5v-3C19,29.672,18.329,29,17.5,29z M17.5,7    C11.71,7,7,11.71,7,17.5S11.71,28,17.5,28S28,23.29,28,17.5S23.29,7,17.5,7z M17.5,25c-4.136,0-7.5-3.364-7.5-7.5    c0-4.136,3.364-7.5,7.5-7.5c4.136,0,7.5,3.364,7.5,7.5C25,21.636,21.636,25,17.5,25z"></path></svg><svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" version="1.1" id="nightIcon" x="0px" y="0px" viewBox="0 0 100 100" style="enable-background:new 0 0 100 100" xml:space="preserve" aria-label="Light mode"><title>Light mode</title><path d="M96.76,66.458c-0.853-0.852-2.15-1.064-3.23-0.534c-6.063,2.991-12.858,4.571-19.655,4.571  C62.022,70.495,50.88,65.88,42.5,57.5C29.043,44.043,25.658,23.536,34.076,6.47c0.532-1.08,0.318-2.379-0.534-3.23  c-0.851-0.852-2.15-1.064-3.23-0.534c-4.918,2.427-9.375,5.619-13.246,9.491c-9.447,9.447-14.65,22.008-14.65,35.369  c0,13.36,5.203,25.921,14.65,35.368s22.008,14.65,35.368,14.65c13.361,0,25.921-5.203,35.369-14.65  c3.872-3.871,7.064-8.328,9.491-13.246C97.826,68.608,97.611,67.309,96.76,66.458z"></path></svg></button><div class="explorer desktop-only"><button type="button" id="explorer" data-behavior="collapse" data-collapsed="collapsed" data-savestate="true" data-tree="[{&quot;path&quot;:&quot;adr&quot;,&quot;collapsed&quot;:true},{&quot;path&quot;:&quot;cli&quot;,&quot;collapsed&quot;:true},{&quot;path&quot;:&quot;demo&quot;,&quot;collapsed&quot;:true},{&quot;path&quot;:&quot;examples&quot;,&quot;collapsed&quot;:true},{&quot;path&quot;:&quot;skill&quot;,&quot;collapsed&quot;:true},{&quot;path&quot;:&quot;references&quot;,&quot;collapsed&quot;:true}]" aria-controls="explorer-content" aria-expanded="false"><h2>Explorer</h2><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="5 8 14 8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="fold"><polyline points="6 9 12 15 18 9"></polyline></svg></button><div id="explorer-content"><ul class="overflow" id="explorer-ul"><li><div class="folder-outer open"><ul style="padding-left:0;" class="content" data-folderul><li><div class="folder-container"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="5 8 14 8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="folder-icon"><polyline points="6 9 12 15 18 9"></polyline></svg><div data-folderpath="adr"><button class="folder-button"><span class="folder-title">Architecture Decisions</span></button></div></div><div class="folder-outer "><ul style="padding-left:1.4rem;" class="content" data-folderul="adr"><li><a href="../adr/ADR-0003-appendix_collision-report-cli-spec" data-for="adr/ADR-0003-appendix_collision-report-cli-spec">ADR-0003-appendix_collision-report-cli-spec</a></li><li><a href="../adr/ADR-0003-appendix_id-resolver-spec" data-for="adr/ADR-0003-appendix_id-resolver-spec">ADR-0003-appendix_id-resolver-spec</a></li><li><a href="../adr/ADR-0003-appendix_migration-plan-uid" data-for="adr/ADR-0003-appendix_migration-plan-uid">ADR-0003-appendix_migration-plan-uid</a></li><li><a href="../adr/ADR-0003-appendix_ulid-vs-uuidv7-comparison" data-for="adr/ADR-0003-appendix_ulid-vs-uuidv7-comparison">ADR-0003-appendix_ulid-vs-uuidv7-comparison</a></li><li><a href="../adr/ADR-0001_backlog-structure-and-moc" data-for="adr/ADR-0001_backlog-structure-and-moc">Backlog structure: per-type folders and Obsidian MOC</a></li><li><a href="../adr/ADR-0013_codebase-architecture-and-module-boundaries" data-for="adr/ADR-0013_codebase-architecture-and-module-boundaries">Codebase Architecture and Module Boundaries</a></li><li><a href="../adr/ADR-0034_conflict-handling-policy-for-duplicate-ids-and-uids" data-for="adr/ADR-0034_conflict-handling-policy-for-duplicate-ids-and-uids">Conflict handling policy for duplicate IDs and UIDs</a></li><li><a href="../adr/ADR-0035_cross-lingual-retrieval-requirement-and-default-embedding-policy" data-for="adr/ADR-0035_cross-lingual-retrieval-requirement-and-default-embedding-policy">Cross-lingual retrieval requirement and default embedding policy</a></li><li><a href="../adr/ADR-0015_decision-for-kabsd-tsk-0056" data-for="adr/ADR-0015_decision-for-kabsd-tsk-0056">Decision for KABSD-TSK-0056</a></li><li><a href="../adr/ADR-0018_decision-for-kabsd-tsk-0056" data-for="adr/ADR-0018_decision-for-kabsd-tsk-0056">Decision for KABSD-TSK-0056</a></li><li><a href="../adr/ADR-0019_decision-for-kabsd-tsk-0056" data-for="adr/ADR-0019_decision-for-kabsd-tsk-0056">Decision for KABSD-TSK-0056</a></li><li><a href="../adr/ADR-0020_decision-for-kabsd-tsk-0056" data-for="adr/ADR-0020_decision-for-kabsd-tsk-0056">Decision for KABSD-TSK-0056</a></li><li><a href="../adr/ADR-0024_decision-for-kabsd-tsk-0056" data-for="adr/ADR-0024_decision-for-kabsd-tsk-0056">Decision for KABSD-TSK-0056</a></li><li><a href="../adr/ADR-0025_decision-for-kabsd-tsk-0056" data-for="adr/ADR-0025_decision-for-kabsd-tsk-0056">Decision for KABSD-TSK-0056</a></li><li><a href="../adr/ADR-0026_decision-for-kabsd-tsk-0056" data-for="adr/ADR-0026_decision-for-kabsd-tsk-0056">Decision for KABSD-TSK-0056</a></li><li><a href="../adr/ADR-0027_decision-for-kabsd-tsk-0056" data-for="adr/ADR-0027_decision-for-kabsd-tsk-0056">Decision for KABSD-TSK-0056</a></li><li><a href="../adr/ADR-0033_decision-for-kabsd-tsk-0056" data-for="adr/ADR-0033_decision-for-kabsd-tsk-0056">Decision for KABSD-TSK-0056</a></li><li><a href="../adr/ADR-0002_decisions-as-adr-links" data-for="adr/ADR-0002_decisions-as-adr-links">Decision handling: ADRs stay in decisions/ with item links</a></li><li><a href="../adr/ADR-0004_file-first-architecture-with-sqlite-index" data-for="adr/ADR-0004_file-first-architecture-with-sqlite-index">File-First Architecture with SQLite Index</a></li><li><a href="../adr/ADR-0011_graph-assisted-retrieval-and-context-graph" data-for="adr/ADR-0011_graph-assisted-retrieval-and-context-graph">Graph-assisted retrieval with a derived Context Graph (weak graph first)</a></li><li><a href="../adr/ADR-0023_graph-assisted-retrieval-and-context-graph" data-for="adr/ADR-0023_graph-assisted-retrieval-and-context-graph">Graph-assisted retrieval with a derived Context Graph (weak graph first)</a></li><li><a href="../adr/ADR-0030_graph-assisted-retrieval-and-context-graph" data-for="adr/ADR-0030_graph-assisted-retrieval-and-context-graph">Graph-assisted retrieval with a derived Context Graph (weak graph first)</a></li><li><a href="../adr/ADR-0003_identifier-strategy-for-local-first-backlog" data-for="adr/ADR-0003_identifier-strategy-for-local-first-backlog">Identifier strategy: sortable IDs without centralized allocation</a></li><li><a href="../adr/ADR-0036_index-strategy-shared-index-now-per-model-indexes-later-via-config" data-for="adr/ADR-0036_index-strategy-shared-index-now-per-model-indexes-later-via-config">Index strategy: shared index now, per-model indexes later via config</a></li><li><a href="../adr/ADR-0037_inspector-pattern-and-query-surface-architecture" data-for="adr/ADR-0037_inspector-pattern-and-query-surface-architecture">Inspector Pattern and Query Surface Architecture</a></li><li><a href="../adr/ADR-0010_project-babylon-global-scale-collaboration-vision" data-for="adr/ADR-0010_project-babylon-global-scale-collaboration-vision">Kano-Babylon Project</a></li><li><a href="../adr/ADR-0009_local-first-embedding-search-architecture" data-for="adr/ADR-0009_local-first-embedding-search-architecture">Local-First Embedding Search Strategic Evaluation</a></li><li><a href="../adr/ADR-0006_multi-product-directory-structure" data-for="adr/ADR-0006_multi-product-directory-structure">Multi-Product Directory Structure and Naming Conventions</a></li><li><a href="../adr/ADR-0004_per-product-isolated-index-architecture" data-for="adr/ADR-0004_per-product-isolated-index-architecture">Per-Product Isolated Index Architecture</a></li><li><a href="../adr/ADR-0016_per-product-isolated-index-architecture" data-for="adr/ADR-0016_per-product-isolated-index-architecture">Per-Product Isolated Index Architecture</a></li><li><a href="../adr/ADR-0021_per-product-isolated-index-architecture" data-for="adr/ADR-0021_per-product-isolated-index-architecture">Per-Product Isolated Index Architecture</a></li><li><a href="../adr/ADR-0028_per-product-isolated-index-architecture" data-for="adr/ADR-0028_per-product-isolated-index-architecture">Per-Product Isolated Index Architecture</a></li><li><a href="../adr/ADR-0031_per-product-isolated-index-architecture" data-for="adr/ADR-0031_per-product-isolated-index-architecture">Per-Product Isolated Index Architecture</a></li><li><a href="../adr/ADR-0032_per-product-isolated-index-architecture" data-for="adr/ADR-0032_per-product-isolated-index-architecture">Per-Product Isolated Index Architecture</a></li><li><a href="../adr/ADR-0014_plugin-and-hook-system-architecture" data-for="adr/ADR-0014_plugin-and-hook-system-architecture">Plugin and Hook System Architecture (Phase 4 - Deferred)</a></li><li><a href="../adr/ADR-0005_product-column-retention-rationale" data-for="adr/ADR-0005_product-column-retention-rationale">Product Column Retention in Per-Product Indexes</a></li><li><a href="../adr/ADR-0017_product-column-retention-rationale" data-for="adr/ADR-0017_product-column-retention-rationale">Product Column Retention in Per-Product Indexes</a></li><li><a href="../adr/ADR-0022_product-column-retention-rationale" data-for="adr/ADR-0022_product-column-retention-rationale">Product Column Retention in Per-Product Indexes</a></li><li><a href="../adr/ADR-0029_product-column-retention-rationale" data-for="adr/ADR-0029_product-column-retention-rationale">Product Column Retention in Per-Product Indexes</a></li><li><a href="../adr/README" data-for="adr/README">README</a></li><li><a href="../adr/ADR-0005_skill-versioning-and-release-policy" data-for="adr/ADR-0005_skill-versioning-and-release-policy">Skill Versioning and Release Policy</a></li><li><a href="../adr/ADR-0015_skill-scoped-cli-namespace-convention" data-for="adr/ADR-0015_skill-scoped-cli-namespace-convention">Skill-Scoped CLI Namespace Convention</a></li><li><a href="../adr/ADR-0008_sqlite-schema-migration-framework" data-for="adr/ADR-0008_sqlite-schema-migration-framework">SQLite Schema Migration Framework</a></li><li><a href="../adr/ADR-0007_vcs-as-source-of-truth-derived-commit-data" data-for="adr/ADR-0007_vcs-as-source-of-truth-derived-commit-data">VCS as Source of Truth: Derived Commit Data</a></li><li><a href="../adr/ADR-0012_workset-db-canonical-schema-reuse" data-for="adr/ADR-0012_workset-db-canonical-schema-reuse">Workset DB Uses Canonical Schema (No Parallel Schema)</a></li><li><a href="../adr/ADR-0011_workset-graphrag-context-graph-separation-of-responsibilities" data-for="adr/ADR-0011_workset-graphrag-context-graph-separation-of-responsibilities">Workset vs GraphRAG / Context Graph — Separation of Responsibilities</a></li></ul></div></li><li><div class="folder-container"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="5 8 14 8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="folder-icon"><polyline points="6 9 12 15 18 9"></polyline></svg><div data-folderpath="cli"><button class="folder-button"><span class="folder-title">cli</span></button></div></div><div class="folder-outer "><ul style="padding-left:1.4rem;" class="content" data-folderul="cli"></ul></div></li><li><div class="folder-container"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="5 8 14 8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="folder-icon"><polyline points="6 9 12 15 18 9"></polyline></svg><div data-folderpath="demo"><button class="folder-button"><span class="folder-title">Demo &amp; Examples</span></button></div></div><div class="folder-outer "><ul style="padding-left:1.4rem;" class="content" data-folderul="demo"><li><a href="../demo/agents" data-for="demo/agents">agents</a></li><li><a href="../demo/claude" data-for="demo/claude">claude</a></li></ul></div></li><li><div class="folder-container"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="5 8 14 8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="folder-icon"><polyline points="6 9 12 15 18 9"></polyline></svg><div data-folderpath="examples"><button class="folder-button"><span class="folder-title">Examples &amp; Templates</span></button></div></div><div class="folder-outer "><ul style="padding-left:1.4rem;" class="content" data-folderul="examples"></ul></div></li><li><div class="folder-outer "><ul style="padding-left:0;" class="content" data-folderul></ul></div></li><li><div class="folder-container"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="5 8 14 8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="folder-icon"><polyline points="6 9 12 15 18 9"></polyline></svg><div data-folderpath="skill"><button class="folder-button"><span class="folder-title">Skill Documentation</span></button></div></div><div class="folder-outer "><ul style="padding-left:1.4rem;" class="content" data-folderul="skill"><li><a href="../skill/changelog" data-for="skill/changelog">changelog</a></li><li><a href="../skill/readme" data-for="skill/readme">readme</a></li><li><a href="../skill/reference" data-for="skill/reference">reference</a></li></ul></div></li><li><div class="folder-container"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="5 8 14 8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="folder-icon"><polyline points="6 9 12 15 18 9"></polyline></svg><div data-folderpath="references"><button class="folder-button"><span class="folder-title">Technical References</span></button></div></div><div class="folder-outer "><ul style="padding-left:1.4rem;" class="content" data-folderul="references"><li><a href="../references/bases" data-for="references/bases">bases</a></li><li><a href="../references/context_graph" data-for="references/context_graph">context_graph</a></li><li><a href="../references/embedding_pipeline" data-for="references/embedding_pipeline">embedding_pipeline</a></li><li><a href="../references/indexing" data-for="references/indexing">indexing</a></li><li><a href="../references/logging" data-for="references/logging">logging</a></li><li><a href="../references/processes" data-for="references/processes">processes</a></li><li><a href="../references/schema" data-for="references/schema">schema</a></li><li><a href="../references/templates" data-for="references/templates">templates</a></li><li><a href="../references/views" data-for="references/views">views</a></li><li><a href="../references/workflow" data-for="references/workflow">workflow</a></li></ul></div></li></ul></div></li><li id="explorer-end"></li></ul></div></div></div><div class="center"><div class="page-header"><div class="popover-hint"><nav class="breadcrumb-container" aria-label="breadcrumbs"><div class="breadcrumb-element"><a href="../">Home</a><p> ❯ </p></div><div class="breadcrumb-element"><a href="../skill/">Skill Documentation</a></div></nav><h1 class="article-title">Skill Documentation</h1><p show-comma="true" class="content-meta"><span>Jan 24, 2026</span><span>1 min read</span></p></div></div><div class="popover-hint"><article><h1 id="skill-documentation">Skill Documentation<a role="anchor" aria-hidden="true" tabindex="-1" data-no-popover="true" href="#skill-documentation" class="internal"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg></a></h1>
-<p>Core skill implementation and reference</p>
+<html lang="en"><head><title>index</title><meta charset="utf-8"/><link rel="preconnect" href="https://fonts.googleapis.com"/><link rel="preconnect" href="https://fonts.gstatic.com"/><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM Plex Mono&amp;family=Schibsted Grotesk:wght@400;700&amp;family=Source Sans Pro:ital,wght@0,400;0,600;1,400;1,600&amp;display=swap"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><meta property="og:title" content="index"/><meta property="og:description" content="Local-first backlog workflow. Use when planning work, creating/updating backlog items, writing ADRs, enforcing Ready gate, generating views, or maintaining derived indexes (SQLite/FTS/embeddings)."/><meta property="og:image" content="https://https://dorgonman.github.io/kano-agent-backlog-skill/static/og-image.png"/><meta property="og:width" content="1200"/><meta property="og:height" content="675"/><link rel="icon" href="../static/icon.png"/><meta name="description" content="Local-first backlog workflow. Use when planning work, creating/updating backlog items, writing ADRs, enforcing Ready gate, generating views, or maintaining derived indexes (SQLite/FTS/embeddings)."/><meta name="generator" content="Quartz"/><link href="../index.css" rel="stylesheet" type="text/css" spa-preserve/><link href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css" rel="stylesheet" type="text/css" spa-preserve/><script src="../prescript.js" type="application/javascript" spa-preserve></script><script type="application/javascript" spa-preserve>const fetchData = fetch("../static/contentIndex.json").then(data => data.json())</script></head><body data-slug="skill/index"><div id="quartz-root" class="page"><div id="quartz-body"><div class="left sidebar"><h2 class="page-title"><a href="..">Kano Agent Backlog Skill</a></h2><div class="spacer mobile-only"></div><div class="search"><button class="search-button" id="search-button"><p>Search</p><svg role="img" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 19.9 19.7"><title>Search</title><g class="search-path" fill="none"><path stroke-linecap="square" d="M18.5 18.3l-5.4-5.4"></path><circle cx="8" cy="8" r="7"></circle></g></svg></button><div id="search-container"><div id="search-space"><input autocomplete="off" id="search-bar" name="search" type="text" aria-label="Search for something" placeholder="Search for something"/><div id="search-layout" data-preview="true"></div></div></div></div><button class="darkmode" id="darkmode"><svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" version="1.1" id="dayIcon" x="0px" y="0px" viewBox="0 0 35 35" style="enable-background:new 0 0 35 35" xml:space="preserve" aria-label="Dark mode"><title>Dark mode</title><path d="M6,17.5C6,16.672,5.328,16,4.5,16h-3C0.672,16,0,16.672,0,17.5    S0.672,19,1.5,19h3C5.328,19,6,18.328,6,17.5z M7.5,26c-0.414,0-0.789,0.168-1.061,0.439l-2,2C4.168,28.711,4,29.086,4,29.5    C4,30.328,4.671,31,5.5,31c0.414,0,0.789-0.168,1.06-0.44l2-2C8.832,28.289,9,27.914,9,27.5C9,26.672,8.329,26,7.5,26z M17.5,6    C18.329,6,19,5.328,19,4.5v-3C19,0.672,18.329,0,17.5,0S16,0.672,16,1.5v3C16,5.328,16.671,6,17.5,6z M27.5,9    c0.414,0,0.789-0.168,1.06-0.439l2-2C30.832,6.289,31,5.914,31,5.5C31,4.672,30.329,4,29.5,4c-0.414,0-0.789,0.168-1.061,0.44    l-2,2C26.168,6.711,26,7.086,26,7.5C26,8.328,26.671,9,27.5,9z M6.439,8.561C6.711,8.832,7.086,9,7.5,9C8.328,9,9,8.328,9,7.5    c0-0.414-0.168-0.789-0.439-1.061l-2-2C6.289,4.168,5.914,4,5.5,4C4.672,4,4,4.672,4,5.5c0,0.414,0.168,0.789,0.439,1.06    L6.439,8.561z M33.5,16h-3c-0.828,0-1.5,0.672-1.5,1.5s0.672,1.5,1.5,1.5h3c0.828,0,1.5-0.672,1.5-1.5S34.328,16,33.5,16z     M28.561,26.439C28.289,26.168,27.914,26,27.5,26c-0.828,0-1.5,0.672-1.5,1.5c0,0.414,0.168,0.789,0.439,1.06l2,2    C28.711,30.832,29.086,31,29.5,31c0.828,0,1.5-0.672,1.5-1.5c0-0.414-0.168-0.789-0.439-1.061L28.561,26.439z M17.5,29    c-0.829,0-1.5,0.672-1.5,1.5v3c0,0.828,0.671,1.5,1.5,1.5s1.5-0.672,1.5-1.5v-3C19,29.672,18.329,29,17.5,29z M17.5,7    C11.71,7,7,11.71,7,17.5S11.71,28,17.5,28S28,23.29,28,17.5S23.29,7,17.5,7z M17.5,25c-4.136,0-7.5-3.364-7.5-7.5    c0-4.136,3.364-7.5,7.5-7.5c4.136,0,7.5,3.364,7.5,7.5C25,21.636,21.636,25,17.5,25z"></path></svg><svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" version="1.1" id="nightIcon" x="0px" y="0px" viewBox="0 0 100 100" style="enable-background:new 0 0 100 100" xml:space="preserve" aria-label="Light mode"><title>Light mode</title><path d="M96.76,66.458c-0.853-0.852-2.15-1.064-3.23-0.534c-6.063,2.991-12.858,4.571-19.655,4.571  C62.022,70.495,50.88,65.88,42.5,57.5C29.043,44.043,25.658,23.536,34.076,6.47c0.532-1.08,0.318-2.379-0.534-3.23  c-0.851-0.852-2.15-1.064-3.23-0.534c-4.918,2.427-9.375,5.619-13.246,9.491c-9.447,9.447-14.65,22.008-14.65,35.369  c0,13.36,5.203,25.921,14.65,35.368s22.008,14.65,35.368,14.65c13.361,0,25.921-5.203,35.369-14.65  c3.872-3.871,7.064-8.328,9.491-13.246C97.826,68.608,97.611,67.309,96.76,66.458z"></path></svg></button><div class="explorer desktop-only"><button type="button" id="explorer" data-behavior="collapse" data-collapsed="collapsed" data-savestate="true" data-tree="[{&quot;path&quot;:&quot;adr&quot;,&quot;collapsed&quot;:true},{&quot;path&quot;:&quot;cli&quot;,&quot;collapsed&quot;:true},{&quot;path&quot;:&quot;demo&quot;,&quot;collapsed&quot;:true},{&quot;path&quot;:&quot;examples&quot;,&quot;collapsed&quot;:true},{&quot;path&quot;:&quot;skill&quot;,&quot;collapsed&quot;:true},{&quot;path&quot;:&quot;references&quot;,&quot;collapsed&quot;:true}]" aria-controls="explorer-content" aria-expanded="false"><h2>Explorer</h2><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="5 8 14 8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="fold"><polyline points="6 9 12 15 18 9"></polyline></svg></button><div id="explorer-content"><ul class="overflow" id="explorer-ul"><li><div class="folder-outer open"><ul style="padding-left:0;" class="content" data-folderul><li><div class="folder-container"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="5 8 14 8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="folder-icon"><polyline points="6 9 12 15 18 9"></polyline></svg><div data-folderpath="adr"><button class="folder-button"><span class="folder-title">adr</span></button></div></div><div class="folder-outer "><ul style="padding-left:1.4rem;" class="content" data-folderul="adr"><li><a href="../adr/ADR-0003-appendix_collision-report-cli-spec" data-for="adr/ADR-0003-appendix_collision-report-cli-spec">ADR-0003-appendix_collision-report-cli-spec</a></li><li><a href="../adr/ADR-0003-appendix_id-resolver-spec" data-for="adr/ADR-0003-appendix_id-resolver-spec">ADR-0003-appendix_id-resolver-spec</a></li><li><a href="../adr/ADR-0003-appendix_migration-plan-uid" data-for="adr/ADR-0003-appendix_migration-plan-uid">ADR-0003-appendix_migration-plan-uid</a></li><li><a href="../adr/ADR-0003-appendix_ulid-vs-uuidv7-comparison" data-for="adr/ADR-0003-appendix_ulid-vs-uuidv7-comparison">ADR-0003-appendix_ulid-vs-uuidv7-comparison</a></li><li><a href="../adr/ADR-0001_backlog-structure-and-moc" data-for="adr/ADR-0001_backlog-structure-and-moc">Backlog structure: per-type folders and Obsidian MOC</a></li><li><a href="../adr/ADR-0013_codebase-architecture-and-module-boundaries" data-for="adr/ADR-0013_codebase-architecture-and-module-boundaries">Codebase Architecture and Module Boundaries</a></li><li><a href="../adr/ADR-0034_conflict-handling-policy-for-duplicate-ids-and-uids" data-for="adr/ADR-0034_conflict-handling-policy-for-duplicate-ids-and-uids">Conflict handling policy for duplicate IDs and UIDs</a></li><li><a href="../adr/ADR-0035_cross-lingual-retrieval-requirement-and-default-embedding-policy" data-for="adr/ADR-0035_cross-lingual-retrieval-requirement-and-default-embedding-policy">Cross-lingual retrieval requirement and default embedding policy</a></li><li><a href="../adr/ADR-0015_decision-for-kabsd-tsk-0056" data-for="adr/ADR-0015_decision-for-kabsd-tsk-0056">Decision for KABSD-TSK-0056</a></li><li><a href="../adr/ADR-0018_decision-for-kabsd-tsk-0056" data-for="adr/ADR-0018_decision-for-kabsd-tsk-0056">Decision for KABSD-TSK-0056</a></li><li><a href="../adr/ADR-0019_decision-for-kabsd-tsk-0056" data-for="adr/ADR-0019_decision-for-kabsd-tsk-0056">Decision for KABSD-TSK-0056</a></li><li><a href="../adr/ADR-0020_decision-for-kabsd-tsk-0056" data-for="adr/ADR-0020_decision-for-kabsd-tsk-0056">Decision for KABSD-TSK-0056</a></li><li><a href="../adr/ADR-0024_decision-for-kabsd-tsk-0056" data-for="adr/ADR-0024_decision-for-kabsd-tsk-0056">Decision for KABSD-TSK-0056</a></li><li><a href="../adr/ADR-0025_decision-for-kabsd-tsk-0056" data-for="adr/ADR-0025_decision-for-kabsd-tsk-0056">Decision for KABSD-TSK-0056</a></li><li><a href="../adr/ADR-0026_decision-for-kabsd-tsk-0056" data-for="adr/ADR-0026_decision-for-kabsd-tsk-0056">Decision for KABSD-TSK-0056</a></li><li><a href="../adr/ADR-0027_decision-for-kabsd-tsk-0056" data-for="adr/ADR-0027_decision-for-kabsd-tsk-0056">Decision for KABSD-TSK-0056</a></li><li><a href="../adr/ADR-0033_decision-for-kabsd-tsk-0056" data-for="adr/ADR-0033_decision-for-kabsd-tsk-0056">Decision for KABSD-TSK-0056</a></li><li><a href="../adr/ADR-0002_decisions-as-adr-links" data-for="adr/ADR-0002_decisions-as-adr-links">Decision handling: ADRs stay in decisions/ with item links</a></li><li><a href="../adr/ADR-0004_file-first-architecture-with-sqlite-index" data-for="adr/ADR-0004_file-first-architecture-with-sqlite-index">File-First Architecture with SQLite Index</a></li><li><a href="../adr/ADR-0011_graph-assisted-retrieval-and-context-graph" data-for="adr/ADR-0011_graph-assisted-retrieval-and-context-graph">Graph-assisted retrieval with a derived Context Graph (weak graph first)</a></li><li><a href="../adr/ADR-0023_graph-assisted-retrieval-and-context-graph" data-for="adr/ADR-0023_graph-assisted-retrieval-and-context-graph">Graph-assisted retrieval with a derived Context Graph (weak graph first)</a></li><li><a href="../adr/ADR-0030_graph-assisted-retrieval-and-context-graph" data-for="adr/ADR-0030_graph-assisted-retrieval-and-context-graph">Graph-assisted retrieval with a derived Context Graph (weak graph first)</a></li><li><a href="../adr/ADR-0003_identifier-strategy-for-local-first-backlog" data-for="adr/ADR-0003_identifier-strategy-for-local-first-backlog">Identifier strategy: sortable IDs without centralized allocation</a></li><li><a href="../adr/ADR-0036_index-strategy-shared-index-now-per-model-indexes-later-via-config" data-for="adr/ADR-0036_index-strategy-shared-index-now-per-model-indexes-later-via-config">Index strategy: shared index now, per-model indexes later via config</a></li><li><a href="../adr/ADR-0037_inspector-pattern-and-query-surface-architecture" data-for="adr/ADR-0037_inspector-pattern-and-query-surface-architecture">Inspector Pattern and Query Surface Architecture</a></li><li><a href="../adr/ADR-0010_project-babylon-global-scale-collaboration-vision" data-for="adr/ADR-0010_project-babylon-global-scale-collaboration-vision">Kano-Babylon Project</a></li><li><a href="../adr/ADR-0009_local-first-embedding-search-architecture" data-for="adr/ADR-0009_local-first-embedding-search-architecture">Local-First Embedding Search Strategic Evaluation</a></li><li><a href="../adr/ADR-0006_multi-product-directory-structure" data-for="adr/ADR-0006_multi-product-directory-structure">Multi-Product Directory Structure and Naming Conventions</a></li><li><a href="../adr/ADR-0004_per-product-isolated-index-architecture" data-for="adr/ADR-0004_per-product-isolated-index-architecture">Per-Product Isolated Index Architecture</a></li><li><a href="../adr/ADR-0016_per-product-isolated-index-architecture" data-for="adr/ADR-0016_per-product-isolated-index-architecture">Per-Product Isolated Index Architecture</a></li><li><a href="../adr/ADR-0021_per-product-isolated-index-architecture" data-for="adr/ADR-0021_per-product-isolated-index-architecture">Per-Product Isolated Index Architecture</a></li><li><a href="../adr/ADR-0028_per-product-isolated-index-architecture" data-for="adr/ADR-0028_per-product-isolated-index-architecture">Per-Product Isolated Index Architecture</a></li><li><a href="../adr/ADR-0031_per-product-isolated-index-architecture" data-for="adr/ADR-0031_per-product-isolated-index-architecture">Per-Product Isolated Index Architecture</a></li><li><a href="../adr/ADR-0032_per-product-isolated-index-architecture" data-for="adr/ADR-0032_per-product-isolated-index-architecture">Per-Product Isolated Index Architecture</a></li><li><a href="../adr/ADR-0014_plugin-and-hook-system-architecture" data-for="adr/ADR-0014_plugin-and-hook-system-architecture">Plugin and Hook System Architecture (Phase 4 - Deferred)</a></li><li><a href="../adr/ADR-0005_product-column-retention-rationale" data-for="adr/ADR-0005_product-column-retention-rationale">Product Column Retention in Per-Product Indexes</a></li><li><a href="../adr/ADR-0017_product-column-retention-rationale" data-for="adr/ADR-0017_product-column-retention-rationale">Product Column Retention in Per-Product Indexes</a></li><li><a href="../adr/ADR-0022_product-column-retention-rationale" data-for="adr/ADR-0022_product-column-retention-rationale">Product Column Retention in Per-Product Indexes</a></li><li><a href="../adr/ADR-0029_product-column-retention-rationale" data-for="adr/ADR-0029_product-column-retention-rationale">Product Column Retention in Per-Product Indexes</a></li><li><a href="../adr/README" data-for="adr/README">README</a></li><li><a href="../adr/ADR-0005_skill-versioning-and-release-policy" data-for="adr/ADR-0005_skill-versioning-and-release-policy">Skill Versioning and Release Policy</a></li><li><a href="../adr/ADR-0015_skill-scoped-cli-namespace-convention" data-for="adr/ADR-0015_skill-scoped-cli-namespace-convention">Skill-Scoped CLI Namespace Convention</a></li><li><a href="../adr/ADR-0008_sqlite-schema-migration-framework" data-for="adr/ADR-0008_sqlite-schema-migration-framework">SQLite Schema Migration Framework</a></li><li><a href="../adr/ADR-0007_vcs-as-source-of-truth-derived-commit-data" data-for="adr/ADR-0007_vcs-as-source-of-truth-derived-commit-data">VCS as Source of Truth: Derived Commit Data</a></li><li><a href="../adr/ADR-0012_workset-db-canonical-schema-reuse" data-for="adr/ADR-0012_workset-db-canonical-schema-reuse">Workset DB Uses Canonical Schema (No Parallel Schema)</a></li><li><a href="../adr/ADR-0011_workset-graphrag-context-graph-separation-of-responsibilities" data-for="adr/ADR-0011_workset-graphrag-context-graph-separation-of-responsibilities">Workset vs GraphRAG / Context Graph — Separation of Responsibilities</a></li></ul></div></li><li><div class="folder-container"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="5 8 14 8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="folder-icon"><polyline points="6 9 12 15 18 9"></polyline></svg><div data-folderpath="cli"><button class="folder-button"><span class="folder-title">CLI Reference</span></button></div></div><div class="folder-outer "><ul style="padding-left:1.4rem;" class="content" data-folderul="cli"></ul></div></li><li><div class="folder-container"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="5 8 14 8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="folder-icon"><polyline points="6 9 12 15 18 9"></polyline></svg><div data-folderpath="demo"><button class="folder-button"><span class="folder-title">demo</span></button></div></div><div class="folder-outer "><ul style="padding-left:1.4rem;" class="content" data-folderul="demo"><li><a href="../demo/agents" data-for="demo/agents">agents</a></li><li><a href="../demo/claude" data-for="demo/claude">claude</a></li></ul></div></li><li><div class="folder-container"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="5 8 14 8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="folder-icon"><polyline points="6 9 12 15 18 9"></polyline></svg><div data-folderpath="examples"><button class="folder-button"><span class="folder-title">Examples &amp; Templates</span></button></div></div><div class="folder-outer "><ul style="padding-left:1.4rem;" class="content" data-folderul="examples"></ul></div></li><li><div class="folder-outer "><ul style="padding-left:0;" class="content" data-folderul></ul></div></li><li><div class="folder-container"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="5 8 14 8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="folder-icon"><polyline points="6 9 12 15 18 9"></polyline></svg><div data-folderpath="skill"><button class="folder-button"><span class="folder-title">skill</span></button></div></div><div class="folder-outer "><ul style="padding-left:1.4rem;" class="content" data-folderul="skill"><li><a href="../skill/changelog" data-for="skill/changelog">changelog</a></li><li><a href="../skill/readme" data-for="skill/readme">readme</a></li><li><a href="../skill/reference" data-for="skill/reference">reference</a></li></ul></div></li><li><div class="folder-container"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="5 8 14 8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="folder-icon"><polyline points="6 9 12 15 18 9"></polyline></svg><div data-folderpath="references"><button class="folder-button"><span class="folder-title">Technical References</span></button></div></div><div class="folder-outer "><ul style="padding-left:1.4rem;" class="content" data-folderul="references"><li><a href="../references/bases" data-for="references/bases">bases</a></li><li><a href="../references/context_graph" data-for="references/context_graph">context_graph</a></li><li><a href="../references/embedding_pipeline" data-for="references/embedding_pipeline">embedding_pipeline</a></li><li><a href="../references/indexing" data-for="references/indexing">indexing</a></li><li><a href="../references/logging" data-for="references/logging">logging</a></li><li><a href="../references/processes" data-for="references/processes">processes</a></li><li><a href="../references/schema" data-for="references/schema">schema</a></li><li><a href="../references/templates" data-for="references/templates">templates</a></li><li><a href="../references/views" data-for="references/views">views</a></li><li><a href="../references/workflow" data-for="references/workflow">workflow</a></li></ul></div></li></ul></div></li><li id="explorer-end"></li></ul></div></div></div><div class="center"><div class="page-header"><div class="popover-hint"><nav class="breadcrumb-container" aria-label="breadcrumbs"><div class="breadcrumb-element"><a href="../">Home</a><p> ❯ </p></div><div class="breadcrumb-element"><a href="../skill/">skill</a></div></nav><h1 class="article-title">index</h1><p show-comma="true" class="content-meta"><span>Jan 24, 2026</span><span>15 min read</span></p></div></div><div class="popover-hint"><article><h1 id="kano-agent-backlog-skill-local-first">Kano Agent Backlog Skill (local-first)<a role="anchor" aria-hidden="true" tabindex="-1" data-no-popover="true" href="#kano-agent-backlog-skill-local-first" class="internal"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg></a></h1>
+<h2 id="scope">Scope<a role="anchor" aria-hidden="true" tabindex="-1" data-no-popover="true" href="#scope" class="internal"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg></a></h2>
+<p>Use this skill to:</p>
 <ul>
-<li><a href="../" class="internal alias" data-slug="index">Skill Guide</a></li>
-<li><a href="../skill/readme" class="internal alias" data-slug="skill/readme">Skill README</a></li>
-<li><a href="../skill/reference" class="internal alias" data-slug="skill/reference">API Reference</a></li>
-<li><a href="../skill/changelog" class="internal alias" data-slug="skill/changelog">Changelog</a></li>
-</ul></article><div class="page-listing"><p>3 items under this folder.</p><div><ul class="section-ul"><li class="section-li"><div class="section"><div><p class="meta">Jan 24, 2026</p></div><div class="desc"><h3><a href="../skill/changelog" class="internal">changelog</a></h3></div><ul class="tags"></ul></div></li><li class="section-li"><div class="section"><div><p class="meta">Jan 24, 2026</p></div><div class="desc"><h3><a href="../skill/reference" class="internal">reference</a></h3></div><ul class="tags"></ul></div></li><li class="section-li"><div class="section"><div><p class="meta">Jan 24, 2026</p></div><div class="desc"><h3><a href="../skill/readme" class="internal">readme</a></h3></div><ul class="tags"></ul></div></li></ul></div></div></div><hr/><div class="page-footer"></div></div><div class="right sidebar"></div><footer class><p>Created with <a href="https://quartz.jzhao.xyz/">Quartz v4.4.0</a> © 2026</p><ul><li><a href="https://github.com/jackyzha0/quartz">GitHub</a></li><li><a href="https://discord.gg/cRFFHYye7t">Discord Community</a></li></ul></footer></div></div></body><script type="application/javascript">function c(){let t=this.parentElement;t.classList.toggle("is-collapsed");let l=t.classList.contains("is-collapsed")?this.scrollHeight:t.scrollHeight;t.style.maxHeight=l+"px";let o=t,e=t.parentElement;for(;e;){if(!e.classList.contains("callout"))return;let n=e.classList.contains("is-collapsed")?e.scrollHeight:e.scrollHeight+o.scrollHeight;e.style.maxHeight=n+"px",o=e,e=e.parentElement}}function i(){let t=document.getElementsByClassName("callout is-collapsible");for(let s of t){let l=s.firstElementChild;if(l){l.addEventListener("click",c),window.addCleanup(()=>l.removeEventListener("click",c));let e=s.classList.contains("is-collapsed")?l.scrollHeight:s.scrollHeight;s.style.maxHeight=e+"px"}}}document.addEventListener("nav",i);window.addEventListener("resize",i);
+<li>Plan new work by creating backlog items before code changes.</li>
+<li>Maintain hierarchy and relationships via <code>parent</code> links, as defined by the active process profile.</li>
+<li>Record decisions with ADRs and link them to items.</li>
+<li>Keep a durable, append-only worklog for project evolution.</li>
+</ul>
+<h2 id="agent-compatibility-read-the-whole-skill">Agent compatibility: read the whole skill<a role="anchor" aria-hidden="true" tabindex="-1" data-no-popover="true" href="#agent-compatibility-read-the-whole-skill" class="internal"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg></a></h2>
+<ul>
+<li>Always load the entire <code>SKILL.md</code> before acting; some agent shells only fetch the first ~100 lines by default.</li>
+<li>If your client truncates, fetch in chunks (e.g., lines 1-200, 200-400, …) until you see the footer marker <code>END_OF_SKILL_SENTINEL</code>.</li>
+<li>If you cannot confirm the footer marker, stop and ask for help; do not proceed with partial rules.</li>
+<li>When generating per-agent guides, preserve this read-all requirement so downstream agents stay in sync.</li>
+</ul>
+<h2 id="non-negotiables">Non-negotiables<a role="anchor" aria-hidden="true" tabindex="-1" data-no-popover="true" href="#non-negotiables" class="internal"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg></a></h2>
+<ul>
+<li>Planning before coding: create/update items and meet the Ready gate before making code changes.</li>
+<li>Worklog is append-only; never rewrite history.</li>
+<li>Update Worklog whenever:
+<ul>
+<li>a discussion produces a clear decision or direction,</li>
+<li>an item state changes,</li>
+<li>scope/approach changes,</li>
+<li>or an ADR is created/linked.</li>
+</ul>
+</li>
+<li>Archive by view: hide <code>Done</code>/<code>Dropped</code> items in views by default; do not move files unless explicitly requested.</li>
+<li>Backlog volume control:
+<ul>
+<li>Only create items for work that changes code or design decisions.</li>
+<li>Avoid new items for exploratory discussion; record in existing Worklog instead.</li>
+<li>Keep Tasks/Bugs sized for a single focused session.</li>
+<li>Avoid ADRs unless a real architectural trade-off is made.</li>
+</ul>
+</li>
+<li>Ticketing threshold (agent-decided):
+<ul>
+<li>Open a new Task/Bug when you will change code/docs/views/scripts.</li>
+<li>Open an ADR (and link it) when a real trade-off or direction change is decided.</li>
+<li>Otherwise, record the discussion in an existing Worklog; ask if unsure.</li>
+</ul>
+</li>
+<li>Ticket type selection (keep it lightweight):
+<ul>
+<li>Epic: multi-release or multi-team milestone spanning multiple Features.</li>
+<li>Feature: a new capability that delivers multiple UserStories.</li>
+<li>UserStory: a single user-facing outcome that requires multiple Tasks.</li>
+<li>Task: a single focused implementation or doc change (typically one session).</li>
+<li>Example: “End-to-end embedding pipeline” = Epic; “Pluggable vector backend” = Feature; “MVP chunking pipeline” = UserStory; “Implement tokenizer adapter” = Task.</li>
+</ul>
+</li>
+<li>Bug vs Task triage (when fixing behavior):
+<ul>
+<li>If you are correcting a behavior that was previously marked <code>Done</code> and the behavior violates the original intent/acceptance (defect or regression), open a <strong>Bug</strong> and link it to the original item.</li>
+<li>If the change is a new requirement/scope change beyond the original acceptance, open a <strong>Task/UserStory</strong> (or Feature) instead, and link it for traceability.</li>
+</ul>
+</li>
+<li>Bug origin tracing (when diagnosing a defect/regression):
+<ul>
+<li>Record <strong>when the issue started</strong> and the <strong>evidence path</strong> you used to determine it.</li>
+<li>Prefer VCS-backed evidence when available:
+<ul>
+<li>last-known-good revision (commit hash or tag)</li>
+<li>first-known-bad revision (commit hash or tag)</li>
+<li>suspected introducing change(s) (commit hash) and why (e.g., <code>git blame</code> on specific lines)</li>
+</ul>
+</li>
+<li>If git history is unavailable (zip export, shallow clone, missing remote), explicitly record that limitation and what alternative evidence you used (e.g., release notes, timestamps, reproduction reports).</li>
+<li>Keep evidence lightweight: record commit hashes + 1–2 line summaries; avoid pasting large diffs into Worklog. Attach artifacts when needed.</li>
+<li>Suggested Worklog template:
+<ul>
+<li><code>Bug origin: last_good=&lt;sha|tag>, first_bad=&lt;sha|tag>, suspect=&lt;sha> (reason: blame &lt;path>:&lt;line>), evidence=&lt;git log/blame/bisect|other></code></li>
+</ul>
+</li>
+</ul>
+</li>
+<li>State ownership: the agent decides when to move items to InProgress or Done; humans observe and can add context.</li>
+<li>State semantics: Proposed = needs discovery/confirmation; Planned = approved but not started; Ready gate applies before start.</li>
+<li>Hierarchy is in frontmatter links, not folder nesting; avoid moving files to reflect scope changes.</li>
+<li>Filenames stay stable; use ASCII slugs.</li>
+<li>Never include secrets in backlog files or logs.</li>
+<li>Language: backlog and documentation content must be English-only (no CJK), to keep parsing and cross-agent collaboration deterministic.</li>
+<li>Agent Identity: In Worklog and audit logs, use your own identity (e.g., <code>[agent=antigravity]</code>), never copy <code>[agent=codex]</code> blindly.</li>
+<li>Always provide an explicit <code>--agent</code> value for auditability (some commands currently default to <code>cli</code>, but do not rely on it).</li>
+<li>Model attribution (optional but preferred): provide <code>--model &lt;name></code> (or env <code>KANO_AGENT_MODEL</code> / <code>KANO_MODEL</code>) when it is known deterministically.
+<ul>
+<li>Do not guess model names; if unknown, omit the <code>[model=...]</code> segment.</li>
+</ul>
+</li>
+<li><strong>Agent Identity Protocol</strong>: Supply <code>--agent &lt;ID></code> with your real product name (e.g., <code>cursor</code>, <code>copilot</code>, <code>windsurf</code>, <code>antigravity</code>).
+<ul>
+<li><strong>Forbidden (Placeholders)</strong>: <code>auto</code>, <code>user</code>, <code>assistant</code>, <code>&lt;AGENT_NAME></code>, <code>$AGENT_NAME</code>.</li>
+</ul>
+</li>
+<li>File operations for backlog/skill artifacts must go through the <code>kano-backlog</code> CLI
+(<code>python skills/kano-agent-backlog-skill/scripts/kano-backlog &lt;command></code>) so audit logs capture the action.</li>
+<li>Skill scripts only operate on paths under <code>_kano/backlog/</code> or <code>_kano/backlog_sandbox/</code>;
+refuse other paths.</li>
+<li>After modifying backlog items, refresh the plain Markdown views immediately using
+<code>python skills/kano-agent-backlog-skill/scripts/kano-backlog view refresh --agent &lt;agent-id> --backlog-root &lt;path></code> so the dashboards stay current.
+<ul>
+<li>Persona summaries/reports are available via <code>python skills/kano-agent-backlog-skill/scripts/kano-backlog admin persona summary|report ...</code>.</li>
+</ul>
+</li>
+<li><code>python skills/kano-agent-backlog-skill/scripts/kano-backlog workitem update-state ...</code> auto-syncs parent states forward-only by default; use <code>--no-sync-parent</code>
+for manual re-plans where parent state should stay put.</li>
+<li>Add Obsidian <code>[[wikilink]]</code> references in the body (e.g., a <code>## Links</code> section) so Graph/backlinks work; frontmatter alone does not create graph edges.</li>
+</ul>
+<h2 id="agent-compatibility-read-the-whole-skill-1">Agent compatibility: read the whole skill<a role="anchor" aria-hidden="true" tabindex="-1" data-no-popover="true" href="#agent-compatibility-read-the-whole-skill-1" class="internal"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg></a></h2>
+<ul>
+<li>Always load the entire <code>SKILL.md</code> before acting; some agent shells only fetch the first ~100 lines by default.</li>
+<li>If your client truncates, fetch in chunks (e.g., lines 1-200, 200-400, …) until you see the footer marker <code>END_OF_SKILL_SENTINEL</code>.</li>
+<li>If you cannot confirm the footer marker, stop and ask for help; do not proceed with partial rules.</li>
+<li>When generating per-agent guides, preserve this read-all requirement so downstream agents stay in sync.</li>
+</ul>
+<h2 id="first-run-bootstrap-prereqs--initialization">First-run bootstrap (prereqs + initialization)<a role="anchor" aria-hidden="true" tabindex="-1" data-no-popover="true" href="#first-run-bootstrap-prereqs--initialization" class="internal"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg></a></h2>
+<p>Before using this skill in a repo, the agent must confirm:</p>
+<ol>
+<li>Python prerequisites are available (or install them), and</li>
+<li>the backlog scaffold exists for the target product/root.</li>
+</ol>
+<p>If the backlog structure is missing, propose the bootstrap commands and wait for user approval before writing files.</p>
+<h3 id="developer-vs-user-mode-where-to-declare-it">Developer vs user mode (where to declare it)<a role="anchor" aria-hidden="true" tabindex="-1" data-no-popover="true" href="#developer-vs-user-mode-where-to-declare-it" class="internal"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg></a></h3>
+<ul>
+<li><strong>Preferred source of truth</strong>: product config in <code>_kano/backlog/products/&lt;product>/_config/config.toml</code>.
+<ul>
+<li><code>mode.skill_developer</code>: <code>true</code> when this repo actively develops the skill itself (this demo repo).</li>
+<li><code>mode.persona</code>: optional string describing the primary human persona (e.g. <code>developer</code>, <code>pm</code>, <code>qa</code>), used only for human-facing summaries/views.</li>
+</ul>
+</li>
+<li><strong>Secondary</strong>: agent guide files (e.g., <code>AGENTS.md</code> / <code>CLAUDE.md</code>) can document expectations, but are agent-specific and not script-readable.</li>
+</ul>
+<h3 id="skill-developer-gate-architecture-compliance">Skill developer gate (architecture compliance)<a role="anchor" aria-hidden="true" tabindex="-1" data-no-popover="true" href="#skill-developer-gate-architecture-compliance" class="internal"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg></a></h3>
+<p><strong>If <code>mode.skill_developer=true</code></strong>, before writing any skill code (in <code>scripts/</code> or <code>src/</code>), you <strong>must</strong>:</p>
+<ol>
+<li>Read <strong>ADR-0013</strong> (“Codebase Architecture and Module Boundaries”) in the product decisions folder.</li>
+<li>Follow the folder rules defined in ADR-0013:
+<ul>
+<li><code>scripts/</code> is <strong>executable-only</strong>: no reusable module code.</li>
+<li><code>src/</code> is <strong>import-only</strong>: core logic lives here, never executed directly.</li>
+<li>All agent-callable operations go through <code>scripts/kano-backlog</code> CLI.</li>
+</ul>
+</li>
+<li>Place new code in the correct package:
+<ul>
+<li>Models/config/errors → <code>src/kano_backlog_core/</code></li>
+<li>Use-cases (create/update/view) → <code>src/kano_backlog_ops/</code></li>
+<li>Storage backends → <code>src/kano_backlog_adapters/</code></li>
+<li>CLI commands → <code>src/kano_backlog_cli/commands/</code></li>
+</ul>
+</li>
+</ol>
+<p>Violating these boundaries will be flagged in code review.</p>
+<h3 id="prerequisite-install-python">Prerequisite install (Python)<a role="anchor" aria-hidden="true" tabindex="-1" data-no-popover="true" href="#prerequisite-install-python" class="internal"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg></a></h3>
+<p>Detect:</p>
+<ul>
+<li>Run <code>python skills/kano-agent-backlog-skill/scripts/kano-backlog doctor --format plain</code>.</li>
+</ul>
+<p>If packages are missing, install once (recommended):</p>
+<ul>
+<li><strong>Default</strong>: <code>python -m pip install -e skills/kano-agent-backlog-skill</code></li>
+<li><strong>Skill contributors</strong>: <code>python -m pip install -e skills/kano-agent-backlog-skill[dev]</code></li>
+<li>Optional heavy dependencies (FAISS, sentence-transformers) should be installed manually per platform requirements before running the CLI against embedding features.</li>
+</ul>
+<h3 id="backlog-initialization-file-scaffold--config--dashboards">Backlog initialization (file scaffold + config + dashboards)<a role="anchor" aria-hidden="true" tabindex="-1" data-no-popover="true" href="#backlog-initialization-file-scaffold--config--dashboards" class="internal"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg></a></h3>
+<p>Detect (multi-product / platform layout):</p>
+<ul>
+<li>Product initialized if <code>_kano/backlog/products/&lt;product>/_config/config.toml</code> exists (or confirm via <code>python skills/kano-agent-backlog-skill/scripts/kano-backlog doctor --product &lt;product></code>).</li>
+</ul>
+<p>Bootstrap:</p>
+<ul>
+<li>Run <code>python skills/kano-agent-backlog-skill/scripts/kano-backlog admin init --product &lt;product> --agent &lt;agent-id> [--backlog-root &lt;path>]</code> to scaffold <code>_kano/backlog/products/&lt;product>/</code> (items/, decisions/, views/, <code>_config/</code>, <code>_meta/</code>, <code>_index/</code>).</li>
+<li>The init command derives a project prefix, writes <code>_config/config.toml</code>, and refreshes dashboards so views exist immediately after initialization.</li>
+<li>Manual fallback (only if automation is unavailable): follow <code>_kano/backlog/README.md</code> to copy the template scaffold, then refresh views via <code>kano-backlog view refresh</code>.</li>
+</ul>
+<h2 id="optional-llm-analysis-over-deterministic-reports">Optional LLM analysis over deterministic reports<a role="anchor" aria-hidden="true" tabindex="-1" data-no-popover="true" href="#optional-llm-analysis-over-deterministic-reports" class="internal"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg></a></h2>
+<p>This skill can optionally append an LLM-generated analysis to a deterministic report.
+The deterministic report is the SSOT; analysis is treated as a derived artifact.</p>
+<ul>
+<li>Deterministic report: <code>views/Report_&lt;persona>.md</code></li>
+<li>Derived LLM output: <code>views/_analysis/Report_&lt;persona>_LLM.md</code> (gitignored by default)</li>
+<li>Deterministic prompt artifact: <code>views/_analysis/Report_&lt;persona>_analysis_prompt.md</code></li>
+</ul>
+<p>Enable by config (per product):</p>
+<ul>
+<li><code>analysis.llm.enabled = true</code></li>
+</ul>
+<p>Execution:</p>
+<ul>
+<li>The <strong>default workflow</strong> is: generate the deterministic report → use it as SSOT → fill in the analysis template.
+<ul>
+<li>The skill generates a deterministic prompt file to guide the analysis, and a derived markdown file with placeholder headings.</li>
+</ul>
+</li>
+<li>Optional automation: when <code>analysis.llm.enabled = true</code> in config, view refresh generates <code>views/snapshots/_analysis/Report_&lt;persona>_analysis_prompt.md</code> (deterministic prompt) and <code>Report_&lt;persona>_LLM.md</code> (template or LLM output)</li>
+<li>Never pass API keys as CLI args; keep secrets in env vars to avoid leaking into audit logs.</li>
+</ul>
+<h2 id="id-prefix-derivation">ID prefix derivation<a role="anchor" aria-hidden="true" tabindex="-1" data-no-popover="true" href="#id-prefix-derivation" class="internal"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg></a></h2>
+<ul>
+<li>Source of truth:
+<ul>
+<li>Product config: <code>_kano/backlog/products/&lt;product>/_config/config.toml</code> (<code>product.name</code>, <code>product.prefix</code>), or</li>
+<li>Repo config (single-product): <code>_kano/backlog/_config/config.toml</code> (<code>product.name</code>, <code>product.prefix</code>).</li>
+</ul>
+</li>
+<li>Derivation:
+<ul>
+<li>Split <code>product.name</code> on non-alphanumeric separators and camel-case boundaries.</li>
+<li>Take the first letter of each segment.</li>
+<li>If only one letter, take the first letter plus the next consonant (A/E/I/O/U skipped).</li>
+<li>If still short, use the first two letters.</li>
+<li>Uppercase the result.</li>
+</ul>
+</li>
+<li>Example: <code>product.name=kano-agent-backlog-skill-demo</code> <span>→</span> <code>KABSD</code>.</li>
+</ul>
+<h2 id="recommended-layout">Recommended layout<a role="anchor" aria-hidden="true" tabindex="-1" data-no-popover="true" href="#recommended-layout" class="internal"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg></a></h2>
+<p>This skill supports both single-product and multi-product layouts:</p>
+<ul>
+<li>Single-product (repo-level): <code>_kano/backlog/</code></li>
+<li>Multi-product (monorepo): <code>_kano/backlog/products/&lt;product>/</code></li>
+</ul>
+<p>Within each backlog root:</p>
+<ul>
+<li><code>_meta/</code> (schema, conventions)</li>
+<li><code>items/&lt;type>/&lt;bucket>/</code> (work items)</li>
+<li><code>decisions/</code> (ADR files)</li>
+<li><code>views/</code> (dashboards / generated Markdown)</li>
+</ul>
+<h2 id="item-bucket-folders-per-100">Item bucket folders (per 100)<a role="anchor" aria-hidden="true" tabindex="-1" data-no-popover="true" href="#item-bucket-folders-per-100" class="internal"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg></a></h2>
+<ul>
+<li>Store items under <code>_kano/backlog/items/&lt;type>/&lt;bucket>/</code>.</li>
+<li>Bucket names use 4 digits for the lower bound of each 100 range.
+<ul>
+<li>Example: <code>0000</code>, <code>0100</code>, <code>0200</code>, <code>0300</code>, …</li>
+</ul>
+</li>
+<li>Example path:
+<ul>
+<li><code>_kano/backlog/items/task/0000/KABSD-TSK-0007_define-secret-provider-validation.md</code></li>
+</ul>
+</li>
+</ul>
+<h2 id="indexmoc-files">Index/MOC files<a role="anchor" aria-hidden="true" tabindex="-1" data-no-popover="true" href="#indexmoc-files" class="internal"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg></a></h2>
+<ul>
+<li>For Epic, create an adjacent index file:
+<ul>
+<li><code>&lt;ID>_&lt;slug>.index.md</code></li>
+</ul>
+</li>
+<li>Index files should render a tree using Dataview/DataviewJS and rely on <code>parent</code> links.</li>
+<li>Track epic index files in <code>_kano/backlog/_meta/indexes.md</code> (type, item_id, index_file, updated, notes).</li>
+</ul>
+<h2 id="references">References<a role="anchor" aria-hidden="true" tabindex="-1" data-no-popover="true" href="#references" class="internal"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg></a></h2>
+<ul>
+<li>Reference index: <code>REFERENCE.md</code></li>
+<li>Schema and rules: <code>references/schema.md</code></li>
+<li>Templates: <code>references/templates.md</code></li>
+<li>Workflow SOP: <code>references/workflow.md</code></li>
+<li>View patterns: <code>references/views.md</code></li>
+<li>Obsidian Bases (plugin-free): <code>references/bases.md</code></li>
+<li>Context Graph + Graph-assisted retrieval: <code>references/context_graph.md</code></li>
+</ul>
+<p>If the backlog structure is missing, propose creation and wait for user approval before writing files.</p>
+<h2 id="kano-cli-entrypoints-current-surface">Kano CLI entrypoints (current surface)<a role="anchor" aria-hidden="true" tabindex="-1" data-no-popover="true" href="#kano-cli-entrypoints-current-surface" class="internal"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg></a></h2>
+<p><code>scripts/</code> exposes a single executable: <code>scripts/kano-backlog</code>. The CLI is intentionally organized as nested command groups so agents can discover operations via <code>--help</code> on-demand (instead of hard-coding the full command surface into this skill).</p>
+<h3 id="help-driven-discovery-preferred">Help-driven discovery (preferred)<a role="anchor" aria-hidden="true" tabindex="-1" data-no-popover="true" href="#help-driven-discovery-preferred" class="internal"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg></a></h3>
+<p>Run these in order, expanding only what you need:</p>
+<ul>
+<li><code>python skills/kano-agent-backlog-skill/scripts/kano-backlog --help</code>
+<ul>
+<li>Shows top-level groups (e.g., <code>backlog</code>, <code>item</code>, <code>state</code>, <code>worklog</code>, <code>view</code>) and global options.</li>
+</ul>
+</li>
+<li><code>python skills/kano-agent-backlog-skill/scripts/kano-backlog &lt;group> --help</code>
+<ul>
+<li>Shows subcommands for that group.</li>
+</ul>
+</li>
+<li><code>python skills/kano-agent-backlog-skill/scripts/kano-backlog &lt;group> &lt;command> --help</code>
+<ul>
+<li>Shows required args/options for that command.</li>
+</ul>
+</li>
+</ul>
+<p>Guideline: do not paste large <code>--help</code> output into chat; inspect it locally and run the command.</p>
+<h3 id="canonical-examples-keep-these-few-memorized">Canonical examples (keep these few memorized)<a role="anchor" aria-hidden="true" tabindex="-1" data-no-popover="true" href="#canonical-examples-keep-these-few-memorized" class="internal"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg></a></h3>
+<ul>
+<li>Bootstrap:
+<ul>
+<li><code>python skills/kano-agent-backlog-skill/scripts/kano-backlog doctor --format plain</code></li>
+<li><code>python skills/kano-agent-backlog-skill/scripts/kano-backlog admin init --product &lt;name> --agent &lt;id></code></li>
+</ul>
+</li>
+<li>Daily workflow:
+<ul>
+<li><code>python skills/kano-agent-backlog-skill/scripts/kano-backlog workitem create --type task --title &quot;...&quot; --agent &lt;id> --product &lt;name></code></li>
+<li><code>python skills/kano-agent-backlog-skill/scripts/kano-backlog workitem set-ready &lt;item-id> --context &quot;...&quot; --goal &quot;...&quot; --approach &quot;...&quot; --acceptance-criteria &quot;...&quot; --risks &quot;...&quot; --product &lt;name></code></li>
+<li><code>python skills/kano-agent-backlog-skill/scripts/kano-backlog workitem validate &lt;item-id> --product &lt;name></code></li>
+<li><code>python skills/kano-agent-backlog-skill/scripts/kano-backlog workitem update-state &lt;item-ref> --state InProgress --agent &lt;id> --message &quot;...&quot; --product &lt;name></code></li>
+<li><code>python skills/kano-agent-backlog-skill/scripts/kano-backlog workitem attach-artifact &lt;item-id> --path &lt;file> --shared --agent &lt;id> --product &lt;name> [--note &quot;...&quot;]</code></li>
+<li><code>python skills/kano-agent-backlog-skill/scripts/kano-backlog view refresh --agent &lt;id> --product &lt;name></code></li>
+</ul>
+</li>
+<li>Backlog integrity checks:
+<ul>
+<li><code>python skills/kano-agent-backlog-skill/scripts/kano-backlog admin validate uids --product &lt;name></code></li>
+</ul>
+</li>
+</ul>
+<h2 id="conflict-handling-policy-configurable">Conflict handling policy (configurable)<a role="anchor" aria-hidden="true" tabindex="-1" data-no-popover="true" href="#conflict-handling-policy-configurable" class="internal"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg></a></h2>
+<p>Use product config to control how duplicate IDs and UIDs are handled by maintenance commands
+such as <code>admin links normalize-ids</code>.</p>
+<ul>
+<li>Config keys (product <code>_config/config.toml</code>):
+<ul>
+<li><code>conflict_policy.id_conflict</code>: default <code>rename</code> (rename duplicate IDs).</li>
+<li><code>conflict_policy.uid_conflict</code>: default <code>trash_shorter</code> (move shorter duplicate content to <code>_trash/</code>).</li>
+</ul>
+</li>
+<li><code>trash_shorter</code> uses <code>_trash/&lt;YYYYMMDD>/...</code> under the product root; items get a Worklog entry.</li>
+</ul>
+<h3 id="sandbox-workflow-isolated-experimentation">Sandbox workflow (isolated experimentation)<a role="anchor" aria-hidden="true" tabindex="-1" data-no-popover="true" href="#sandbox-workflow-isolated-experimentation" class="internal"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg></a></h3>
+<p>For testing, prototyping, or demos without affecting production backlog:</p>
+<ul>
+<li>Create: <code>python skills/kano-agent-backlog-skill/scripts/kano-backlog admin sandbox init &lt;sandbox-name> --product &lt;source-product> --agent &lt;id></code></li>
+<li>Use: <code>python skills/kano-agent-backlog-skill/scripts/kano-backlog workitem create --product &lt;sandbox-name> ...</code> (same CLI, different product)</li>
+<li>Cleanup: <code>rm -rf _kano/backlog_sandbox/&lt;sandbox-name></code> (git will ignore this directory)</li>
+<li>Rationale: Sandboxes mirror production structure but live in <code>_kano/backlog_sandbox/</code>, so changes never leak into <code>_kano/backlog/</code>.</li>
+</ul>
+<h2 id="artifacts-policy-local-first">Artifacts policy (local-first)<a role="anchor" aria-hidden="true" tabindex="-1" data-no-popover="true" href="#artifacts-policy-local-first" class="internal"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg></a></h2>
+<ul>
+<li>Storage locations:
+<ul>
+<li>Shared across products: <code>_kano/backlog/_shared/artifacts/&lt;ITEM_ID>/</code> (use <code>--shared</code>).</li>
+<li>Product-local: <code>_kano/backlog/products/&lt;product>/artifacts/&lt;ITEM_ID>/</code> (use <code>--no-shared</code>).</li>
+</ul>
+</li>
+<li>Usage:
+<ul>
+<li>Attach via <code>workitem attach-artifact</code> — copies the file and appends a Worklog link.</li>
+<li>Prefer lightweight, text-first artifacts (Markdown, Mermaid, small images). Use Git LFS for large binaries if needed.</li>
+</ul>
+</li>
+<li>Git policy:
+<ul>
+<li>Commit human-readable artifacts that aid review. Avoid committing generated binaries unless justified.</li>
+<li>Sandboxes under <code>_kano/backlog_sandbox/</code> are gitignored; artifacts there are ephemeral.</li>
+<li>For derived analysis, store under <code>views/_analysis/</code> (gitignored by default), and keep deterministic reports in <code>views/</code>.</li>
+</ul>
+</li>
+<li>Linking:
+<ul>
+<li>The CLI appends a Markdown link relative to the item file. Optionally add a <code>## Links</code> section for richer context.</li>
+</ul>
+</li>
+</ul>
+<h2 id="state-update-helper">State update helper<a role="anchor" aria-hidden="true" tabindex="-1" data-no-popover="true" href="#state-update-helper" class="internal"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg></a></h2>
+<ul>
+<li>Use <code>python skills/kano-agent-backlog-skill/scripts/kano-backlog workitem update-state ...</code> to update state + append Worklog.</li>
+<li>Prefer <code>--action</code> on <code>kano-backlog state transition</code> for the common transitions (<code>start</code>, <code>ready</code>, <code>review</code>, <code>done</code>, <code>block</code>, <code>drop</code>).</li>
+<li>Use <code>python skills/kano-agent-backlog-skill/scripts/kano-backlog workitem validate &lt;item-id></code> to check the Ready gate explicitly.</li>
+</ul>
+<h2 id="topic-and-workset-workflow-context-management">Topic and Workset workflow (context management)<a role="anchor" aria-hidden="true" tabindex="-1" data-no-popover="true" href="#topic-and-workset-workflow-context-management" class="internal"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg></a></h2>
+<h3 id="when-to-use-topics">When to use Topics<a role="anchor" aria-hidden="true" tabindex="-1" data-no-popover="true" href="#when-to-use-topics" class="internal"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg></a></h3>
+<p><strong>Topics</strong> are shareable context buffers for multi-step work that spans multiple work items or requires exploratory research before creating formal backlog items.</p>
+<p>Use Topics when:</p>
+<ul>
+<li>Exploring a complex problem that may result in multiple work items</li>
+<li>Collecting code snippets, logs, and materials across multiple sessions</li>
+<li>Collaborating across agents/sessions with a shared context</li>
+<li>Refactoring work that requires tracking multiple code locations</li>
+</ul>
+<p><strong>Topic lifecycle</strong>:</p>
+<ol>
+<li><strong>Create</strong>: <code>python skills/kano-agent-backlog-skill/scripts/kano-backlog topic create &lt;topic-name> --agent &lt;id></code>
+<ul>
+<li>Creates <code>_kano/backlog/topics/&lt;topic>/</code> with <code>manifest.json</code>, <code>brief.md</code>, <code>brief.generated.md</code>, <code>notes.md</code>, and <code>materials/</code> subdirectories</li>
+</ul>
+</li>
+<li><strong>Collect materials</strong>:
+<ul>
+<li>Add items: <code>topic add &lt;topic-name> --item &lt;ITEM_ID></code></li>
+<li>Add code snippets: <code>topic add-snippet &lt;topic-name> --file &lt;path> --start &lt;line> --end &lt;line> --agent &lt;id></code></li>
+<li>Pin docs: <code>topic pin &lt;topic-name> --doc &lt;path></code></li>
+</ul>
+</li>
+<li><strong>Distill</strong>: <code>python skills/kano-agent-backlog-skill/scripts/kano-backlog topic distill &lt;topic-name></code></li>
+</ol>
+<ul>
+<li>Generates/overwrites deterministic <code>brief.generated.md</code> from collected materials</li>
+<li><code>brief.md</code> is a stable, human-maintained brief (do not overwrite it automatically)</li>
+</ul>
+<ol start="4">
+<li><strong>Switch context</strong>: <code>python skills/kano-agent-backlog-skill/scripts/kano-backlog topic switch &lt;topic-name> --agent &lt;id></code>
+<ul>
+<li>Sets active topic (affects config overlays and workset behavior)</li>
+</ul>
+</li>
+<li><strong>Close</strong>: <code>python skills/kano-agent-backlog-skill/scripts/kano-backlog topic close &lt;topic-name> --agent &lt;id></code>
+<ul>
+<li>Marks topic as closed; eligible for TTL cleanup</li>
+</ul>
+</li>
+<li><strong>Cleanup</strong>: <code>python skills/kano-agent-backlog-skill/scripts/kano-backlog topic cleanup --ttl-days &lt;N> [--dry-run]</code>
+<ul>
+<li>Removes raw materials from closed topics older than TTL</li>
+</ul>
+</li>
+</ol>
+<p><strong>Topic snapshots (retention policy)</strong>:</p>
+<ul>
+<li>Snapshots are intended for <strong>milestone checkpoints</strong> (pre-merge/split/restore, risky bulk edits), not every small edit.</li>
+<li>To prevent noise, keep only the <strong>latest snapshot per topic</strong> in this demo repo.</li>
+<li>After creating a snapshot (or periodically), prune all but the newest snapshot:
+<ul>
+<li><code>python skills/kano-agent-backlog-skill/scripts/kano-backlog topic snapshot cleanup &lt;topic-name> --ttl-days 0 --keep-latest 1 --apply</code></li>
+</ul>
+</li>
+</ul>
+<p><strong>Topic structure</strong>:</p>
+<pre><code>_kano/backlog/topics/&lt;topic>/
+  manifest.json          # refs to items/docs/snippets, status, timestamps
+  brief.md               # stable, human-maintained brief (do not overwrite automatically)
+  brief.generated.md     # deterministic distilled brief (generated/overwritten by `topic distill`)
+  notes.md               # freeform notes (backward compat)
+  materials/             # raw collection (gitignored by default)
+    clips/               # code snippet refs + cached text
+    links/               # urls / notes
+    extracts/            # extracted paragraphs
+    logs/                # build logs / command outputs
+  synthesis/             # intermediate drafts
+  publish/               # prepared write-backs (patches/ADRs)
+  config.toml            # optional topic-specific config overrides
+</code></pre>
+<h3 id="when-to-use-worksets">When to use Worksets<a role="anchor" aria-hidden="true" tabindex="-1" data-no-popover="true" href="#when-to-use-worksets" class="internal"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg></a></h3>
+<p><strong>Worksets</strong> are per-item working directories (cached, derived data) for a single backlog item.</p>
+<p>Use Worksets when:</p>
+<ul>
+<li>Starting work on a specific Task/Bug/UserStory</li>
+<li>Need scratch space for deliverables (patches, test artifacts, etc.)</li>
+<li>Want item-specific config overrides (rare)</li>
+</ul>
+<p><strong>Workset lifecycle</strong>:</p>
+<ol>
+<li><strong>Initialize</strong>: <code>python skills/kano-agent-backlog-skill/scripts/kano-backlog workset init &lt;ITEM_ID> --agent &lt;id> [--ttl-hours &lt;N>]</code>
+<ul>
+<li>Creates <code>_kano/backlog/.cache/worksets/items/&lt;ITEM_ID>/</code> with <code>meta.json</code>, <code>plan.md</code>, <code>notes.md</code>, <code>deliverables/</code></li>
+</ul>
+</li>
+<li><strong>Work</strong>: Store scratch files in <code>deliverables/</code> (patches, test outputs, etc.)</li>
+<li><strong>Refresh</strong>: <code>python skills/kano-agent-backlog-skill/scripts/kano-backlog workset refresh &lt;ITEM_ID> --agent &lt;id></code>
+<ul>
+<li>Updates <code>refreshed_at</code> timestamp</li>
+</ul>
+</li>
+<li><strong>Cleanup</strong>: <code>python skills/kano-agent-backlog-skill/scripts/kano-backlog workset cleanup --ttl-hours &lt;N> [--dry-run]</code>
+<ul>
+<li>Removes stale worksets older than TTL</li>
+</ul>
+</li>
+</ol>
+<p><strong>Workset structure</strong>:</p>
+<pre><code>_kano/backlog/.cache/worksets/items/&lt;ITEM_ID>/
+  meta.json              # workset metadata (item_id, agent, timestamps, ttl)
+  plan.md                # execution plan template
+  notes.md               # work notes with Decision: marker guidance
+  deliverables/          # scratch outputs (patches, logs, test artifacts)
+  config.toml            # optional item-specific config overrides
+</code></pre>
+<h3 id="topic-vs-workset-decision-guide">Topic vs Workset decision guide<a role="anchor" aria-hidden="true" tabindex="-1" data-no-popover="true" href="#topic-vs-workset-decision-guide" class="internal"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg></a></h3>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div class="table-container"><table><thead><tr><th>Scenario</th><th>Use Topic</th><th>Use Workset</th></tr></thead><tbody><tr><td>Exploring before creating items</td><td>✅ Yes</td><td>❌ No</td></tr><tr><td>Multi-item refactor</td><td>✅ Yes</td><td>❌ No</td></tr><tr><td>Collecting code snippets across files</td><td>✅ Yes</td><td>❌ No</td></tr><tr><td>Shared context for collaboration</td><td>✅ Yes</td><td>❌ No</td></tr><tr><td>Single item scratch space</td><td>❌ No</td><td>✅ Yes</td></tr><tr><td>Item-specific deliverables</td><td>❌ No</td><td>✅ Yes</td></tr><tr><td>Version-controlled distillation</td><td>✅ Yes (brief.generated.md)</td><td>❌ No</td></tr></tbody></table></div>
+<p><strong>Best practice</strong>: Start exploration in a Topic, create work items as scope clarifies, then use Worksets for individual item execution.</p>
+<h3 id="active-topic-and-config-overlays">Active topic and config overlays<a role="anchor" aria-hidden="true" tabindex="-1" data-no-popover="true" href="#active-topic-and-config-overlays" class="internal"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg></a></h3>
+<ul>
+<li>Active topic state is shared across agents: <code>_kano/backlog/.cache/worksets/state.json</code></li>
+<li>When an agent has an active topic, config resolution includes topic overrides:
+<ul>
+<li>Layer order: defaults → product → <strong>topic</strong> → workset → runtime</li>
+<li>Topic config: <code>_kano/backlog/topics/&lt;topic>/config.toml</code></li>
+<li>Use for temporary overrides (e.g., switch <code>default_product</code> during exploration)</li>
+</ul>
+</li>
+<li>Inspect active topic: <code>python skills/kano-agent-backlog-skill/scripts/kano-backlog topic list --agent &lt;id></code></li>
+<li>Inspect shared topic state: <code>python skills/kano-agent-backlog-skill/scripts/kano-backlog topic show-state --agent &lt;id> --format json</code></li>
+</ul>
+<h3 id="materials-buffer-topic-specific">Materials buffer (Topic-specific)<a role="anchor" aria-hidden="true" tabindex="-1" data-no-popover="true" href="#materials-buffer-topic-specific" class="internal"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg></a></h3>
+<ul>
+<li><strong>Reference-first snippet collection</strong>: Avoid large copy-paste; store file+line+hash+optional snapshot</li>
+<li><strong>Snippet refs</strong> include:
+<ul>
+<li><code>file</code>: relative path from workspace root</li>
+<li><code>lines</code>: <code>[start, end]</code> (1-based inclusive)</li>
+<li><code>hash</code>: <code>sha256:...</code> of content for staleness check</li>
+<li><code>cached_text</code>: optional snapshot (use <code>--snapshot</code> to include)</li>
+<li><code>revision</code>: git commit hash if available</li>
+</ul>
+</li>
+</ul>
+<h3 id="human-decision-materials-vs-machine-manifest">Human decision materials vs. machine manifest<a role="anchor" aria-hidden="true" tabindex="-1" data-no-popover="true" href="#human-decision-materials-vs-machine-manifest" class="internal"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg></a></h3>
+<p><strong>Dual-Readability Design</strong>: Every artifact checks against both human and agent readability:</p>
+<ul>
+<li><strong>Human-Readable</strong>: High-level summaries, clear checklists, “manager-friendly” reports for rapid decision-making</li>
+<li><strong>Agent-Readable</strong>: Structural precision, file paths, line numbers, explicit markers for action without hallucination</li>
+</ul>
+<p><strong>Implementation in Topics</strong>:</p>
+<ul>
+<li>Treat <code>manifest.json</code> as <strong>machine-oriented</strong> metadata:
+<ul>
+<li><code>seed_items</code>: UUID list for precise agent reference</li>
+<li><code>snippet_refs</code>: file+line+hash for deterministic loading</li>
+<li><code>pinned_docs</code>: absolute paths for unambiguous reference</li>
+</ul>
+</li>
+<li>Keep <code>brief.generated.md</code> <strong>deterministic</strong> and <strong>tool-owned</strong> (generated/overwritten by <code>topic distill</code>):
+<ul>
+<li>Readable item titles (e.g., “KABSD-TSK-0042: Implement tokenizer adapter”)</li>
+<li>If available, include item path and keep UID in a hidden HTML comment for deterministic mapping</li>
+<li>Materials index with items/docs/snippets sorted for repeatability</li>
+</ul>
+</li>
+<li>Keep <code>brief.md</code> <strong>human-oriented</strong> and <strong>stable</strong> (do not overwrite automatically):
+<ul>
+<li>Context summary and key decisions</li>
+<li>Optional: include a human-friendly materials list (do not duplicate raw snippet text)</li>
+</ul>
+</li>
+<li>Put human-facing decision support in <code>_kano/backlog/topics/&lt;topic>/notes.md</code> (and/or pinned docs), e.g.:
+<ul>
+<li>Decision to make</li>
+<li>Options + trade-offs</li>
+<li>Evidence (ADR links, snippet refs, benchmark/log artifacts)</li>
+<li>Recommendation + follow-ups</li>
+</ul>
+</li>
+<li><strong>Staleness detection</strong>: Compare current file hash with stored hash to detect if code changed</li>
+<li><strong>Distillation</strong>: <code>topic distill</code> generates deterministic <code>brief.generated.md</code> with a repeatable materials index</li>
+</ul>
+<hr/>
+<p>END_OF_SKILL_SENTINEL</p></article><div class="page-listing"><p>3 items under this folder.</p><div><ul class="section-ul"><li class="section-li"><div class="section"><div><p class="meta">Jan 24, 2026</p></div><div class="desc"><h3><a href="../skill/changelog" class="internal">changelog</a></h3></div><ul class="tags"></ul></div></li><li class="section-li"><div class="section"><div><p class="meta">Jan 24, 2026</p></div><div class="desc"><h3><a href="../skill/readme" class="internal">readme</a></h3></div><ul class="tags"></ul></div></li><li class="section-li"><div class="section"><div><p class="meta">Jan 24, 2026</p></div><div class="desc"><h3><a href="../skill/reference" class="internal">reference</a></h3></div><ul class="tags"></ul></div></li></ul></div></div></div><hr/><div class="page-footer"></div></div><div class="right sidebar"></div><footer class><p>Created with <a href="https://quartz.jzhao.xyz/">Quartz v4.4.0</a> © 2026</p><ul><li><a href="https://github.com/jackyzha0/quartz">GitHub</a></li><li><a href="https://discord.gg/cRFFHYye7t">Discord Community</a></li></ul></footer></div></div></body><script type="application/javascript">function c(){let t=this.parentElement;t.classList.toggle("is-collapsed");let l=t.classList.contains("is-collapsed")?this.scrollHeight:t.scrollHeight;t.style.maxHeight=l+"px";let o=t,e=t.parentElement;for(;e;){if(!e.classList.contains("callout"))return;let n=e.classList.contains("is-collapsed")?e.scrollHeight:e.scrollHeight+o.scrollHeight;e.style.maxHeight=n+"px",o=e,e=e.parentElement}}function i(){let t=document.getElementsByClassName("callout is-collapsible");for(let s of t){let l=s.firstElementChild;if(l){l.addEventListener("click",c),window.addCleanup(()=>l.removeEventListener("click",c));let e=s.classList.contains("is-collapsed")?l.scrollHeight:s.scrollHeight;s.style.maxHeight=e+"px"}}}document.addEventListener("nav",i);window.addEventListener("resize",i);
 </script><script type="module">
           let mermaidImport = undefined
           document.addEventListener('nav', async () => {
