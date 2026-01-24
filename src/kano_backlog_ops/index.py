@@ -16,8 +16,9 @@ import time
 from datetime import datetime
 import os
 
-from .init import _resolve_backlog_root  # reuse existing resolver
+from .init import _resolve_backlog_root
 from kano_backlog_core.canonical import CanonicalStore
+from kano_backlog_core.schema import load_indexing_schema
 
 
 @dataclass
@@ -240,7 +241,8 @@ def _scan_items(product_root: Path) -> Iterable[dict]:
             continue
         stat = os.stat(path)
         mtime = stat.st_mtime
-        yield {
+        
+        frontmatter_dict = {
             "uid": item.uid,
             "id": item.id,
             "type": item.type.value,
@@ -251,12 +253,30 @@ def _scan_items(product_root: Path) -> Iterable[dict]:
             "owner": item.owner,
             "area": item.area,
             "iteration": item.iteration,
+            "tags": item.tags or [],
+            "created": item.created,
+            "updated": item.updated,
+        }
+        
+        yield {
+            "uid": item.uid,
+            "id": item.id,
+            "type": item.type.value,
+            "state": item.state.value,
+            "title": item.title,
+            "priority": item.priority,
+            "parent_uid": item.parent,
+            "owner": item.owner,
+            "area": item.area,
+            "iteration": item.iteration,
             "tags": json.dumps(item.tags or [], ensure_ascii=False),
             "created": item.created,
             "updated": item.updated,
             "product": product_root.name,
             "path": str(path),
             "mtime": mtime,
+            "content_hash": None,
+            "frontmatter": json.dumps(frontmatter_dict, ensure_ascii=False),
         }
 
 
@@ -268,40 +288,20 @@ def _rebuild_sqlite_index(index_path: Path, product_root: Path) -> int:
     conn = sqlite3.connect(index_path)
     try:
         cur = conn.cursor()
-        cur.execute(
-            """
-            CREATE TABLE IF NOT EXISTS items (
-                uid TEXT PRIMARY KEY,
-                id TEXT NOT NULL,
-                product TEXT NOT NULL,
-                type TEXT,
-                state TEXT,
-                title TEXT,
-                priority TEXT,
-                parent TEXT,
-                owner TEXT,
-                area TEXT,
-                iteration TEXT,
-                tags TEXT,
-                created TEXT,
-                updated TEXT,
-                path TEXT,
-                mtime REAL,
-                UNIQUE(product, id),
-                UNIQUE(path)
-            )
-            """
-        )
+        
+        schema_sql = load_indexing_schema()
+        cur.executescript(schema_sql)
+        
         rows = list(_scan_items(product_root))
         if rows:
             cur.executemany(
                 """
                 INSERT INTO items (
-                    uid, id, product, type, state, title, priority, parent, owner, area,
-                    iteration, tags, created, updated, path, mtime
+                    uid, id, product, type, state, title, priority, parent_uid, owner, area,
+                    iteration, tags, created, updated, path, mtime, content_hash, frontmatter
                 ) VALUES (
-                    :uid, :id, :product, :type, :state, :title, :priority, :parent, :owner, :area,
-                    :iteration, :tags, :created, :updated, :path, :mtime
+                    :uid, :id, :product, :type, :state, :title, :priority, :parent_uid, :owner, :area,
+                    :iteration, :tags, :created, :updated, :path, :mtime, :content_hash, :frontmatter
                 )
                 """,
                 rows,
