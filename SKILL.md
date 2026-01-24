@@ -101,7 +101,7 @@ If the backlog structure is missing, propose the bootstrap commands and wait for
 
 ### Developer vs user mode (where to declare it)
 
-- **Preferred source of truth**: product config in `_kano/backlog/products/<product>/_config/config.json`.
+- **Preferred source of truth**: product config in `_kano/backlog/products/<product>/_config/config.toml`.
   - `mode.skill_developer`: `true` when this repo actively develops the skill itself (this demo repo).
   - `mode.persona`: optional string describing the primary human persona (e.g. `developer`, `pm`, `qa`), used only for human-facing summaries/views.
 - **Secondary**: agent guide files (e.g., `AGENTS.md` / `CLAUDE.md`) can document expectations, but are agent-specific and not script-readable.
@@ -135,11 +135,11 @@ If packages are missing, install once (recommended):
 ### Backlog initialization (file scaffold + config + dashboards)
 
 Detect (multi-product / platform layout):
-- Product initialized if `_kano/backlog/products/<product>/_config/config.json` exists (or confirm via `python skills/kano-agent-backlog-skill/scripts/kano-backlog doctor --product <product>`).
+- Product initialized if `_kano/backlog/products/<product>/_config/config.toml` exists (or confirm via `python skills/kano-agent-backlog-skill/scripts/kano-backlog doctor --product <product>`).
 
 Bootstrap:
 - Run `python skills/kano-agent-backlog-skill/scripts/kano-backlog admin init --product <product> --agent <agent-id> [--backlog-root <path>]` to scaffold `_kano/backlog/products/<product>/` (items/, decisions/, views/, `_config/`, `_meta/`, `_index/`).
-- The init command derives a project prefix, writes `_config/config.json`, and refreshes dashboards so views exist immediately after initialization.
+- The init command derives a project prefix, writes `_config/config.toml`, and refreshes dashboards so views exist immediately after initialization.
 - Manual fallback (only if automation is unavailable): follow `_kano/backlog/README.md` to copy the template scaffold, then refresh views via `kano-backlog view refresh`.
 
 ## Optional LLM analysis over deterministic reports
@@ -380,12 +380,13 @@ _kano/backlog/.cache/worksets/items/<ITEM_ID>/
 
 ### Active topic and config overlays
 
-- Active topic is per-agent: `_kano/backlog/.cache/worksets/active_topic.<agent>.txt`
+- Active topic state is shared across agents: `_kano/backlog/.cache/worksets/state.json`
 - When an agent has an active topic, config resolution includes topic overrides:
   - Layer order: defaults → product → **topic** → workset → runtime
   - Topic config: `_kano/backlog/topics/<topic>/config.toml`
   - Use for temporary overrides (e.g., switch `default_product` during exploration)
-- Get active topic: `python skills/kano-agent-backlog-skill/scripts/kano-backlog topic show --agent <id>`
+- Inspect active topic: `python skills/kano-agent-backlog-skill/scripts/kano-backlog topic list --agent <id>`
+- Inspect shared topic state: `python skills/kano-agent-backlog-skill/scripts/kano-backlog topic show-state --agent <id> --format json`
 
 ### Materials buffer (Topic-specific)
 

@@ -76,11 +76,13 @@ These semantics apply to built-ins that use the default KABSD state set:
 
 ## Config selection
 
-Use `process.profile` and `process.path` in `_kano/backlog/_config/config.toml`
+Use `process.profile` and `process.path` in your product config:
+
+- `_kano/backlog/products/<product>/_config/config.toml`
+
 to choose a built-in profile or a custom file.
 
-Use `scripts/backlog/process_linter.py` to verify item folders match the active
-process profile and optionally create missing folders.
+Use `kano-backlog config show --product <product>` to confirm the effective merged config.
 
 ## Built-in profiles
 
@@ -91,8 +93,8 @@ process profile and optionally create missing folders.
 
 ## Custom profiles
 
-Use the template as a starting point and store it under your backlog config
-area (recommended: `_kano/backlog/_config/processes/`), then point
+Use the template as a starting point and store it under your product config
+area (recommended: `_kano/backlog/products/<product>/_config/processes/`), then point
 `process.path` to that file.
 
 Template:
@@ -102,5 +104,5 @@ Example config:
 
 ```toml
 [process]
-path = "_kano/backlog/_config/processes/custom.toml"
+path = "_kano/backlog/products/<product>/_config/processes/custom.toml"
 ```

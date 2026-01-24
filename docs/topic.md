@@ -12,8 +12,9 @@ While worksets are per-item execution caches, topics group multiple items and do
 
 ## Principles
 
-- Topics are derived data, but `brief.md` is deterministic and can be shared/reviewed in-repo
-- One active topic per agent at a time (active pointer is local cache)
+- Topics are derived data, but `brief.generated.md` is deterministic and can be shared/reviewed in-repo
+- `brief.md` is stable and human-maintained (do not overwrite automatically)
+- One active topic per agent at a time (tracked in shared cache state)
 - Topics reference items by UID/ID (not copies)
 - Pinned documents provide additional context beyond items
 - `manifest.json` is primarily **machine-oriented** (for agents/tools); capture **human decision material** in `notes.md` (and/or pinned docs) so `brief.md` can remain deterministic
@@ -37,7 +38,8 @@ _kano/backlog/topics/<topic-name>/
   publish/          # Prepared write-backs / patch skeletons (optional)
 
 _kano/backlog/.cache/worksets/
-  active_topic.<agent>.txt   # Current active topic for agent
+  state.json                 # Shared topic state across agents
+  topics/<slug>_<uuid>.json  # Topic state entries (cache)
 ```
 
 Notes:
@@ -77,7 +79,9 @@ All topic commands are accessed via `kano-backlog topic <subcommand>`.
 ### Create a Topic
 
 ```bash
-kano-backlog topic create <topic-name> --agent <agent-name> [--no-notes] [--format plain|json]
+kano-backlog topic create <topic-name> --agent <agent-name> \
+  [--template <name> | --list-templates] [--var key=value ...] \
+  [--no-notes] [--with-spec] [--format plain|json]
 ```
 
 Creates a new topic:
@@ -92,6 +96,21 @@ Creates a new topic:
 kano-backlog topic create complex-feature --agent kiro --with-spec
 ```
 This generates the **Spec Triad** (Requirements, Design, Tasks) in a specific `spec/` subdirectory, enabling rigorous feature definition (Medium-Term Memory).
+
+### Topic Templates
+
+List available templates:
+
+```bash
+kano-backlog topic template list
+```
+
+Create from a template:
+
+```bash
+kano-backlog topic create <topic-name> --agent <agent-name> --template <template-name> \
+  --var key=value --var other=value
+```
 
 ### Add Items to Topic
 
@@ -169,7 +188,7 @@ _kano/backlog/topics/<topic-name>/publish/decision-audit.md
 2) Write back a decision to a work item:
 
 ```bash
-kano workitem add-decision <ITEM_ID_OR_PATH> \
+kano-backlog workitem add-decision <ITEM_ID_OR_PATH> \
   --decision "<English decision text>" \
   --source "_kano/backlog/topics/<topic-name>/synthesis/<file>.md" \
   --agent <agent-id> \
@@ -187,6 +206,71 @@ kano-backlog topic cleanup --ttl-days 14 --apply
 ```
 
 Closing marks the topic as closed; cleanup removes raw materials after TTL (and may optionally delete closed topics depending on implementation flags).
+
+### Snapshots (Create/List/Restore/Cleanup)
+
+Snapshots are lightweight, local-first checkpoints stored under:
+
+```text
+_kano/backlog/topics/<topic-name>/snapshots/
+```
+
+Commands:
+
+```bash
+kano-backlog topic snapshot create <topic-name> <snapshot-name> --agent <agent-id> [--description "..."] [--no-materials]
+kano-backlog topic snapshot list <topic-name>
+kano-backlog topic snapshot restore <topic-name> <snapshot-name> --agent <agent-id>
+kano-backlog topic snapshot cleanup <topic-name> --ttl-days 14 --keep-latest 5
+kano-backlog topic snapshot cleanup <topic-name> --ttl-days 14 --keep-latest 5 --apply
+```
+
+### Cross-References (related_topics)
+
+Topics can be linked bidirectionally to support navigation and later graph-assisted retrieval.
+
+```bash
+kano-backlog topic add-reference <topic-a> --to <topic-b>
+kano-backlog topic remove-reference <topic-a> --to <topic-b>
+```
+
+### Merge and Split
+
+Merge multiple topics into a target topic:
+
+```bash
+kano-backlog topic merge <target-topic> <source-topic-1> <source-topic-2> --agent <agent-id> --dry-run
+kano-backlog topic merge <target-topic> <source-topic-1> <source-topic-2> --agent <agent-id>
+```
+
+Split a topic into multiple subtopics:
+
+```bash
+kano-backlog topic split <source-topic> --agent <agent-id> \
+  --new-topic "new-topic-a:ITEM-1,ITEM-2" \
+  --new-topic "new-topic-b:ITEM-3"
+```
+
+### Shared Topic State (Active Topic Tracking)
+
+Active topic pointers are stored in shared cache state:
+
+- `_kano/backlog/.cache/worksets/state.json`
+- `_kano/backlog/.cache/worksets/topics/*.json`
+
+Inspect shared state:
+
+```bash
+kano-backlog topic show-state
+kano-backlog topic list-active
+```
+
+Migrate legacy pointers (if you still have `active_topic.<agent>.txt` files):
+
+```bash
+kano-backlog topic migrate
+kano-backlog topic cleanup-legacy --no-dry-run
+```
 
 ### Export Context Bundle
 

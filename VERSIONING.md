@@ -31,7 +31,7 @@ Non-exhaustive examples:
 - Renaming/removing required frontmatter keys, or changing the meaning of states/groups
 - Changing the canonical backlog root layout (`_kano/backlog/**`) or bucket rules
 - Removing/renaming CLI flags, or changing defaults that alter deterministic outputs
-- Renaming/removing config keys under `_kano/backlog/_config/config.json`
+- Renaming/removing config keys under `_kano/backlog/products/<product>/_config/config.toml`
 - Changing canonical dashboard filenames or their grouping semantics
 
 ## Release checklist (minimum)

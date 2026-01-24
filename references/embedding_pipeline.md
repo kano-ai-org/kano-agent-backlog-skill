@@ -230,7 +230,7 @@ metric = "cosine"
 The pipeline configuration is loaded through the standard config system:
 
 1. **Base configuration**: Default values from `PipelineConfig` class
-2. **Product config**: Values from `_kano/backlog/products/{product}/config.toml`
+2. **Product config**: Values from `_kano/backlog/products/{product}/_config/config.toml`
 3. **Environment overrides**: Environment variables (if supported)
 
 ### Config File Location
@@ -238,7 +238,7 @@ The pipeline configuration is loaded through the standard config system:
 Place embedding configuration in your product's config file:
 
 ```
-_kano/backlog/products/{product}/config.toml
+_kano/backlog/products/{product}/_config/config.toml
 ```
 
 ### Validation

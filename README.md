@@ -36,7 +36,7 @@ Rules of engagement:
 
 ```bash
 # One-time setup in a repo
-kano-backlog backlog init --product <my-product> --agent <agent-id>
+kano-backlog admin init --product <my-product> --agent <agent-id>
 
 # Start work (tickets-first)
 kano-backlog item create --type task --title "..." --agent <agent-id> --product <my-product>
@@ -99,21 +99,25 @@ By enforcing **Dual-Readability** (Markdown for humans, JSON/Structured data for
 - `references/workflow.md`: SOP (when to create items, when to record decisions, how to converge)
 - `references/views.md`: Obsidian view patterns (Dataview + Bases)
 - `kano-backlog`: Typer-based CLI entrypoint with subcommands:
-  - `item` - Create and manage work items (Epic/Feature/UserStory/Task/Bug)
-  - `item update-state` - Transition item states with worklog tracking
+  - `admin` - Backlog bootstrap + maintenance helpers (init, adr, index, schema, release, ...)
+  - `item` / `workitem` - Create/manage work items (Epic/Feature/UserStory/Task/Bug) + write-backs
   - `worklog` - Append worklog entries
-  - `adr` - Create and manage Architecture Decision Records
   - `workset` - Per-item execution cache (init/refresh/next/promote/cleanup/detect-adr)
-  - `topic` - Context grouping and switching (create/add/pin/distill/decision-audit/switch/export-context/list)
-  - `workitem` - Item utilities (including `add-decision` write-back)
+  - `topic` - Context grouping (templates, snapshots, merge/split, cross-references, switch/export)
   - `view` - Generate dashboards and reports
-  - `backlog` - Initialize and manage backlog structure
-  - `doctor` - Validate backlog health
+  - `snapshot` - Evidence snapshots (read-only capture)
+  - `config` - Inspect/validate layered config
+  - `embedding` - Embedding pipeline operations (build/query/status)
+  - `search` - Vector similarity search
+  - `tokenizer` - Tokenizer adapter configuration/testing
+  - `benchmark` - Deterministic benchmark harness
+  - `changelog` - Generate changelog from backlog
+  - `doctor` - Environment/backlog health checks
 - `src/kano_backlog_core`: canonical models/storage helpers
 - `src/kano_backlog_ops`: use-cases (create/update/view/workset/topic)
 - `src/kano_backlog_cli`: CLI wiring (commands + utilities)
 
-Note: backlog administration commands are grouped under `kano-backlog backlog ...`.
+Note: backlog bootstrap and maintenance commands are grouped under `kano-backlog admin ...`.
 
 Optionally, create `_kano/backlog/` in your project repo to store items, ADRs, views, and helper scripts as the system of record.
 
@@ -134,7 +138,7 @@ python scripts/kano-backlog --help
 
 ## Quick start (see value in ~5 minutes)
 
-1) Run `kano-backlog backlog init --product <my-product> --agent <id>` to scaffold `_kano/backlog/products/<my-product>/`
+1) Run `kano-backlog admin init --product <my-product> --agent <id>` to scaffold `_kano/backlog/products/<my-product>/`
 2) (Optional) Open the repo in Obsidian and enable Dataview or Bases
 3) Open `_kano/backlog/products/<my-product>/views/` (or regenerate them with `kano-backlog view refresh --agent <id> --product <my-product>`)
 4) Before any code change, create a Task/Bug and satisfy the Ready gate

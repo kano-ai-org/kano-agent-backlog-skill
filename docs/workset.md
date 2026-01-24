@@ -160,7 +160,7 @@ kano-backlog workset cleanup --ttl-hours 48
 When `Decision:` markers are found in `notes.md`:
 
 1. Run `kano-backlog workset detect-adr --item <id>` to find candidates
-2. Create ADR using `kano adr create ...`
+2. Create ADR using `kano-backlog admin adr create ...`
 3. Link ADR to item via `decisions:` frontmatter
 4. Worklog entry is appended automatically
 

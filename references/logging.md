@@ -77,15 +77,14 @@ Set these environment variables to adjust logging without code changes:
 
 ## Config defaults
 
-Logging scripts read defaults from `_kano/backlog/_config/config.json`:
+Logging defaults are read from your product config (with environment overrides):
 
-```json
-{
-  "log": {
-    "verbosity": "info",
-    "debug": false
-  }
-}
+- `_kano/backlog/products/<product>/_config/config.toml`
+
+```toml
+[log]
+verbosity = "info"
+debug = false
 ```
 
 Verbosity behavior:
