@@ -10,61 +10,61 @@
     <link>https://https:/dorgonman.github.io/kano-agent-backlog-skill/api/</link>
     <guid>https://https:/dorgonman.github.io/kano-agent-backlog-skill/api/</guid>
     <description>API Reference Python API documentation API Overview Full API Documentation .</description>
-    <pubDate>Sat, 24 Jan 2026 11:09:45 GMT</pubDate>
+    <pubDate>Sat, 24 Jan 2026 11:38:49 GMT</pubDate>
   </item><item>
     <title>CLI Reference</title>
     <link>https://https:/dorgonman.github.io/kano-agent-backlog-skill/cli/</link>
     <guid>https://https:/dorgonman.github.io/kano-agent-backlog-skill/cli/</guid>
     <description>CLI Reference Command-line interface documentation CLI Commands .</description>
-    <pubDate>Sat, 24 Jan 2026 11:09:45 GMT</pubDate>
+    <pubDate>Sat, 24 Jan 2026 11:38:49 GMT</pubDate>
   </item><item>
     <title>Kano Agent Backlog Skill</title>
     <link>https://https:/dorgonman.github.io/kano-agent-backlog-skill/</link>
     <guid>https://https:/dorgonman.github.io/kano-agent-backlog-skill/</guid>
     <description>Kano Agent Backlog Skill AI Agent Skills for Spec-Driven Agentic Programming Navigation Demo &amp; Examples - Demonstration repository and usage examples Skill Documentation ...</description>
-    <pubDate>Sat, 24 Jan 2026 11:09:45 GMT</pubDate>
+    <pubDate>Sat, 24 Jan 2026 11:38:49 GMT</pubDate>
   </item><item>
     <title>Technical References</title>
     <link>https://https:/dorgonman.github.io/kano-agent-backlog-skill/references/</link>
     <guid>https://https:/dorgonman.github.io/kano-agent-backlog-skill/references/</guid>
     <description>Technical References Technical documentation and references README README README README README README README README README README README .</description>
-    <pubDate>Sat, 24 Jan 2026 11:09:45 GMT</pubDate>
+    <pubDate>Sat, 24 Jan 2026 11:38:49 GMT</pubDate>
   </item><item>
     <title>workflow</title>
     <link>https://https:/dorgonman.github.io/kano-agent-backlog-skill/references/workflow</link>
     <guid>https://https:/dorgonman.github.io/kano-agent-backlog-skill/references/workflow</guid>
     <description>Workflow SOP A) Planning (discussion → tickets) Create or update Epic for the milestone. Split into Features (capabilities). Split into UserStories (user perspective).</description>
-    <pubDate>Sat, 24 Jan 2026 11:09:45 GMT</pubDate>
+    <pubDate>Sat, 24 Jan 2026 11:38:49 GMT</pubDate>
   </item><item>
     <title>templates</title>
     <link>https://https:/dorgonman.github.io/kano-agent-backlog-skill/references/templates</link>
     <guid>https://https:/dorgonman.github.io/kano-agent-backlog-skill/references/templates</guid>
     <description>Templates Work item template Place the file under _kano/backlog/items/&lt;type&gt;/. Use the ID prefix derived from config/profile.env → PROJECT_NAME (example: kano-agent-backlog-skill-demo → KABSD).</description>
-    <pubDate>Sat, 24 Jan 2026 11:09:45 GMT</pubDate>
+    <pubDate>Sat, 24 Jan 2026 11:38:49 GMT</pubDate>
   </item><item>
     <title>views</title>
     <link>https://https:/dorgonman.github.io/kano-agent-backlog-skill/references/views</link>
     <guid>https://https:/dorgonman.github.io/kano-agent-backlog-skill/references/views</guid>
     <description>Views (Obsidian Dataview) If you want fewer plugin dependencies, consider Obsidian Bases as a plugin-free alternative for table-style dashboards. See references/bases.md.</description>
-    <pubDate>Sat, 24 Jan 2026 11:09:45 GMT</pubDate>
+    <pubDate>Sat, 24 Jan 2026 11:38:49 GMT</pubDate>
+  </item><item>
+    <title>processes</title>
+    <link>https://https:/dorgonman.github.io/kano-agent-backlog-skill/references/processes</link>
+    <guid>https://https:/dorgonman.github.io/kano-agent-backlog-skill/references/processes</guid>
+    <description>Process Profiles Process profiles define work item types, states, and transitions for the local backlog. They are intended to be human-readable and easy to adjust for agent workflows.</description>
+    <pubDate>Sat, 24 Jan 2026 11:38:49 GMT</pubDate>
   </item><item>
     <title>schema</title>
     <link>https://https:/dorgonman.github.io/kano-agent-backlog-skill/references/schema</link>
     <guid>https://https:/dorgonman.github.io/kano-agent-backlog-skill/references/schema</guid>
     <description>Backlog Schema Process-defined types and states Item types and states come from the active process profile. See references/processes.md and the profile selected via _kano/backlog/_config/config.json (process.profile or process.path).</description>
-    <pubDate>Sat, 24 Jan 2026 11:09:45 GMT</pubDate>
+    <pubDate>Sat, 24 Jan 2026 11:38:49 GMT</pubDate>
   </item><item>
-    <title>indexing</title>
-    <link>https://https:/dorgonman.github.io/kano-agent-backlog-skill/references/indexing</link>
-    <guid>https://https:/dorgonman.github.io/kano-agent-backlog-skill/references/indexing</guid>
-    <description>Indexing (Optional) This skill is file-first: the source of truth is Markdown files under _kano/backlog/. Indexing is an optional, rebuildable layer that exists to make agents and humans faster at: finding relevant items quickly (filters, sorting, parent/child traversal), producing views/reports reproducibly, powering later retrieval workflows (e.g.</description>
-    <pubDate>Sat, 24 Jan 2026 11:09:45 GMT</pubDate>
-  </item><item>
-    <title>logging</title>
-    <link>https://https:/dorgonman.github.io/kano-agent-backlog-skill/references/logging</link>
-    <guid>https://https:/dorgonman.github.io/kano-agent-backlog-skill/references/logging</guid>
-    <description>Audit Logging (Agent Tool Invocations) Log location (default) Root: _kano/backlog/_shared/logs/agent_tools/ (cross-product shared) File: tool_invocations.jsonl Log format ...</description>
-    <pubDate>Sat, 24 Jan 2026 11:09:45 GMT</pubDate>
+    <title>embedding_pipeline</title>
+    <link>https://https:/dorgonman.github.io/kano-agent-backlog-skill/references/embedding_pipeline</link>
+    <guid>https://https:/dorgonman.github.io/kano-agent-backlog-skill/references/embedding_pipeline</guid>
+    <description>Embedding Pipeline Configuration The embedding pipeline enables semantic search and similarity analysis across backlog items through vector embeddings ...</description>
+    <pubDate>Sat, 24 Jan 2026 11:38:49 GMT</pubDate>
   </item>
     </channel>
   </rss>
