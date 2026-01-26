@@ -146,14 +146,38 @@ def search_repo_hybrid(
         conn.close()
     
     backend = get_backend(vec_cfg)
+    backend.load()
     
     vector_results = backend.query(
-        query_vector=query_vector,
+        query_vector,
         k=min(k, len(candidate_chunk_ids)),
-        filter_chunk_ids=candidate_chunk_ids,
+        filters={"chunk_ids": candidate_chunk_ids},
     )
     
     duration_ms = (time.perf_counter() - t0) * 1000
+
+    # If vectors are missing (or not built for this embedding space), fall back to
+    # FTS-only ordering so repo search remains usable.
+    if not vector_results:
+        results = []
+        for chunk_id in candidate_chunk_ids[: int(k)]:
+            fts_info = fts_data.get(chunk_id)
+            if not fts_info:
+                continue
+            results.append(
+                RepoHybridSearchResult(
+                    chunk_id=chunk_id,
+                    file_path=fts_info["file_path"],
+                    file_id=fts_info["file_id"],
+                    section=fts_info["section"],
+                    snippet=fts_info["snippet"],
+                    content=fts_info["content"],
+                    vector_score=0.0,
+                    bm25_score=fts_info["bm25_score"],
+                    duration_ms=duration_ms,
+                )
+            )
+        return results
     
     results = []
     for vr in vector_results:

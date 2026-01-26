@@ -131,9 +131,13 @@ def build_repo_vector_index(
             conn = sqlite3.connect(str(sqlite_vec_db_path))
             try:
                 cur = conn.cursor()
-                rows = cur.execute("SELECT chunk_id FROM vectors").fetchall()
-                existing_chunk_ids = {row[0] for row in rows}
-                logger.info(f"Found {len(existing_chunk_ids)} existing vectors")
+                try:
+                    rows = cur.execute("SELECT chunk_id FROM vectors").fetchall()
+                    existing_chunk_ids = {row[0] for row in rows}
+                    logger.info(f"Found {len(existing_chunk_ids)} existing vectors")
+                except sqlite3.OperationalError:
+                    # Table doesn't exist yet (first build or schema mismatch)
+                    logger.info("No existing vectors table found, will create fresh")
             finally:
                 conn.close()
     

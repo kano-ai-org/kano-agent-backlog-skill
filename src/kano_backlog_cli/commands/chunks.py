@@ -251,18 +251,6 @@ def build_repo_vectors(
     typer.echo(f"- backend_type: {result.backend_type}")
 
 
-
-
-    for i, r in enumerate(results, 1):
-        typer.echo(f"## Result {i} (vector: {r.vector_score:.4f}, bm25: {r.bm25_score:.4f})")
-        typer.echo(f"- file: {r.file_path}")
-        typer.echo(f"- file_id: {r.file_id}")
-        typer.echo(f"- section: {r.section or 'unknown'}")
-        typer.echo(f"- chunk_id: {r.chunk_id}")
-        typer.echo(f"- snippet: {r.snippet}")
-        typer.echo()
-
-
 @app.command("build-status")
 def check_build_status(
     project_root: Optional[Path] = typer.Option(None, "--project-root", help="Project root (auto-detected if not specified)"),
