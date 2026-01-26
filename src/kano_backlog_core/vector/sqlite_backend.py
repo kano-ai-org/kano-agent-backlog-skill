@@ -17,6 +17,7 @@ import hashlib
 import json
 import sqlite3
 import struct
+from datetime import datetime
 
 from .adapter import VectorBackendAdapter
 from .types import VectorChunk, VectorQueryResult
@@ -56,6 +57,39 @@ class SQLiteVectorBackend(VectorBackendAdapter):
         if self._base_path.suffix:
             return self._base_path
         return self._base_path / f"{self._collection}.sqlite3"
+
+    def _write_metadata_file(self) -> None:
+        """Write human-readable metadata file next to the SQLite database."""
+        if not self._db_path or not self._embedding_space_id:
+            return
+        
+        metadata_path = self._db_path.with_suffix('.meta.json')
+        
+        # Parse embedding_space_id to extract components
+        parts = {}
+        if self._embedding_space_id:
+            for segment in self._embedding_space_id.split('|'):
+                if ':' in segment:
+                    key, *values = segment.split(':')
+                    parts[key] = ':'.join(values)
+        
+        metadata = {
+            "database": self._db_path.name,
+            "collection": self._collection,
+            "embedding_space_id": self._embedding_space_id,
+            "hash": self._db_path.stem.split('.')[-1] if '.' in self._db_path.stem else None,
+            "created_at": datetime.utcnow().isoformat() + "Z",
+            "config": {
+                "dimensions": self._dims,
+                "metric": self._metric,
+                "storage_format": self._storage_format,
+            },
+            "components": parts,
+        }
+        
+        with open(metadata_path, 'w', encoding='utf-8') as f:
+            json.dump(metadata, f, indent=2, ensure_ascii=False)
+            f.write('\n')
 
     def _ensure_connection(self) -> None:
         if self._conn is not None:
@@ -160,6 +194,8 @@ class SQLiteVectorBackend(VectorBackendAdapter):
             pass
 
         self._conn.commit()
+        
+        self._write_metadata_file()
 
     def upsert(self, chunk: VectorChunk) -> None:
         self._ensure_connection()
@@ -376,8 +412,13 @@ class SQLiteVectorBackend(VectorBackendAdapter):
         )
         dims = self._read_meta("dims")
         metric = self._read_meta("metric")
+        storage_format = self._read_meta("storage_format")
         self._dims = int(dims) if dims is not None else self._dims
         self._metric = metric or self._metric
+        if storage_format:
+            self._storage_format = storage_format
+        
+        self._write_metadata_file()
 
     def get_stats(self) -> Dict[str, Any]:
         """Get statistics about the vector index."""
