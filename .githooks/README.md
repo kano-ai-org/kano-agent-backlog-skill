@@ -301,9 +301,50 @@ These hooks follow the principle:
 
 > **"Gentle reminders, not strict enforcement"**
 
-- Warnings, not errors (commits still proceed)
-- Smart detection (trivial commits exempted)
-- Helpful suggestions (copy-paste commands)
-- Easy to disable (--no-verify)
+- **Soft reminders**, not warnings or errors
+- **Always allow commits** to proceed
+- **Easy to disable** (one command)
+- **Smart detection** (trivial commits exempted)
+- **Helpful suggestions** (copy-paste commands)
 
 The goal is to **build good habits**, not to **block productivity**.
+
+### Why Soft Reminders?
+
+**Some commits don't need tickets:**
+- Exploratory work (trying things out)
+- WIP commits (work in progress)
+- Quick fixes (typos, formatting)
+- Experimental branches
+- Personal projects
+
+**The hook respects this:**
+- Shows a gentle "💡 Reminder" (not "⚠️ WARNING")
+- Emphasizes it's optional
+- Easy to disable per-repo or globally
+- Never blocks your work
+
+### Disabling Reminders
+
+**Per repository:**
+```bash
+git config kano.backlog.reminders false
+```
+
+**Globally (all repos):**
+```bash
+git config --global kano.backlog.reminders false
+```
+
+**Re-enable:**
+```bash
+git config kano.backlog.reminders true
+```
+
+**Check status:**
+```bash
+git config --get kano.backlog.reminders
+# (empty) = enabled (default)
+# false = disabled
+# true = explicitly enabled
+```
