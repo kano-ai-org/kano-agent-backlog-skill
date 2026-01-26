@@ -215,6 +215,7 @@ def build_repo_vectors(
     project_root: Optional[Path] = typer.Option(None, "--project-root", help="Project root (auto-detected if not specified)"),
     backlog_root: Optional[Path] = typer.Option(None, "--backlog-root", help="Backlog root (_kano/backlog)"),
     force: bool = typer.Option(False, "--force", help="Force rebuild (clear existing vectors)"),
+    storage_format: str = typer.Option("binary", "--storage-format", help="Vector storage format: binary (default, 80% smaller) | json (debug-friendly)"),
     output_format: str = typer.Option("markdown", "--format", help="Output format: markdown|json"),
 ):
     """Build vector index for repo corpus."""
@@ -226,6 +227,7 @@ def build_repo_vectors(
         project_root=project_root,
         backlog_root=backlog_root,
         force=force,
+        storage_format=storage_format,
     )
 
     if output_format == "json":

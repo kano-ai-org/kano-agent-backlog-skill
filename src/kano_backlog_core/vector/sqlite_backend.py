@@ -16,6 +16,7 @@ from typing import Any, Dict, List, Optional
 import hashlib
 import json
 import sqlite3
+import struct
 
 from .adapter import VectorBackendAdapter
 from .types import VectorChunk, VectorQueryResult
@@ -30,10 +31,12 @@ class SQLiteVectorBackend(VectorBackendAdapter):
         collection: str = "backlog",
         *,
         embedding_space_id: Optional[str] = None,
+        storage_format: str = "binary",
     ):
         self._base_path = Path(path)
         self._collection = collection
         self._embedding_space_id = (embedding_space_id or "").strip() or None
+        self._storage_format = storage_format if storage_format in ("binary", "json") else "binary"
         self._conn: Optional[sqlite3.Connection] = None
         self._dims: Optional[int] = None
         self._metric: Optional[str] = None
@@ -125,6 +128,7 @@ class SQLiteVectorBackend(VectorBackendAdapter):
 
         self._write_meta("dims", str(dims))
         self._write_meta("metric", metric_norm)
+        self._write_meta("storage_format", self._storage_format)
         if self._embedding_space_id:
             self._write_meta("embedding_space_id", self._embedding_space_id)
         self._write_meta("schema_version", "1")
@@ -168,7 +172,11 @@ class SQLiteVectorBackend(VectorBackendAdapter):
                 f"Vector dims mismatch: expected={self._dims} got={len(chunk.vector)}"
             )
 
-        vector_json = json.dumps(chunk.vector, separators=(",", ":"), ensure_ascii=True)
+        if self._storage_format == "binary":
+            vector_data = struct.pack(f'{len(chunk.vector)}f', *chunk.vector)
+        else:
+            vector_data = json.dumps(chunk.vector, separators=(",", ":"), ensure_ascii=True)
+        
         metadata_json = json.dumps(chunk.metadata or {}, sort_keys=True, separators=(",", ":"))
 
         self._conn.execute(
@@ -177,7 +185,7 @@ class SQLiteVectorBackend(VectorBackendAdapter):
             (chunk_id, text, metadata_json, vector_json)
             VALUES (?, ?, ?, ?)
             """,
-            (chunk.chunk_id, chunk.text, metadata_json, vector_json),
+            (chunk.chunk_id, chunk.text, metadata_json, vector_data),
         )
 
         # Optional: sync vec0 table if present
@@ -297,12 +305,15 @@ class SQLiteVectorBackend(VectorBackendAdapter):
             cursor = self._conn.execute(base_sql)
 
         results: List[VectorQueryResult] = []
-        for chunk_id, text, metadata_json, vector_json in cursor:
+        for chunk_id, text, metadata_json, vector_data in cursor:
             if chunk_id_set is not None and str(chunk_id) not in chunk_id_set:
                 continue
             try:
-                stored_vector = json.loads(vector_json)
-            except (json.JSONDecodeError, TypeError):
+                if isinstance(vector_data, bytes):
+                    stored_vector = list(struct.unpack(f'{len(vector_data)//4}f', vector_data))
+                else:
+                    stored_vector = json.loads(vector_data)
+            except (json.JSONDecodeError, TypeError, struct.error):
                 continue
 
             score = self._score(vector, stored_vector)

@@ -49,6 +49,7 @@ def build_repo_vector_index(
     project_root: Optional[Path] = None,
     backlog_root: Optional[Path] = None,
     force: bool = False,
+    storage_format: str = "binary",
 ) -> RepoVectorIndexResult:
     """Build vector index for repo corpus."""
     t0 = time.perf_counter()
@@ -111,6 +112,7 @@ def build_repo_vector_index(
         "path": str(vec_path),
         "collection": "repo_chunks",
         "embedding_space_id": embedding_space_id,
+        "storage_format": storage_format,
     }
     
     sqlite_vec_db_path: Optional[Path] = None
