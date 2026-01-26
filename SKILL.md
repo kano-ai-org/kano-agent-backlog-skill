@@ -227,11 +227,11 @@ If the backlog structure is missing, propose creation and wait for user approval
 - **Fuzzy matching**: "error handling for database connections" (various phrasings, synonyms)
 - **Discovery phase**: Exploring unfamiliar codebase or backlog areas
 
-**Commands:**
-- Backlog corpus: `python skills/kano-agent-backlog-skill/scripts/kano-backlog search hybrid-backlog "query" --product <product> --k 10`
-- Repo corpus: `python skills/kano-agent-backlog-skill/scripts/kano-backlog search hybrid-repo "query" --k 10 --fts-candidates 200`
+**Commands (planned unified interface):**
+- Backlog corpus: `python skills/kano-agent-backlog-skill/scripts/kano-backlog search hybrid "query" --corpus backlog --product <product> --k 10`
+- Repo corpus: `python skills/kano-agent-backlog-skill/scripts/kano-backlog search hybrid "query" --corpus repo --k 10 --fts-candidates 200`
 
-**Note**: Current implementation uses `search hybrid` (backlog) and `chunks search-repo-hybrid` (repo). The commands above reflect the planned unified interface.
+**Note**: Current implementation uses `search hybrid` (backlog only) and `chunks search-repo-hybrid` (repo). The `--corpus` parameter approach provides better extensibility for future corpus types (logs, metrics, external-docs, etc.).
 
 ### Use find/grep/glob when:
 - **Exact strings**: Error messages, function names, class names, specific identifiers
@@ -259,6 +259,10 @@ If the backlog structure is missing, propose creation and wait for user approval
 **Current CLI (temporary):**
 - Backlog: `kano-backlog search hybrid "query" --product <product> --k 10`
 - Repo: `kano-backlog chunks search-repo-hybrid "query" --k 10 --fts-candidates 200`
+
+**Planned unified interface:**
+- Both: `kano-backlog search {query|hybrid} "text" --corpus {backlog|repo} [options]`
+- Future: `--corpus all` for cross-corpus search
 
 **See also**: `docs/multi-corpus-search.md` for detailed hybrid search documentation.
 
