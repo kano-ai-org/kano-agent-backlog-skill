@@ -50,7 +50,7 @@ def build_index(
     if text:
         # Index single text input
         from kano_backlog_core.config import ConfigLoader
-        from kano_backlog_ops.vector_index import index_document
+        from kano_backlog_ops.backlog_vector_index import index_document
         
         # Load config
         ctx, effective = ConfigLoader.load_effective_config(
@@ -114,7 +114,7 @@ def build_index(
     elif file_path:
         # Index single file
         from kano_backlog_core.config import ConfigLoader
-        from kano_backlog_ops.vector_index import index_document
+        from kano_backlog_ops.backlog_vector_index import index_document
         
         if not file_path.exists():
             raise typer.BadParameter(f"File not found: {file_path}")
@@ -191,7 +191,7 @@ def build_index(
         
     else:
         # Build full product index
-        from kano_backlog_ops.vector_index import build_vector_index
+        from kano_backlog_ops.backlog_vector_index import build_vector_index
         
         # For full product index, tokenizer overrides need to be applied differently
         # This would require modifying the build_vector_index function to accept overrides

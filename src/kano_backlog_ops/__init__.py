@@ -54,7 +54,7 @@ from .workset import (
     WorksetNotFoundError,
     WorksetValidationError,
 )
-from .index import build_index, refresh_index
+from .backlog_index import build_index, refresh_index
 from .demo import seed_demo, DemoSeedResult
 from .persona import generate_summary, generate_report, PersonaSummaryResult, PersonaReportResult
 from .sandbox import init_sandbox, SandboxInitResult

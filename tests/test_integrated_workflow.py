@@ -5,9 +5,9 @@ from pathlib import Path
 import tempfile
 import sqlite3
 
-from kano_backlog_ops.index import build_index, get_index_status
-from kano_backlog_ops.vector_index import build_vector_index
-from kano_backlog_ops.vector_query import search_similar
+from kano_backlog_ops.backlog_index import build_index, get_index_status
+from kano_backlog_ops.backlog_vector_index import build_vector_index
+from kano_backlog_ops.backlog_vector_query import search_similar
 from kano_backlog_core.config import ConfigLoader
 
 

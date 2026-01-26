@@ -5,8 +5,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from kano_backlog_ops.vector_index import build_vector_index
-from kano_backlog_ops.vector_query import search_hybrid
+from kano_backlog_ops.backlog_vector_index import build_vector_index
+from kano_backlog_ops.backlog_vector_query import search_hybrid
 
 
 def test_hybrid_search_end_to_end(tmp_path: Path) -> None:

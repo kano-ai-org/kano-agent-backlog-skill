@@ -38,7 +38,7 @@ def query(
     ensure_core_on_path()
     
     if corpus == "backlog":
-        from kano_backlog_ops.vector_query import search_similar
+        from kano_backlog_ops.backlog_vector_query import search_similar
         
         try:
             results = search_similar(
@@ -102,7 +102,7 @@ def hybrid(
     ensure_core_on_path()
 
     if corpus == "backlog":
-        from kano_backlog_ops.vector_query import search_hybrid
+        from kano_backlog_ops.backlog_vector_query import search_hybrid
 
         try:
             results = search_hybrid(

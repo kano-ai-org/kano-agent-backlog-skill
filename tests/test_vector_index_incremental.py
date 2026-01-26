@@ -6,7 +6,7 @@ import json
 import sqlite3
 from pathlib import Path
 
-from kano_backlog_ops.vector_index import build_vector_index
+from kano_backlog_ops.backlog_vector_index import build_vector_index
 
 
 def _read_vector_chunk_count(db_dir: Path, collection: str) -> int:

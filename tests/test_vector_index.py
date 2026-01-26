@@ -6,7 +6,7 @@ with various configurations and scenarios.
 
 import pytest
 
-from kano_backlog_ops.vector_index import index_document, IndexResult
+from kano_backlog_ops.backlog_vector_index import index_document, IndexResult
 from kano_backlog_core.pipeline_config import (
     PipelineConfig,
     TokenizerConfig,

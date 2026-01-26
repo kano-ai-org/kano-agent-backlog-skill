@@ -24,7 +24,7 @@ def build_chunks(
     """Build per-product canonical chunks DB (items/chunks/chunks_fts)."""
     ensure_core_on_path()
 
-    from kano_backlog_ops.chunks_db import build_chunks_db
+    from kano_backlog_ops.backlog_chunks_db import build_chunks_db
 
     result = build_chunks_db(product=product, backlog_root=backlog_root, force=force)
 
@@ -57,7 +57,7 @@ def query_chunks(
     """Keyword search over canonical chunks_fts."""
     ensure_core_on_path()
 
-    from kano_backlog_ops.chunks_db import query_chunks_fts
+    from kano_backlog_ops.backlog_chunks_db import query_chunks_fts
 
     results = query_chunks_fts(product=product, backlog_root=backlog_root, query=query, k=k)
 
@@ -107,20 +107,34 @@ def build_repo_chunks(
     include: Optional[list[str]] = typer.Option(None, "--include", help="Include patterns (e.g., *.md *.py)"),
     exclude: Optional[list[str]] = typer.Option(None, "--exclude", help="Exclude patterns (e.g., .git node_modules)"),
     force: bool = typer.Option(False, "--force", help="Force rebuild if DB exists"),
+    sync: bool = typer.Option(False, "--sync", help="Use synchronous build (slower, for debugging)"),
+    max_workers: int = typer.Option(4, "--max-workers", help="Number of parallel workers (async mode only)"),
+    batch_size: int = typer.Option(50, "--batch-size", help="Batch size for database writes (async mode only)"),
     output_format: str = typer.Option("markdown", "--format", help="Output format: markdown|json"),
 ):
-    """Build repo corpus chunks DB (docs + code)."""
+    """Build repo corpus chunks DB (docs + code). Uses async by default for better performance."""
     ensure_core_on_path()
 
-    from kano_backlog_ops.repo_chunks_db import build_repo_chunks_db
-
-    result = build_repo_chunks_db(
-        project_root=project_root,
-        backlog_root=backlog_root,
-        include_patterns=include,
-        exclude_patterns=exclude,
-        force=force,
-    )
+    if sync:
+        from kano_backlog_ops.repo_chunks_db import build_repo_chunks_db
+        result = build_repo_chunks_db(
+            project_root=project_root,
+            backlog_root=backlog_root,
+            include_patterns=include,
+            exclude_patterns=exclude,
+            force=force,
+        )
+    else:
+        from kano_backlog_ops.repo_chunks_db_async import build_repo_chunks_db_async
+        result = build_repo_chunks_db_async(
+            project_root=project_root,
+            backlog_root=backlog_root,
+            include_patterns=include,
+            exclude_patterns=exclude,
+            force=force,
+            max_workers=max_workers,
+            batch_size=batch_size,
+        )
 
     if output_format == "json":
         payload = {
@@ -247,3 +261,40 @@ def build_repo_vectors(
         typer.echo(f"- chunk_id: {r.chunk_id}")
         typer.echo(f"- snippet: {r.snippet}")
         typer.echo()
+
+
+@app.command("build-status")
+def check_build_status(
+    project_root: Optional[Path] = typer.Option(None, "--project-root", help="Project root (auto-detected if not specified)"),
+    output_format: str = typer.Option("markdown", "--format", help="Output format: markdown|json"),
+):
+    """Check repo chunks DB build progress."""
+    ensure_core_on_path()
+    
+    from kano_backlog_ops.repo_chunks_db_async import get_build_progress
+    
+    progress = get_build_progress(project_root)
+    
+    if progress is None:
+        if output_format == "json":
+            typer.echo(json.dumps({"status": "no_build_in_progress"}, ensure_ascii=True, indent=2))
+        else:
+            typer.echo("No build in progress or recently completed.")
+        return
+    
+    if output_format == "json":
+        typer.echo(json.dumps(progress.to_dict(), ensure_ascii=True, indent=2))
+        return
+    
+    typer.echo(f"# Repo Chunks DB Build Status")
+    typer.echo(f"- task_id: {progress.task_id}")
+    typer.echo(f"- status: {progress.status}")
+    typer.echo(f"- progress: {progress.processed_files}/{progress.total_files} files ({progress.percentage:.1f}%)")
+    typer.echo(f"- chunks: {progress.total_chunks}")
+    typer.echo(f"- start_time: {progress.start_time}")
+    typer.echo(f"- last_update: {progress.last_update}")
+    if progress.current_file:
+        typer.echo(f"- current_file: {progress.current_file}")
+    
+    if progress.error_message:
+        typer.echo(f"- error: {progress.error_message}")

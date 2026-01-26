@@ -15,7 +15,7 @@ from kano_backlog_core.embedding import resolve_embedder
 from kano_backlog_core.tokenizer import resolve_model_max_tokens
 from kano_backlog_core.vector import VectorQueryResult, get_backend
 
-from .chunks_db import ChunkFtsCandidate, query_chunks_fts_candidates
+from .backlog_chunks_db import ChunkFtsCandidate, query_chunks_fts_candidates
 
 @dataclass
 class SearchResult:

@@ -17,7 +17,7 @@ def build(
 ):
     """Build the SQLite index from markdown items."""
     ensure_core_on_path()
-    from kano_backlog_ops.index import build_index
+    from kano_backlog_ops.backlog_index import build_index
 
     try:
         result = build_index(product=product, backlog_root=backlog_root, force=force)
@@ -59,7 +59,7 @@ def refresh(
 ):
     """Refresh the SQLite index (MVP: full rebuild)."""
     ensure_core_on_path()
-    from kano_backlog_ops.index import refresh_index
+    from kano_backlog_ops.backlog_index import refresh_index
 
     try:
         result = refresh_index(product=product, backlog_root=backlog_root)
@@ -84,7 +84,7 @@ def status(
 ):
     """Show SQLite index status and statistics."""
     ensure_core_on_path()
-    from kano_backlog_ops.index import get_index_status
+    from kano_backlog_ops.backlog_index import get_index_status
 
     try:
         result = get_index_status(product=product, backlog_root=backlog_root)

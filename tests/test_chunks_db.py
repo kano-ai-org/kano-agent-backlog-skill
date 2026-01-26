@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from kano_backlog_ops.chunks_db import build_chunks_db, query_chunks_fts
+from kano_backlog_ops.backlog_chunks_db import build_chunks_db, query_chunks_fts
 
 
 def test_build_chunks_db_and_query(tmp_path: Path) -> None:

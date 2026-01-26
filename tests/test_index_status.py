@@ -5,7 +5,7 @@ from pathlib import Path
 import tempfile
 import sqlite3
 
-from kano_backlog_ops.index import get_index_status, build_index
+from kano_backlog_ops.backlog_index import get_index_status, build_index
 from kano_backlog_core.canonical import CanonicalStore
 from kano_backlog_core.models import BacklogItem, ItemType, ItemState
 
