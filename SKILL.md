@@ -242,11 +242,11 @@ If the backlog structure is missing, propose creation and wait for user approval
 - **Fuzzy matching**: "error handling for database connections" (various phrasings, synonyms)
 - **Discovery phase**: Exploring unfamiliar codebase or backlog areas
 
-**Commands (planned unified interface):**
+**Commands (unified interface):**
 - Backlog corpus: `python skills/kano-agent-backlog-skill/scripts/kano-backlog search hybrid "text" --corpus backlog --product <product> --k 10`
-- Repo corpus: `python skills/kano-agent-backlog-skill/scripts/kano-backlog search hybrid "text" --corpus repo --k 10 --fts-candidates 200`
+- Repo corpus: `python skills/kano-agent-backlog-skill/scripts/kano-backlog search hybrid "text" --corpus repo --k 10 --fts-k 200`
 
-**Note**: Current implementation uses `search hybrid` (backlog only) and `chunks search-repo-hybrid` (repo). The `--corpus` parameter approach provides better extensibility for future corpus types (logs, metrics, external-docs, etc.).
+**Note**: The `--corpus` parameter provides extensibility for future corpus types (logs, metrics, external-docs, etc.).
 
 ### Use find/grep/glob when:
 - **Exact strings**: Error messages, function names, class names, specific identifiers
@@ -271,15 +271,11 @@ If the backlog structure is missing, propose creation and wait for user approval
 - **Check status**: `ls -lh _kano/backlog/products/<product>/.cache/chunks.sqlite3 .cache/repo_chunks.sqlite3`
 - **When to rebuild**: After major refactoring, file moves, or when search results seem outdated
 
-**Current CLI (temporary):**
-- Backlog: `kano-backlog search hybrid "text" --product <product> --k 10`
-- Repo: `kano-backlog chunks search-repo-hybrid "text" --k 10 --fts-candidates 200`
-
-**Planned unified interface:**
-- Both: `kano-backlog search {query|hybrid} "text" --corpus {backlog|repo} [options]`
+**Unified CLI:**
+- Backlog: `kano-backlog search hybrid "text" --corpus backlog --product <product> --k 10`
+- Repo: `kano-backlog search hybrid "text" --corpus repo --k 10 --fts-k 200`
+- Both commands: `kano-backlog search {query|hybrid} "text" --corpus {backlog|repo} [options]`
 - Future: `--corpus all` for cross-corpus search
-
-**Implementation note (pre-alpha):** When implementing the unified interface, directly replace the current commands. No backward compatibility needed - simply remove `chunks search-repo-hybrid` and update `search hybrid` to accept `--corpus` parameter.
 
 **See also**: `docs/multi-corpus-search.md` for detailed hybrid search documentation.
 

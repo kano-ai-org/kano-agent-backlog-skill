@@ -237,55 +237,7 @@ def build_repo_vectors(
     typer.echo(f"- backend_type: {result.backend_type}")
 
 
-@app.command("search-repo-hybrid")
-def search_repo_hybrid_cmd(
-    query: str = typer.Argument(..., help="Search query"),
-    project_root: Optional[Path] = typer.Option(None, "--project-root", help="Project root (auto-detected if not specified)"),
-    backlog_root: Optional[Path] = typer.Option(None, "--backlog-root", help="Backlog root (_kano/backlog)"),
-    k: int = typer.Option(10, "--k", help="Number of results to return"),
-    fts_candidates: int = typer.Option(200, "--fts-candidates", help="Number of FTS candidates for reranking"),
-    output_format: str = typer.Option("markdown", "--format", help="Output format: markdown|json"),
-):
-    """Hybrid search over repo corpus (FTS + vector rerank)."""
-    ensure_core_on_path()
 
-    from kano_backlog_ops.repo_vector_query import search_repo_hybrid
-
-    results = search_repo_hybrid(
-        query_text=query,
-        project_root=project_root,
-        backlog_root=backlog_root,
-        k=k,
-        fts_candidates=fts_candidates,
-    )
-
-    if output_format == "json":
-        payload = {
-            "query": query,
-            "k": k,
-            "fts_candidates": fts_candidates,
-            "results": [
-                {
-                    "chunk_id": r.chunk_id,
-                    "file_path": r.file_path,
-                    "file_id": r.file_id,
-                    "section": r.section,
-                    "snippet": r.snippet,
-                    "vector_score": r.vector_score,
-                    "bm25_score": r.bm25_score,
-                }
-                for r in results
-            ],
-        }
-        typer.echo(json.dumps(payload, ensure_ascii=True, indent=2))
-        return
-
-    typer.echo(f"# Repo Hybrid Search")
-    typer.echo(f"- query: {query}")
-    typer.echo(f"- k: {k}")
-    typer.echo(f"- fts_candidates: {fts_candidates}")
-    typer.echo(f"- results_count: {len(results)}")
-    typer.echo()
 
     for i, r in enumerate(results, 1):
         typer.echo(f"## Result {i} (vector: {r.vector_score:.4f}, bm25: {r.bm25_score:.4f})")

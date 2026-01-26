@@ -37,7 +37,7 @@ kano-backlog embedding build --product <product> --force
 kano-backlog chunks query "embedding search" --product <product> --k 10
 
 # Query hybrid (FTS + vector rerank)
-kano-backlog search hybrid "semantic search for backlog items" --product <product> --k 10
+kano-backlog search hybrid "semantic search for backlog items" --corpus backlog --product <product> --k 10
 ```
 
 ### Repo Corpus
@@ -53,7 +53,7 @@ kano-backlog chunks build-repo-vectors --force
 kano-backlog chunks query-repo "error message" --k 10
 
 # Query hybrid (FTS + vector rerank)
-kano-backlog chunks search-repo-hybrid "where is the embedding pipeline implemented" --k 10 --fts-candidates 200
+kano-backlog search hybrid "where is the embedding pipeline implemented" --corpus repo --k 10 --fts-k 200
 ```
 
 ## Cache Freshness Policy
