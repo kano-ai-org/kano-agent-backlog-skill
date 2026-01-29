@@ -1,5 +1,5 @@
 from __future__ import annotations
-
+from typing import Optional, Union
 import json
 from pathlib import Path
 import typer
@@ -9,7 +9,7 @@ from ..util import ensure_core_on_path
 app = typer.Typer(help="Validation helpers")
 
 
-def _find_skill_root() -> Path | None:
+def _find_skill_root() -> Optional[Path]:
     cwd = Path.cwd().resolve()
     for parent in [cwd, *cwd.parents]:
         candidate = parent / "skills" / "kano-agent-backlog-skill"
@@ -20,8 +20,8 @@ def _find_skill_root() -> Path | None:
 
 @app.command("uids")
 def validate_uids(
-    product: str | None = typer.Option(None, "--product", help="Product name (validate all if omitted)"),
-    backlog_root: Path | None = typer.Option(None, "--backlog-root", help="Backlog root (_kano/backlog)"),
+    product: Optional[str] = typer.Option(None, "--product", help="Product name (validate all if omitted)"),
+    backlog_root: Optional[Path] = typer.Option(None, "--backlog-root", help="Backlog root (_kano/backlog)"),
 ):
     """Validate that all backlog items use UUIDv7 UIDs."""
     ensure_core_on_path()
@@ -71,10 +71,10 @@ def validate_repo_layout() -> None:
 
 @app.command("links")
 def validate_links(
-    product: str | None = typer.Option(None, "--product", help="Product name (validate all if omitted)"),
-    backlog_root: Path | None = typer.Option(None, "--backlog-root", help="Backlog root (_kano/backlog)"),
+    product: Optional[str] = typer.Option(None, "--product", help="Product name (validate all if omitted)"),
+    backlog_root: Optional[Path] = typer.Option(None, "--backlog-root", help="Backlog root (_kano/backlog)"),
     include_views: bool = typer.Option(False, "--include-views", help="Scan views/ markdown (derived output)"),
-    ignore_target: list[str] | None = typer.Option(
+    ignore_target: Optional[list[str]] = typer.Option(
         None,
         "--ignore-target",
         help="Glob pattern for targets to ignore (repeatable)",

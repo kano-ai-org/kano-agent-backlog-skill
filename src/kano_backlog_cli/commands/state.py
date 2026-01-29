@@ -1,5 +1,5 @@
 from __future__ import annotations
-
+from typing import Optional, Union
 import json
 from pathlib import Path
 import typer
@@ -15,9 +15,9 @@ def transition(
     action: str = typer.Option(..., help="propose|ready|start|review|done|block|drop"),
     agent: str = typer.Option("cli", help="Agent name for audit/worklog"),
     message: str = typer.Option("", help="Optional worklog message"),
-    model: str | None = typer.Option(None, help="Model used by agent (e.g., claude-sonnet-4.5, gpt-5.1)"),
-    product: str | None = typer.Option(None, help="Product name under _kano/backlog/products"),
-    backlog_root_override: Path | None = typer.Option(
+    model: Optional[str] = typer.Option(None, help="Model used by agent (e.g., claude-sonnet-4.5, gpt-5.1)"),
+    product: Optional[str] = typer.Option(None, help="Product name under _kano/backlog/products"),
+    backlog_root_override: Optional[Path] = typer.Option(
         None,
         "--backlog-root-override",
         help="Backlog root override (e.g., _kano/backlog_sandbox/<name>)",

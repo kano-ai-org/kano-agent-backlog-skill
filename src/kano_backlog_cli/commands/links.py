@@ -1,5 +1,5 @@
 from __future__ import annotations
-
+from typing import Optional, Union
 import json
 from pathlib import Path
 import typer
@@ -11,15 +11,15 @@ app = typer.Typer(help="Link maintenance helpers")
 
 @app.command("fix")
 def fix_links(
-    product: str | None = typer.Option(None, "--product", help="Product name (fix all if omitted)"),
-    backlog_root: Path | None = typer.Option(None, "--backlog-root", help="Backlog root (_kano/backlog)"),
+    product: Optional[str] = typer.Option(None, "--product", help="Product name (fix all if omitted)"),
+    backlog_root: Optional[Path] = typer.Option(None, "--backlog-root", help="Backlog root (_kano/backlog)"),
     include_views: bool = typer.Option(False, "--include-views", help="Scan views/ markdown (derived output)"),
-    ignore_target: list[str] | None = typer.Option(
+    ignore_target: Optional[list[str]] = typer.Option(
         None,
         "--ignore-target",
         help="Glob pattern for targets to ignore (repeatable)",
     ),
-    remap_root: list[str] | None = typer.Option(
+    remap_root: Optional[list[str]] = typer.Option(
         None,
         "--remap-root",
         help="Root remap rule '<from>=<to>' (repeatable)",
@@ -101,15 +101,15 @@ def fix_links(
 
 @app.command("restore-from-vcs")
 def restore_from_vcs(
-    product: str | None = typer.Option(None, "--product", help="Product name (restore all if omitted)"),
-    backlog_root: Path | None = typer.Option(None, "--backlog-root", help="Backlog root (_kano/backlog)"),
+    product: Optional[str] = typer.Option(None, "--product", help="Product name (restore all if omitted)"),
+    backlog_root: Optional[Path] = typer.Option(None, "--backlog-root", help="Backlog root (_kano/backlog)"),
     include_views: bool = typer.Option(False, "--include-views", help="Scan views/ markdown (derived output)"),
-    ignore_target: list[str] | None = typer.Option(
+    ignore_target: Optional[list[str]] = typer.Option(
         None,
         "--ignore-target",
         help="Glob pattern for targets to ignore (repeatable)",
     ),
-    remap_root: list[str] | None = typer.Option(
+    remap_root: Optional[list[str]] = typer.Option(
         None,
         "--remap-root",
         help="Root remap rule '<from>=<to>' (repeatable)",
@@ -183,11 +183,11 @@ def restore_from_vcs(
 @app.command("remap-id")
 def remap_id(
     item_ref: str = typer.Argument(..., help="Item ID, UID, or path to remap"),
-    new_id: str | None = typer.Option(None, "--new-id", help="Explicit new ID (optional)"),
-    product: str | None = typer.Option(None, "--product", help="Product name"),
-    backlog_root: Path | None = typer.Option(None, "--backlog-root", help="Backlog root (_kano/backlog)"),
+    new_id: Optional[str] = typer.Option(None, "--new-id", help="Explicit new ID (optional)"),
+    product: Optional[str] = typer.Option(None, "--product", help="Product name"),
+    backlog_root: Optional[Path] = typer.Option(None, "--backlog-root", help="Backlog root (_kano/backlog)"),
     agent: str = typer.Option(..., "--agent", help="Agent name for audit/worklog"),
-    model: str | None = typer.Option(None, "--model", help="Model used by agent"),
+    model: Optional[str] = typer.Option(None, "--model", help="Model used by agent"),
     update_refs: bool = typer.Option(True, "--update-refs/--no-update-refs", help="Update references across backlog"),
     apply: bool = typer.Option(False, "--apply", help="Write remapped files to disk"),
     output_format: str = typer.Option("markdown", "--format", help="Output format: markdown|json"),
@@ -228,8 +228,8 @@ def remap_id(
 def remap_ref(
     path: Path = typer.Argument(..., help="Path to reference file to remap (e.g., ADR)"),
     prefix: str = typer.Option("ADR", "--prefix", help="Reference prefix (default: ADR)"),
-    product: str | None = typer.Option(None, "--product", help="Product name"),
-    backlog_root: Path | None = typer.Option(None, "--backlog-root", help="Backlog root (_kano/backlog)"),
+    product: Optional[str] = typer.Option(None, "--product", help="Product name"),
+    backlog_root: Optional[Path] = typer.Option(None, "--backlog-root", help="Backlog root (_kano/backlog)"),
     update_refs: bool = typer.Option(True, "--update-refs/--no-update-refs", help="Update references across backlog"),
     apply: bool = typer.Option(False, "--apply", help="Write remapped files to disk"),
     output_format: str = typer.Option("markdown", "--format", help="Output format: markdown|json"),
@@ -266,10 +266,10 @@ def remap_ref(
 
 @app.command("normalize-ids")
 def normalize_ids(
-    product: str | None = typer.Option(None, "--product", help="Product name"),
-    backlog_root: Path | None = typer.Option(None, "--backlog-root", help="Backlog root (_kano/backlog)"),
+    product: Optional[str] = typer.Option(None, "--product", help="Product name"),
+    backlog_root: Optional[Path] = typer.Option(None, "--backlog-root", help="Backlog root (_kano/backlog)"),
     agent: str = typer.Option(..., "--agent", help="Agent name for audit/worklog"),
-    model: str | None = typer.Option(None, "--model", help="Model used by agent"),
+    model: Optional[str] = typer.Option(None, "--model", help="Model used by agent"),
     apply: bool = typer.Option(False, "--apply", help="Write remapped files to disk"),
     output_format: str = typer.Option("markdown", "--format", help="Output format: markdown|json"),
 ):

@@ -1,5 +1,5 @@
 from __future__ import annotations
-
+from typing import Optional, Union
 from pathlib import Path
 import json
 import typer
@@ -12,9 +12,9 @@ app = typer.Typer(help="Meta file helpers")
 @app.command("add-ticketing-guidance")
 def add_ticketing_guidance(
     product: str = typer.Option(..., "--product", help="Product name"),
-    backlog_root: Path | None = typer.Option(None, "--backlog-root", help="Backlog root (_kano/backlog)"),
+    backlog_root: Optional[Path] = typer.Option(None, "--backlog-root", help="Backlog root (_kano/backlog)"),
     agent: str = typer.Option(..., "--agent", help="Agent name for audit"),
-    model: str | None = typer.Option(None, "--model", help="Model used by agent"),
+    model: Optional[str] = typer.Option(None, "--model", help="Model used by agent"),
     apply: bool = typer.Option(False, "--apply", help="Write changes to disk"),
     output_format: str = typer.Option("markdown", "--format", help="Output format: markdown|json"),
 ):

@@ -3,9 +3,9 @@ from __future__ import annotations
 import json
 import re
 import shutil
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional, Union
 
 import typer
 import tomli_w
@@ -47,13 +47,13 @@ def _stringify_paths(value: Any) -> Any:
     return value
 
 
-def _default_export_path(ctx, fmt: str, topic: str | None, workset_item_id: str | None) -> Path:
+def _default_export_path(ctx, fmt: str, topic: Optional[str], workset_item_id: Optional[str]) -> Path:
     # DEPRECATED: Manual config export now requires explicit --out path to avoid accumulating files.
     # This function is kept for backward compatibility but should not be used.
     raise NotImplementedError("config export now requires explicit --out path")
 
 
-def _default_auto_export_path(ctx, fmt: str, topic: str | None, workset_item_id: str | None) -> Path:
+def _default_auto_export_path(ctx, fmt: str, topic: Optional[str], workset_item_id: Optional[str]) -> Path:
     # Auto-export writes a stable effective_config artifact to product-level .cache/
     # (topic and workset overrides not yet supported for auto-export)
     return ctx.product_root / ".cache" / f"effective_config.{fmt}"
@@ -145,10 +145,10 @@ def _next_backup_path(json_path: Path) -> Path:
 @app.command("pipeline")
 def config_pipeline(
     path: Path = typer.Option(Path("."), "--path", help="Resource path to resolve config from"),
-    product: str | None = typer.Option(None, "--product", help="Product name (optional)"),
-    sandbox: str | None = typer.Option(None, "--sandbox", help="Sandbox name (optional)"),
-    agent: str | None = typer.Option(None, "--agent", help="Agent name for topic lookup"),
-    topic: str | None = typer.Option(None, "--topic", help="Explicit topic name"),
+    product: Optional[str] = typer.Option(None, "--product", help="Product name (optional)"),
+    sandbox: Optional[str] = typer.Option(None, "--sandbox", help="Sandbox name (optional)"),
+    agent: Optional[str] = typer.Option(None, "--agent", help="Agent name for topic lookup"),
+    topic: Optional[str] = typer.Option(None, "--topic", help="Explicit topic name"),
 ):
     """Inspect effective embedding pipeline configuration."""
     ensure_core_on_path()
@@ -181,11 +181,11 @@ def config_pipeline(
 @app.command("show")
 def config_show(
     path: Path = typer.Option(Path("."), "--path", help="Resource path to resolve config from"),
-    product: str | None = typer.Option(None, "--product", help="Product name (optional)"),
-    sandbox: str | None = typer.Option(None, "--sandbox", help="Sandbox name (optional)"),
-    agent: str | None = typer.Option(None, "--agent", help="Agent name for topic lookup"),
-    topic: str | None = typer.Option(None, "--topic", help="Explicit topic name"),
-    workset_item_id: str | None = typer.Option(None, "--workset", help="Workset item id"),
+    product: Optional[str] = typer.Option(None, "--product", help="Product name (optional)"),
+    sandbox: Optional[str] = typer.Option(None, "--sandbox", help="Sandbox name (optional)"),
+    agent: Optional[str] = typer.Option(None, "--agent", help="Agent name for topic lookup"),
+    topic: Optional[str] = typer.Option(None, "--topic", help="Explicit topic name"),
+    workset_item_id: Optional[str] = typer.Option(None, "--workset", help="Workset item id"),
 ):
     """Print effective merged config as JSON (includes compiled backend URIs)."""
     ensure_core_on_path()
@@ -212,13 +212,13 @@ def config_show(
 @app.command("export")
 def config_export(
     path: Path = typer.Option(Path("."), "--path", help="Resource path to resolve config from"),
-    product: str | None = typer.Option(None, "--product", help="Product name (optional)"),
-    sandbox: str | None = typer.Option(None, "--sandbox", help="Sandbox name (optional)"),
-    agent: str | None = typer.Option(None, "--agent", help="Agent name for topic lookup"),
-    topic: str | None = typer.Option(None, "--topic", help="Explicit topic name"),
-    workset_item_id: str | None = typer.Option(None, "--workset", help="Workset item id"),
+    product: Optional[str] = typer.Option(None, "--product", help="Product name (optional)"),
+    sandbox: Optional[str] = typer.Option(None, "--sandbox", help="Sandbox name (optional)"),
+    agent: Optional[str] = typer.Option(None, "--agent", help="Agent name for topic lookup"),
+    topic: Optional[str] = typer.Option(None, "--topic", help="Explicit topic name"),
+    workset_item_id: Optional[str] = typer.Option(None, "--workset", help="Workset item id"),
     format: str = typer.Option("toml", "--format", case_sensitive=False, help="Output format: toml|json"),
-    out: Path | None = typer.Option(None, "--out", help="Output file path (REQUIRED: no default to avoid file accumulation)"),
+    out: Optional[Path] = typer.Option(None, "--out", help="Output file path (REQUIRED: no default to avoid file accumulation)"),
     overwrite: bool = typer.Option(False, "--overwrite", help="Overwrite if output already exists"),
 ):
     """Write effective merged config (context + config) to disk."""
@@ -268,11 +268,11 @@ def config_export(
 @app.command("validate")
 def config_validate(
     path: Path = typer.Option(Path("."), "--path", help="Resource path to resolve config from"),
-    product: str | None = typer.Option(None, "--product", help="Product name (optional)"),
-    sandbox: str | None = typer.Option(None, "--sandbox", help="Sandbox name (optional)"),
-    agent: str | None = typer.Option(None, "--agent", help="Agent name for topic lookup"),
-    topic: str | None = typer.Option(None, "--topic", help="Explicit topic name"),
-    workset_item_id: str | None = typer.Option(None, "--workset", help="Workset item id"),
+    product: Optional[str] = typer.Option(None, "--product", help="Product name (optional)"),
+    sandbox: Optional[str] = typer.Option(None, "--sandbox", help="Sandbox name (optional)"),
+    agent: Optional[str] = typer.Option(None, "--agent", help="Agent name for topic lookup"),
+    topic: Optional[str] = typer.Option(None, "--topic", help="Explicit topic name"),
+    workset_item_id: Optional[str] = typer.Option(None, "--workset", help="Workset item id"),
 ):
     """Validate layered config; exit 0 if ok, 1 otherwise."""
     ensure_core_on_path()
@@ -308,12 +308,12 @@ def config_validate(
 @app.command("init")
 def config_init(
     path: Path = typer.Option(Path("."), "--path", help="Resource path to resolve config from"),
-    product: str | None = typer.Option(None, "--product", help="Product name (optional)"),
-    sandbox: str | None = typer.Option(None, "--sandbox", help="Sandbox name (optional)"),
-    agent: str | None = typer.Option(None, "--agent", help="Agent name for topic lookup"),
-    topic: str | None = typer.Option(None, "--topic", help="Explicit topic name"),
-    workset_item_id: str | None = typer.Option(None, "--workset", help="Workset item id"),
-    prefix: str | None = typer.Option(None, "--prefix", help="Override product prefix (default: derived)"),
+    product: Optional[str] = typer.Option(None, "--product", help="Product name (optional)"),
+    sandbox: Optional[str] = typer.Option(None, "--sandbox", help="Sandbox name (optional)"),
+    agent: Optional[str] = typer.Option(None, "--agent", help="Agent name for topic lookup"),
+    topic: Optional[str] = typer.Option(None, "--topic", help="Explicit topic name"),
+    workset_item_id: Optional[str] = typer.Option(None, "--workset", help="Workset item id"),
+    prefix: Optional[str] = typer.Option(None, "--prefix", help="Override product prefix (default: derived)"),
     force: bool = typer.Option(False, "--force", help="Overwrite existing config.toml if present"),
 ):
     """Instantiate a product config from the annotated template."""
@@ -383,11 +383,11 @@ def config_init(
 @app.command("migrate-json")
 def config_migrate_json(
     path: Path = typer.Option(Path("."), "--path", help="Resource path to resolve config from"),
-    product: str | None = typer.Option(None, "--product", help="Product name (optional)"),
-    sandbox: str | None = typer.Option(None, "--sandbox", help="Sandbox name (optional)"),
-    agent: str | None = typer.Option(None, "--agent", help="Agent name for topic lookup"),
-    topic: str | None = typer.Option(None, "--topic", help="Explicit topic name"),
-    workset_item_id: str | None = typer.Option(None, "--workset", help="Workset item id"),
+    product: Optional[str] = typer.Option(None, "--product", help="Product name (optional)"),
+    sandbox: Optional[str] = typer.Option(None, "--sandbox", help="Sandbox name (optional)"),
+    agent: Optional[str] = typer.Option(None, "--agent", help="Agent name for topic lookup"),
+    topic: Optional[str] = typer.Option(None, "--topic", help="Explicit topic name"),
+    workset_item_id: Optional[str] = typer.Option(None, "--workset", help="Workset item id"),
     write: bool = typer.Option(False, "--write", help="Apply migration (default: dry-run)"),
 ):
     """Convert JSON config files to TOML with backups (dry-run by default)."""

@@ -1,6 +1,6 @@
 """Persona summary and reporting commands."""
-
 from __future__ import annotations
+from typing import Optional, Union
 
 from pathlib import Path
 import typer
@@ -14,8 +14,8 @@ app = typer.Typer(help="Persona activity operations")
 def summary(
     product: str = typer.Option(..., "--product", help="Product name"),
     agent: str = typer.Option(..., "--agent", help="Agent/persona identifier"),
-    backlog_root: Path | None = typer.Option(None, "--backlog-root", help="Backlog root (_kano/backlog)"),
-    output: Path | None = typer.Option(None, "--output", help="Override output path"),
+    backlog_root: Optional[Path] = typer.Option(None, "--backlog-root", help="Backlog root (_kano/backlog)"),
+    output: Optional[Path] = typer.Option(None, "--output", help="Override output path"),
 ):
     """Generate a persona activity summary from worklog entries."""
     ensure_core_on_path()
@@ -45,8 +45,8 @@ def summary(
 def report(
     product: str = typer.Option(..., "--product", help="Product name"),
     agent: str = typer.Option(..., "--agent", help="Agent/persona identifier"),
-    backlog_root: Path | None = typer.Option(None, "--backlog-root", help="Backlog root (_kano/backlog)"),
-    output: Path | None = typer.Option(None, "--output", help="Override output path"),
+    backlog_root: Optional[Path] = typer.Option(None, "--backlog-root", help="Backlog root (_kano/backlog)"),
+    output: Optional[Path] = typer.Option(None, "--output", help="Override output path"),
 ):
     """Generate a full persona activity report with state breakdown."""
     ensure_core_on_path()

@@ -204,9 +204,9 @@ def _write_config(
         },
         "views": {"auto_refresh": True},
         "log": {"verbosity": "warning", "debug": False},
-        "process": {"profile": None, "path": None},
+        "process": {"profile": "", "path": ""},
         "sandbox": {"root": "_kano/backlog_sandbox"},
-        "index": {"enabled": True, "backend": "sqlite", "path": None, "mode": "rebuild"},
+        "index": {"enabled": True, "backend": "sqlite", "path": "", "mode": "rebuild"},
         "analysis": {"llm": {"enabled": False}},
         "_comment": f"Initialized by {agent} via kano-backlog admin init.",
     }

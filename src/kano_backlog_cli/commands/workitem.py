@@ -1,5 +1,5 @@
 from __future__ import annotations
-
+from typing import Optional, Union
 import json
 from pathlib import Path
 from typing import List
@@ -24,8 +24,8 @@ def _parse_tags(raw: str) -> List[str]:
 @app.command()
 def read(
     item_id: str = typer.Argument(..., help="Display ID, e.g., KABSD-TSK-0001"),
-    product: str | None = typer.Option(None, help="Product name under _kano/backlog/products"),
-    backlog_root_override: Path | None = typer.Option(
+    product: Optional[str] = typer.Option(None, help="Product name under _kano/backlog/products"),
+    backlog_root_override: Optional[Path] = typer.Option(
         None,
         "--backlog-root-override",
         help="Backlog root override (e.g., _kano/backlog_sandbox/<name>)",
@@ -57,8 +57,8 @@ def check_ready(
         "--check-parent/--no-check-parent",
         help="Check parent item recursively",
     ),
-    product: str | None = typer.Option(None, "--product", help="Product name"),
-    backlog_root_override: Path | None = typer.Option(
+    product: Optional[str] = typer.Option(None, "--product", help="Product name"),
+    backlog_root_override: Optional[Path] = typer.Option(
         None,
         "--backlog-root-override",
         help="Backlog root override (e.g., _kano/backlog_sandbox/<name>)",
@@ -129,10 +129,10 @@ def check_ready(
 def add_decision(
     item_ref: str = typer.Argument(..., help="Item ID/UID/path"),
     decision: str = typer.Option(..., "--decision", help="Decision text (English)"),
-    source: str | None = typer.Option(None, "--source", help="Source path or reference"),
+    source: Optional[str] = typer.Option(None, "--source", help="Source path or reference"),
     agent: str = typer.Option(..., "--agent", help="Agent identity"),
-    product: str | None = typer.Option(None, "--product", help="Product name"),
-    backlog_root_override: Path | None = typer.Option(
+    product: Optional[str] = typer.Option(None, "--product", help="Product name"),
+    backlog_root_override: Optional[Path] = typer.Option(
         None,
         "--backlog-root-override",
         help="Backlog root override (e.g., _kano/backlog_sandbox/<name>)",
@@ -173,14 +173,14 @@ def _run_create_command(
     *,
     item_type: str,
     title: str,
-    parent: str | None,
+    parent: Optional[str],
     priority: str,
     area: str,
-    iteration: str | None,
+    iteration: Optional[str],
     tags: str,
     agent: str,
-    product: str | None,
-    backlog_root_override: Path | None,
+    product: Optional[str],
+    backlog_root_override: Optional[Path],
     force: bool,
     output_format: str,
 ) -> None:
@@ -247,14 +247,14 @@ def _run_create_command(
 def create(
     item_type: str = typer.Option(..., "--type", help="epic|feature|userstory|task|bug"),
     title: str = typer.Option(..., "--title", help="Work item title"),
-    parent: str | None = typer.Option(None, "--parent", help="Parent item ID (optional)"),
+    parent: Optional[str] = typer.Option(None, "--parent", help="Parent item ID (optional)"),
     priority: str = typer.Option("P2", "--priority", help="Priority (P0-P4, default: P2)"),
     area: str = typer.Option("general", "--area", help="Area tag"),
-    iteration: str | None = typer.Option(None, "--iteration", help="Iteration name"),
+    iteration: Optional[str] = typer.Option(None, "--iteration", help="Iteration name"),
     tags: str = typer.Option("", "--tags", help="Comma-separated tags"),
     agent: str = typer.Option(..., "--agent", help="Agent name (for audit trail)"),
-    product: str | None = typer.Option(None, "--product", help="Product name"),
-    backlog_root_override: Path | None = typer.Option(
+    product: Optional[str] = typer.Option(None, "--product", help="Product name"),
+    backlog_root_override: Optional[Path] = typer.Option(
         None,
         "--backlog-root-override",
         help="Backlog root override (e.g., _kano/backlog_sandbox/<name>)",
@@ -282,21 +282,21 @@ def create(
 @app.command(name="set-ready")
 def set_ready(
     item_id: str = typer.Argument(..., help="Display ID, e.g., KABSD-TSK-0001"),
-    context: str | None = typer.Option(None, "--context", help="# Context body"),
-    goal: str | None = typer.Option(None, "--goal", help="# Goal body"),
-    approach: str | None = typer.Option(None, "--approach", help="# Approach body"),
-    acceptance_criteria: str | None = typer.Option(
+    context: Optional[str] = typer.Option(None, "--context", help="# Context body"),
+    goal: Optional[str] = typer.Option(None, "--goal", help="# Goal body"),
+    approach: Optional[str] = typer.Option(None, "--approach", help="# Approach body"),
+    acceptance_criteria: Optional[str] = typer.Option(
         None,
         "--acceptance-criteria",
         help="# Acceptance Criteria body",
     ),
-    risks: str | None = typer.Option(
+    risks: Optional[str] = typer.Option(
         None,
         "--risks",
         help="# Risks / Dependencies body",
     ),
-    product: str | None = typer.Option(None, "--product", help="Product name"),
-    backlog_root_override: Path | None = typer.Option(
+    product: Optional[str] = typer.Option(None, "--product", help="Product name"),
+    backlog_root_override: Optional[Path] = typer.Option(
         None,
         "--backlog-root-override",
         help="Backlog root override (e.g., _kano/backlog_sandbox/<name>)",
@@ -341,9 +341,9 @@ def update_state_command(
     ),
     agent: str = typer.Option(..., "--agent", help="Agent name (for audit trail)"),
     message: str = typer.Option("", "--message", help="Worklog message"),
-    model: str | None = typer.Option(None, "--model", help="Model used by agent (e.g., claude-sonnet-4.5, gpt-5.1)"),
-    product: str | None = typer.Option(None, "--product", help="Product name"),
-    backlog_root_override: Path | None = typer.Option(
+    model: Optional[str] = typer.Option(None, "--model", help="Model used by agent (e.g., claude-sonnet-4.5, gpt-5.1)"),
+    product: Optional[str] = typer.Option(None, "--product", help="Product name"),
+    backlog_root_override: Optional[Path] = typer.Option(
         None,
         "--backlog-root-override",
         help="Backlog root override (e.g., _kano/backlog_sandbox/<name>)",
@@ -428,13 +428,13 @@ def attach_artifact_command(
     path: str = typer.Option(..., "--path", help="Path to artifact file"),
     shared: bool = typer.Option(True, "--shared/--no-shared", help="Store under _shared/artifacts when true"),
     agent: str = typer.Option(..., "--agent", help="Agent name (for audit trail)"),
-    product: str | None = typer.Option(None, "--product", help="Product name"),
-    backlog_root_override: Path | None = typer.Option(
+    product: Optional[str] = typer.Option(None, "--product", help="Product name"),
+    backlog_root_override: Optional[Path] = typer.Option(
         None,
         "--backlog-root-override",
         help="Backlog root override (e.g., _kano/backlog_sandbox/<name>)",
     ),
-    note: str | None = typer.Option(None, "--note", help="Optional note to include in Worklog"),
+    note: Optional[str] = typer.Option(None, "--note", help="Optional note to include in Worklog"),
     output_format: str = typer.Option("plain", "--format", help="plain|json"),
 ):
     """Attach an artifact file to a work item and append a Worklog link."""

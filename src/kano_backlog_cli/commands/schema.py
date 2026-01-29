@@ -1,6 +1,6 @@
 """CLI commands for schema validation and fixing."""
-
 from __future__ import annotations
+from typing import Optional, Union
 from pathlib import Path
 import typer
 
@@ -11,8 +11,8 @@ app = typer.Typer(help="Schema validation and fixing")
 
 @app.command("check")
 def check_schema(
-    product: str | None = typer.Option(None, "--product", help="Product name (check all if omitted)"),
-    backlog_root: Path | None = typer.Option(None, "--backlog-root", help="Backlog root (_kano/backlog)"),
+    product: Optional[str] = typer.Option(None, "--product", help="Product name (check all if omitted)"),
+    backlog_root: Optional[Path] = typer.Option(None, "--backlog-root", help="Backlog root (_kano/backlog)"),
 ):
     """Check for missing required fields in backlog items."""
     ensure_core_on_path()
@@ -44,10 +44,10 @@ def check_schema(
 
 @app.command("fix")
 def fix_schema(
-    product: str | None = typer.Option(None, "--product", help="Product name (fix all if omitted)"),
-    backlog_root: Path | None = typer.Option(None, "--backlog-root", help="Backlog root (_kano/backlog)"),
+    product: Optional[str] = typer.Option(None, "--product", help="Product name (fix all if omitted)"),
+    backlog_root: Optional[Path] = typer.Option(None, "--backlog-root", help="Backlog root (_kano/backlog)"),
     agent: str = typer.Option(..., "--agent", help="Agent name for worklog"),
-    model: str | None = typer.Option(None, "--model", help="Model name for worklog"),
+    model: Optional[str] = typer.Option(None, "--model", help="Model name for worklog"),
     apply: bool = typer.Option(False, "--apply", help="Apply fixes (dry-run by default)"),
 ):
     """Fix missing required fields in backlog items."""

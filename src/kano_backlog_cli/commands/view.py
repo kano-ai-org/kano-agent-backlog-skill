@@ -1,5 +1,5 @@
 from __future__ import annotations
-
+from typing import Optional, Union
 from pathlib import Path
 
 import typer
@@ -13,8 +13,8 @@ app = typer.Typer()
 def refresh(
     agent: str = typer.Option(..., "--agent", help="Agent name (for audit trail)"),
     backlog_root: str = typer.Option("_kano/backlog", "--backlog-root", help="Backlog root directory"),
-    product: str | None = typer.Option(None, "--product", help="Product name (optional)"),
-    config: str | None = typer.Option(None, "--config", help="Config file path"),
+    product: Optional[str] = typer.Option(None, "--product", help="Product name (optional)"),
+    config: Optional[str] = typer.Option(None, "--config", help="Config file path"),
 ):
     """Refresh all dashboards (views) in the backlog."""
     try:

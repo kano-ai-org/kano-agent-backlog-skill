@@ -1,5 +1,5 @@
 from __future__ import annotations
-
+from typing import Optional, Union
 from pathlib import Path
 import typer
 
@@ -22,7 +22,7 @@ def run(
         "--queries",
         help="Path to benchmark queries JSON",
     ),
-    out_dir: Path | None = typer.Option(None, "--out", help="Output directory (default: product artifacts)")
+    out_dir: Optional[Path] = typer.Option(None, "--out", help="Output directory (default: product artifacts)")
     ,
     mode: str = typer.Option(
         "chunk-only",

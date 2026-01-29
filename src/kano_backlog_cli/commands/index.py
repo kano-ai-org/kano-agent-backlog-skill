@@ -1,5 +1,5 @@
 from __future__ import annotations
-
+from typing import Optional, Union
 from pathlib import Path
 import typer
 
@@ -10,8 +10,8 @@ app = typer.Typer(help="SQLite index operations")
 
 @app.command()
 def build(
-    product: str | None = typer.Option(None, "--product", help="Product name (builds all if omitted)"),
-    backlog_root: Path | None = typer.Option(None, "--backlog-root", help="Backlog root (_kano/backlog)"),
+    product: Optional[str] = typer.Option(None, "--product", help="Product name (builds all if omitted)"),
+    backlog_root: Optional[Path] = typer.Option(None, "--backlog-root", help="Backlog root (_kano/backlog)"),
     force: bool = typer.Option(False, "--force/--no-force", help="Rebuild even if index exists"),
     vectors: bool = typer.Option(False, "--vectors", help="Also build vector index"),
 ):
@@ -54,8 +54,8 @@ def build(
 
 @app.command()
 def refresh(
-    product: str | None = typer.Option(None, "--product", help="Product name (refresh all if omitted)"),
-    backlog_root: Path | None = typer.Option(None, "--backlog-root", help="Backlog root (_kano/backlog)"),
+    product: Optional[str] = typer.Option(None, "--product", help="Product name (refresh all if omitted)"),
+    backlog_root: Optional[Path] = typer.Option(None, "--backlog-root", help="Backlog root (_kano/backlog)"),
 ):
     """Refresh the SQLite index (MVP: full rebuild)."""
     ensure_core_on_path()
@@ -79,8 +79,8 @@ def refresh(
 
 @app.command()
 def status(
-    product: str | None = typer.Option(None, "--product", help="Product name (check all if omitted)"),
-    backlog_root: Path | None = typer.Option(None, "--backlog-root", help="Backlog root (_kano/backlog)"),
+    product: Optional[str] = typer.Option(None, "--product", help="Product name (check all if omitted)"),
+    backlog_root: Optional[Path] = typer.Option(None, "--backlog-root", help="Backlog root (_kano/backlog)"),
 ):
     """Show SQLite index status and statistics."""
     ensure_core_on_path()

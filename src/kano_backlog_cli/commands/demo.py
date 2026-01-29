@@ -1,6 +1,6 @@
 """Demo data seeding commands."""
-
 from __future__ import annotations
+from typing import Optional, Union
 
 from pathlib import Path
 import typer
@@ -14,7 +14,7 @@ app = typer.Typer(help="Demo data operations")
 def seed(
     product: str = typer.Option(..., "--product", help="Product name to seed"),
     agent: str = typer.Option(..., "--agent", help="Agent name (for audit trail)"),
-    backlog_root: Path | None = typer.Option(None, "--backlog-root", help="Backlog root (_kano/backlog)"),
+    backlog_root: Optional[Path] = typer.Option(None, "--backlog-root", help="Backlog root (_kano/backlog)"),
     count: int = typer.Option(5, "--count", help="Number of demo items to create (default: 5)"),
     force: bool = typer.Option(False, "--force/--no-force", help="Recreate demo items if they exist"),
 ):

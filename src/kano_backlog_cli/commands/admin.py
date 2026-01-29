@@ -1,5 +1,5 @@
 from __future__ import annotations
-
+from typing import Optional, Union
 from pathlib import Path
 
 import typer
@@ -16,17 +16,17 @@ def backlog(
 	*,
 	product: str = typer.Option(..., "--product", help="Product folder name (e.g., kano-agent-backlog-skill)"),
 	agent: str = typer.Option(..., "--agent", help="Agent identifier for audit logging"),
-	backlog_root: Path | None = typer.Option(
+	backlog_root: Optional[Path] = typer.Option(
 		None,
 		"--backlog-root",
 		help="Path to _kano/backlog (auto-detected or created near the repo root)",
 	),
-	product_name: str | None = typer.Option(
+	product_name: Optional[str] = typer.Option(
 		None,
 		"--product-name",
 		help="Overrides product.name in config (defaults to product)",
 	),
-	prefix: str | None = typer.Option(
+	prefix: Optional[str] = typer.Option(
 		None,
 		"--prefix",
 		help="Overrides product.prefix in config (defaults to derived prefix)",
@@ -123,7 +123,7 @@ def backlog(
 def sync_sequences(
 	*,
 	product: str = typer.Option(..., "--product", help="Product folder name (e.g., kano-agent-backlog-skill)"),
-	backlog_root: Path | None = typer.Option(
+	backlog_root: Optional[Path] = typer.Option(
 		None,
 		"--backlog-root",
 		help="Path to _kano/backlog (auto-detected or created near the repo root)",

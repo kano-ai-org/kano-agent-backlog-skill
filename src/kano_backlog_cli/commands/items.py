@@ -1,5 +1,5 @@
 from __future__ import annotations
-
+from typing import Optional, Union
 from pathlib import Path
 import json
 import typer
@@ -12,11 +12,11 @@ app = typer.Typer(help="Item maintenance helpers")
 @app.command("trash")
 def trash(
     item_ref: str = typer.Argument(..., help="Item ID, UID, or path to trash"),
-    product: str | None = typer.Option(None, "--product", help="Product name"),
-    backlog_root: Path | None = typer.Option(None, "--backlog-root", help="Backlog root (_kano/backlog)"),
+    product: Optional[str] = typer.Option(None, "--product", help="Product name"),
+    backlog_root: Optional[Path] = typer.Option(None, "--backlog-root", help="Backlog root (_kano/backlog)"),
     agent: str = typer.Option(..., "--agent", help="Agent name for audit/worklog"),
-    model: str | None = typer.Option(None, "--model", help="Model used by agent"),
-    reason: str | None = typer.Option(None, "--reason", help="Reason for trashing"),
+    model: Optional[str] = typer.Option(None, "--model", help="Model used by agent"),
+    reason: Optional[str] = typer.Option(None, "--reason", help="Reason for trashing"),
     apply: bool = typer.Option(False, "--apply", help="Write changes to disk"),
     output_format: str = typer.Option("markdown", "--format", help="Output format: markdown|json"),
 ):
@@ -56,12 +56,12 @@ def trash(
 @app.command("set-parent")
 def set_parent(
     item_ref: str = typer.Argument(..., help="Item ID, UID, or path to update"),
-    parent: str | None = typer.Option(None, "--parent", help="Parent item ID"),
+    parent: Optional[str] = typer.Option(None, "--parent", help="Parent item ID"),
     clear: bool = typer.Option(False, "--clear", help="Clear parent reference"),
-    product: str | None = typer.Option(None, "--product", help="Product name"),
-    backlog_root: Path | None = typer.Option(None, "--backlog-root", help="Backlog root (_kano/backlog)"),
+    product: Optional[str] = typer.Option(None, "--product", help="Product name"),
+    backlog_root: Optional[Path] = typer.Option(None, "--backlog-root", help="Backlog root (_kano/backlog)"),
     agent: str = typer.Option(..., "--agent", help="Agent name for audit/worklog"),
-    model: str | None = typer.Option(None, "--model", help="Model used by agent"),
+    model: Optional[str] = typer.Option(None, "--model", help="Model used by agent"),
     apply: bool = typer.Option(False, "--apply", help="Write changes to disk"),
     output_format: str = typer.Option("markdown", "--format", help="Output format: markdown|json"),
 ):

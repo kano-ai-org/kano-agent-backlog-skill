@@ -60,14 +60,14 @@ def create(
 @app.command("fix-uids")
 def fix_uids(
     *,
-    product: str | None = typer.Option(None, "--product", help="Product name under _kano/backlog/products"),
+    product: Optional[str] = typer.Option(None, "--product", help="Product name under _kano/backlog/products"),
     backlog_root: Optional[Path] = typer.Option(
         None,
         "--backlog-root",
         help="Path to _kano/backlog (auto-detected if omitted)",
     ),
     agent: str = typer.Option(..., "--agent", help="Agent identifier for audit logging"),
-    model: str | None = typer.Option(None, "--model", help="Model name for audit logging"),
+    model: Optional[str] = typer.Option(None, "--model", help="Model name for audit logging"),
     apply: bool = typer.Option(False, "--apply", help="Apply fixes (dry-run by default)"),
     output_format: str = typer.Option("markdown", "--format", help="Output format: markdown|json"),
 ) -> None:

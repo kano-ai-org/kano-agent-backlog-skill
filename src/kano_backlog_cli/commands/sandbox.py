@@ -1,6 +1,6 @@
 """Sandbox initialization commands."""
-
 from __future__ import annotations
+from typing import Optional, Union
 
 from pathlib import Path
 import typer
@@ -15,7 +15,7 @@ def init(
     name: str = typer.Argument(..., help="Sandbox name (e.g., 'test-v2', 'experiment-1')"),
     product: str = typer.Option(..., "--product", help="Source product to mirror"),
     agent: str = typer.Option(..., "--agent", help="Agent name (for audit trail)"),
-    backlog_root: Path | None = typer.Option(None, "--backlog-root", help="Backlog root (_kano/backlog)"),
+    backlog_root: Optional[Path] = typer.Option(None, "--backlog-root", help="Backlog root (_kano/backlog)"),
     force: bool = typer.Option(False, "--force/--no-force", help="Recreate sandbox if it exists"),
 ):
     """Initialize a sandbox environment for safe experimentation."""
