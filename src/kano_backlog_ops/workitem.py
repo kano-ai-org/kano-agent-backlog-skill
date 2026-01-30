@@ -516,25 +516,32 @@ def create_item(
         try:
             ctx = ConfigLoader.from_path(Path.cwd(), product=product)
             backlog_root = ctx.product_root  # Use product root, not project root
-            config_data = ConfigLoader.load_product_config(ctx.product_root)
-            product_cfg = config_data.get("product") if isinstance(config_data, dict) else {}
-            if isinstance(product_cfg, dict):
-                prefix = product_cfg.get("prefix") or item_utils.derive_prefix(product)
+            
+            # Load prefix from project config
+            from kano_backlog_core.project_config import ProjectConfigLoader
+            project_config = ProjectConfigLoader.load_project_config_optional(Path.cwd())
+            if project_config:
+                product_def = project_config.get_product(product)
+                prefix = product_def.prefix if product_def else item_utils.derive_prefix(product)
             else:
                 prefix = item_utils.derive_prefix(product)
         except Exception as e:
             raise ValueError(
                 f"Cannot resolve backlog context for product '{product}'. "
-                f"Ensure the product is initialized via 'kano-backlog admin init --product {product}'. "
+                f"Ensure the product is defined in .kano/backlog_config.toml. "
                 f"Error: {e}"
             )
     else:
-        # Explicit backlog_root provided; use it directly and try to load prefix from config
-        config_data = ConfigLoader.load_product_config(backlog_root)
-        product_cfg = config_data.get("product") if isinstance(config_data, dict) else {}
-        if isinstance(product_cfg, dict):
-            prefix = product_cfg.get("prefix") or item_utils.derive_prefix(product)
-        else:
+        # Explicit backlog_root provided; try to load prefix from project config
+        try:
+            from kano_backlog_core.project_config import ProjectConfigLoader
+            project_config = ProjectConfigLoader.load_project_config_optional(backlog_root)
+            if project_config:
+                product_def = project_config.get_product(product)
+                prefix = product_def.prefix if product_def else item_utils.derive_prefix(product)
+            else:
+                prefix = item_utils.derive_prefix(product)
+        except Exception:
             prefix = item_utils.derive_prefix(product)
             
     if parent and parent.lower() != "null" and not force:

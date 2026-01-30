@@ -10,7 +10,7 @@ from typing import Any, Optional, Union
 import typer
 import tomli_w
 
-from ..util import ensure_core_on_path
+from ..util import ensure_core_on_path, get_global_config_file
 
 app = typer.Typer(help="Configuration inspection and validation")
 
@@ -54,9 +54,11 @@ def _default_export_path(ctx, fmt: str, topic: Optional[str], workset_item_id: O
 
 
 def _default_auto_export_path(ctx, fmt: str, topic: Optional[str], workset_item_id: Optional[str]) -> Path:
-    # Auto-export writes a stable effective_config artifact to product-level .cache/
-    # (topic and workset overrides not yet supported for auto-export)
-    return ctx.product_root / ".cache" / f"effective_config.{fmt}"
+    # Auto-export writes effective_config to project-level .kano/debug/ (only in debug mode)
+    # This keeps the debug output in the project directory, not in the backlog directory
+    debug_dir = ctx.project_root / ".kano" / "debug"
+    debug_dir.mkdir(parents=True, exist_ok=True)
+    return debug_dir / f"backlog_config.{fmt}"
 
 
 def _write_effective_config_artifact(
@@ -191,6 +193,9 @@ def config_show(
     ensure_core_on_path()
     from kano_backlog_core.config import ConfigLoader
 
+    # Get custom config file from global state if set
+    custom_config_file = get_global_config_file()
+
     ctx, effective = ConfigLoader.load_effective_config(
         path,
         product=product,
@@ -198,6 +203,7 @@ def config_show(
         agent=agent,
         topic=topic,
         workset_item_id=workset_item_id,
+        custom_config_file=custom_config_file,
     )
 
     typer.echo(
@@ -246,7 +252,7 @@ def config_export(
 
     if not out:
         typer.echo("Error: --out is required. Specify output file path to avoid accumulating timestamped files.")
-        typer.echo("Hint: Use auto-export via 'view refresh' for a stable .cache/effective_config.toml instead.")
+        typer.echo("Hint: Use auto-export via 'view refresh' for a stable .kano/debug/backlog_config.toml (requires debug mode).")
         raise typer.Exit(1)
 
     out_path = out

@@ -2,17 +2,32 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import Optional
 import typer
 
-from .util import configure_stdio, ensure_core_on_path, resolve_product_root
+from .util import configure_stdio, ensure_core_on_path, resolve_product_root, set_global_config_file
 
 app = typer.Typer(help="kano-backlog: Backlog management CLI (MVP)")
 
 
 @app.callback()
-def _init():
+def _init(
+    config_file: Optional[Path] = typer.Option(
+        None,
+        "--config-file",
+        help="Path to project config file (.kano/backlog_config.toml)",
+        exists=True,
+        file_okay=True,
+        dir_okay=False,
+        readable=True,
+    )
+):
     configure_stdio()
     ensure_core_on_path()
+    
+    # Store the config file path globally for use by utility functions
+    if config_file:
+        set_global_config_file(config_file)
 
 
 from .commands import admin as admin_cmd  # noqa: E402

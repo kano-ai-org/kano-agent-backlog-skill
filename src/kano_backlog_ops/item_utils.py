@@ -42,10 +42,23 @@ def sync_id_sequences(
     else:
         backlog_root = backlog_root / "products" / product
         
-    # Load prefix
-    config_data = ConfigLoader.load_product_config(backlog_root)
-    product_cfg = config_data.get("product") if isinstance(config_data, dict) else {}
-    prefix = product_cfg.get("prefix") if isinstance(product_cfg, dict) else derive_prefix(product)
+    # Load prefix from project config
+    try:
+        from kano_backlog_core.project_config import ProjectConfigLoader
+        
+        project_config = ProjectConfigLoader.load_project_config_optional(backlog_root)
+        if project_config:
+            # Find product by name
+            for prod_name, prod_def in project_config.products.items():
+                if prod_name == product:
+                    prefix = prod_def.prefix
+                    break
+            else:
+                prefix = derive_prefix(product)
+        else:
+            prefix = derive_prefix(product)
+    except Exception:
+        prefix = derive_prefix(product)
     
     items_root = backlog_root / "items"
     cache_dir = backlog_root / ".cache"

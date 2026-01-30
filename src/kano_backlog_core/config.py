@@ -6,8 +6,10 @@ view by layering config sources.
 Layer order (later wins):
 1) _kano/backlog/_shared/defaults.toml (preferred) or defaults.json (deprecated)
 2) _kano/backlog/products/<product>/_config/config.json (or config.toml)
-3) _kano/backlog/.cache/worksets/topics/<topic>/config.json (or config.toml) (optional)
-4) _kano/backlog/.cache/worksets/items/<item_id>/config.json (or config.toml) (optional)
+3) .kano/backlog_config.toml (project-level config) - NEW
+4) _kano/backlog/.cache/worksets/topics/<topic>/config.json (or config.toml) (optional)
+5) _kano/backlog/.cache/worksets/items/<item_id>/config.json (or config.toml) (optional)
+6) CLI arguments (highest priority)
 
 TOML files take precedence over JSON at the same layer. JSON support is deprecated.
 
@@ -25,6 +27,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from .errors import ConfigError
 from .backend_uri import compile_effective_config
+from .project_config import ProjectConfig, ProjectConfigLoader
 
 # Conditional TOML import: stdlib tomllib (3.11+) or fallback tomli (<3.11)
 try:
@@ -165,10 +168,6 @@ class ConfigLoader:
         return topic or None
 
     @staticmethod
-    def load_product_config(product_root: Path) -> dict[str, Any]:
-        return ConfigLoader._read_config_optional(product_root / "_config", "config")
-
-    @staticmethod
     def load_topic_overrides(
         backlog_root: Path,
         *,
@@ -187,47 +186,6 @@ class ConfigLoader:
         return ConfigLoader._read_config_optional(ConfigLoader.get_workset_path(backlog_root, item_id), "config")
 
     @staticmethod
-    def _resolve_product_name(
-        resource_path: Path,
-        backlog_root: Path,
-        *,
-        product: Optional[str] = None,
-        agent: Optional[str] = None,
-        topic: Optional[str] = None,
-    ) -> str:
-        if product and product.strip():
-            candidate = ConfigLoader._normalize_product_name(product)
-            if (backlog_root / "products" / candidate).exists():
-                return candidate
-            raise ConfigError(f"Product root does not exist: {backlog_root / 'products' / candidate}")
-
-        inferred = ConfigLoader._infer_product(resource_path, backlog_root)
-        if inferred:
-            return inferred
-
-        topic_overrides = ConfigLoader.load_topic_overrides(backlog_root, topic=topic, agent=agent)
-        topic_default = topic_overrides.get("default_product")
-        if isinstance(topic_default, str) and topic_default.strip():
-            candidate = ConfigLoader._normalize_product_name(topic_default)
-            if (backlog_root / "products" / candidate).exists():
-                return candidate
-
-        defaults = ConfigLoader.load_defaults(backlog_root)
-        default_product = defaults.get("default_product")
-        if isinstance(default_product, str) and default_product.strip():
-            candidate = ConfigLoader._normalize_product_name(default_product)
-            if (backlog_root / "products" / candidate).exists():
-                return candidate
-
-        products = ConfigLoader._list_products(backlog_root)
-        if len(products) == 1:
-            return products[0]
-
-        raise ConfigError(
-            "Cannot determine product; specify --product or set _kano/backlog/_shared/defaults.toml:default_product",
-        )
-
-    @staticmethod
     def from_path(
         resource_path: Path,
         product: Optional[str] = None,
@@ -235,44 +193,66 @@ class ConfigLoader:
         *,
         agent: Optional[str] = None,
         topic: Optional[str] = None,
+        custom_config_file: Optional[Path] = None,
     ) -> BacklogContext:
         """
         Resolve backlog context from a file/folder path.
+        
+        BREAKING CHANGE: Only project-level configs are supported.
+        Traditional product structure is no longer used.
 
         Args:
             resource_path: Starting path (file or directory)
-            product: Product name (optional, can be inferred)
+            product: Product name (REQUIRED, must be defined in project config)
             sandbox: Sandbox name (optional, for isolated operations)
 
         Returns:
             BacklogContext with resolved roots
 
         Raises:
-            ConfigError: If project/product root cannot be determined
+            ConfigError: If project config or product not found
         """
         resource_path = resource_path.resolve()
 
-        # Find backlog root (the _kano/backlog directory)
-        backlog_root = ConfigLoader._find_project_root(resource_path)
-        if not backlog_root:
+        # Load project config (REQUIRED)
+        project_config = ProjectConfigLoader.load_project_config_optional(resource_path, custom_config_file)
+        if not project_config:
             raise ConfigError(
-                f"Could not find _kano/backlog directory from: {resource_path}"
+                f"Project config required but not found. Create .kano/backlog_config.toml in project root."
             )
 
-        project_root = backlog_root.parent.parent  # Go up from _kano/backlog to project root
+        # Resolve backlog root from project config
+        if not product:
+            # Auto-detect single product
+            products = project_config.list_products()
+            if len(products) == 1:
+                product = products[0]
+            elif len(products) > 1:
+                raise ConfigError(f"Multiple products found; specify --product: {', '.join(products)}")
+            else:
+                raise ConfigError("No products defined in project config")
 
-        # Determine product (explicit -> inferred -> topic override -> defaults -> single-product)
-        product = ConfigLoader._resolve_product_name(
-            resource_path,
-            backlog_root,
-            product=product,
-            agent=agent,
-            topic=topic,
+        backlog_root = ProjectConfigLoader.resolve_product_backlog_root(
+            resource_path, product, project_config, custom_config_file
         )
+        
+        if not backlog_root:
+            raise ConfigError(f"Product '{product}' not found in project config")
 
-        product_root = backlog_root / "products" / product
-        if not product_root.exists():
-            raise ConfigError(f"Product root does not exist: {product_root}")
+        # Determine project root
+        config_path = ProjectConfigLoader.find_project_config(resource_path, custom_config_file)
+        if not config_path:
+            raise ConfigError("Project config file not found")
+            
+        if config_path.parent.name == ".kano":
+            # Standard location: .kano/backlog_config.toml
+            project_root = config_path.parent.parent
+        else:
+            # Custom location: assume config file is in project root
+            project_root = config_path.parent
+
+        # For project config, the backlog_root IS the product root
+        product_root = backlog_root
 
         # Determine sandbox
         sandbox_root = None
@@ -290,28 +270,56 @@ class ConfigLoader:
             is_sandbox=is_sandbox,
         )
 
-    @staticmethod
-    def _find_project_root(start_path: Path) -> Optional[Path]:
-        """Walk up to find project root (_kano/backlog directory itself)."""
-        current = start_path if start_path.is_dir() else start_path.parent
-        for parent in [current, *current.parents]:
-            candidate = parent / "_kano" / "backlog"
-            if candidate.exists() and candidate.is_dir():
-                return candidate
-        return None
+    # REMOVED: Traditional methods no longer supported in breaking change
+    # - _find_project_root() - no longer needed
+    # - _infer_product() - no longer needed  
+    # - _list_products() - no longer needed
+    # - _normalize_product_name() - no longer needed
 
     @staticmethod
-    def _infer_product(resource_path: Path, backlog_root: Path) -> Optional[str]:
-        """Infer product name from path (if under products/<product>/)."""
-        try:
-            relative = resource_path.relative_to(backlog_root / "products")
-            # Extract first directory component
-            parts = relative.parts
-            if parts:
-                return parts[0]
-        except ValueError:
-            pass
-        return None
+    def get_system_defaults() -> dict[str, Any]:
+        """
+        Get system-level default configuration values.
+        These are the defaults defined in code, used when no config is provided.
+        """
+        return {
+            "skill_developer": False,
+            "persona": "developer",
+            "auto_refresh": False,
+            "log": {
+                "verbosity": "info",
+                "debug": False,
+            },
+            "index": {
+                "enabled": False,
+                "backend": "noop",
+                "mode": "incremental",
+            },
+            "analysis": {
+                "llm": {
+                    "enabled": False,
+                },
+            },
+            "chunking": {
+                "target_tokens": 512,
+                "max_tokens": 2048,
+            },
+            "tokenizer": {
+                "adapter": "auto",
+                "model": "text-embedding-3-small",
+            },
+            "embedding": {
+                "provider": "noop",
+                "model": "noop-embedding",
+                "dimension": 1536,
+            },
+            "vector": {
+                "backend": "noop",
+                "path": ".cache/vector",
+                "collection": "backlog",
+                "metric": "cosine",
+            },
+        }
 
     @staticmethod
     def load_defaults(backlog_root: Path) -> dict:
@@ -327,6 +335,70 @@ class ConfigLoader:
         return ConfigLoader._read_config_optional(backlog_root / "_shared", "defaults")
 
     @staticmethod
+    def load_project_config(start_path: Path, custom_config_file: Optional[Path] = None) -> dict[str, Any]:
+        """
+        Load project-level configuration from .kano/backlog_config.toml
+        
+        BREAKING CHANGE: This is now REQUIRED, not optional.
+        
+        Args:
+            start_path: Starting path to search for project config
+            custom_config_file: Optional custom config file path
+            
+        Returns:
+            Dictionary with project config
+            
+        Raises:
+            ConfigError: If project config not found
+        """
+        project_config = ProjectConfigLoader.load_project_config_optional(start_path, custom_config_file)
+        if not project_config:
+            raise ConfigError(
+                "Project config required but not found. Create .kano/backlog_config.toml in project root."
+            )
+        
+        # Convert to flat dictionary for merging
+        result = {}
+        
+        # Add defaults
+        if project_config.defaults:
+            result.update(project_config.defaults)
+        
+        # Add shared settings
+        if project_config.shared:
+            result = ConfigLoader._deep_merge(result, project_config.shared)
+        
+        return result
+
+    @staticmethod
+    def load_project_product_overrides(start_path: Path, product_name: str, custom_config_file: Optional[Path] = None) -> dict[str, Any]:
+        """
+        Load product-specific overrides from project config
+        
+        Args:
+            start_path: Starting path to search for project config
+            product_name: Product name to get overrides for
+            custom_config_file: Optional custom config file path
+            
+        Returns:
+            Dictionary with product overrides
+            
+        Raises:
+            ConfigError: If project config not found
+        """
+        project_config = ProjectConfigLoader.load_project_config_optional(start_path, custom_config_file)
+        if not project_config:
+            raise ConfigError(
+                "Project config required but not found. Create .kano/backlog_config.toml in project root."
+            )
+        
+        product = project_config.get_product(product_name)
+        if not product:
+            return {}
+        
+        return product.overrides
+
+    @staticmethod
     def load_effective_config(
         resource_path: Path,
         *,
@@ -335,23 +407,43 @@ class ConfigLoader:
         agent: Optional[str] = None,
         topic: Optional[str] = None,
         workset_item_id: Optional[str] = None,
+        custom_config_file: Optional[Path] = None,
     ) -> tuple[BacklogContext, dict[str, Any]]:
-        """Return (context, effective_config) using the layered merge order."""
+        """Return (context, effective_config) using the layered merge order.
+        
+        BREAKING CHANGE: Traditional product configs are no longer supported.
+        Only project-level configs (.kano/backlog_config.toml) are used.
+        """
         ctx = ConfigLoader.from_path(
             resource_path,
             product=product,
             sandbox=sandbox,
             agent=agent,
             topic=topic,
+            custom_config_file=custom_config_file,
         )
 
+        # Load configuration layers in precedence order (lowest to highest)
+        # Start with system defaults (defined in code)
+        system_defaults = ConfigLoader.get_system_defaults()
+        
+        # Then load file-based configurations
         defaults = ConfigLoader.load_defaults(ctx.backlog_root)
-        product_cfg = ConfigLoader.load_product_config(ctx.product_root)
+        
+        # Project-level configuration (REQUIRED)
+        project_cfg = ConfigLoader.load_project_config(resource_path, custom_config_file)
+        # Note: project_cfg can be an empty dict if no defaults/shared are defined
+        
+        project_product_overrides = ConfigLoader.load_project_product_overrides(
+            resource_path, ctx.product_name, custom_config_file
+        )
+        
         topic_cfg = ConfigLoader.load_topic_overrides(ctx.backlog_root, topic=topic, agent=agent)
         workset_cfg = ConfigLoader.load_workset_overrides(ctx.backlog_root, item_id=workset_item_id)
 
+        # Merge layers in precedence order (system defaults first, then user configs)
         effective: dict[str, Any] = {}
-        for layer in (defaults, product_cfg, topic_cfg, workset_cfg):
+        for layer in (system_defaults, defaults, project_cfg, project_product_overrides, topic_cfg, workset_cfg):
             if isinstance(layer, dict):
                 effective = ConfigLoader._deep_merge(effective, layer)
 

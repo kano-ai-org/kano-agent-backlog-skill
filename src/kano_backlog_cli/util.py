@@ -5,6 +5,20 @@ import sys
 from pathlib import Path
 from typing import Optional
 
+# Global variable to store custom config file path
+_global_config_file: Optional[Path] = None
+
+
+def set_global_config_file(config_file: Path) -> None:
+    """Set the global config file path for use by utility functions."""
+    global _global_config_file
+    _global_config_file = config_file.resolve()
+
+
+def get_global_config_file() -> Optional[Path]:
+    """Get the global config file path if set."""
+    return _global_config_file
+
 
 def configure_stdio() -> None:
     """Make CLI output robust across Windows console encodings.
@@ -112,33 +126,57 @@ def resolve_product_root(
     start: Optional[Path] = None,
     backlog_root_override: Optional[Path] = None,
 ) -> Path:
-    backlog_root = resolve_backlog_root(start, backlog_root_override)
-    products_dir = backlog_root / "products"
-    if product:
-        root = products_dir / product
-        if not root.exists():
-            raise SystemExit(f"Product not found: {root}")
-        return root
-
-    # If defaults specify a product, honor it (TOML-first; JSON is deprecated fallback).
+    """Resolve product root using the project-level config system.
+    
+    BREAKING CHANGE: Traditional product structure no longer supported.
+    Only project-level configs (.kano/backlog_config.toml) are used.
+    """
     try:
         ensure_core_on_path()
         from kano_backlog_core.config import ConfigLoader
-
-        defaults = ConfigLoader.load_defaults(backlog_root)
-        default_product = defaults.get("default_product") if isinstance(defaults, dict) else None
-        if isinstance(default_product, str) and default_product.strip():
-            candidate = products_dir / default_product.strip()
-            if candidate.exists():
-                return candidate
-    except Exception:
-        # Keep fallback behavior if defaults cannot be loaded.
-        pass
-    # Fallback: pick the only product if exactly one exists
-    candidates = [p for p in products_dir.iterdir() if p.is_dir()]
-    if len(candidates) == 1:
-        return candidates[0]
-    raise SystemExit("Multiple products found; specify --product.")
+        from kano_backlog_core.project_config import ProjectConfigLoader
+        
+        start_path = start or Path.cwd()
+        
+        # Check if a custom config file was specified via CLI
+        custom_config_file = get_global_config_file()
+        
+        if custom_config_file:
+            # Load project config from custom file
+            project_config = ProjectConfigLoader.load_project_config(custom_config_file)
+            
+            # If product is specified, try to resolve from project config
+            if product:
+                backlog_root = project_config.resolve_backlog_root(product, custom_config_file)
+                if backlog_root:
+                    # For project config products, the backlog_root IS the product root
+                    return backlog_root
+                else:
+                    raise SystemExit(f"Product '{product}' not found in config file: {custom_config_file}")
+            else:
+                # Auto-detect product from project config
+                products = project_config.list_products()
+                if len(products) == 1:
+                    backlog_root = project_config.resolve_backlog_root(products[0], custom_config_file)
+                    if backlog_root:
+                        return backlog_root
+                elif len(products) > 1:
+                    raise SystemExit(f"Multiple products found in {custom_config_file}; specify --product: {', '.join(products)}")
+                else:
+                    raise SystemExit(f"No products defined in config file: {custom_config_file}")
+        
+        # Use the new config system (project config required)
+        ctx = ConfigLoader.from_path(
+            start_path,
+            product=product,
+            custom_config_file=custom_config_file,
+        )
+        
+        return ctx.product_root
+        
+    except Exception as e:
+        # No fallback - project config is required
+        raise SystemExit(f"Project config required but not found. Create .kano/backlog_config.toml in project root. Error: {e}")
 
 
 def find_item_path_by_id(items_root: Path, display_id: str) -> Path:
