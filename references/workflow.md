@@ -2,6 +2,23 @@
 
 ## A) Planning (discussion -> tickets)
 
+### Pre-planning: Sync DB sequences
+
+Before creating any work items, ensure the DB sequence is synchronized:
+
+```bash
+# Sync sequences from filesystem to DB
+kano-backlog admin sync-sequences --product <product>
+```
+
+**When to sync**:
+- After cloning the repository
+- After pulling changes that add/remove items
+- When seeing "Ambiguous item reference" errors
+- Before bulk item creation
+
+### Planning workflow
+
 1. Create or update Epic for the milestone.
 2. Split into Features (capabilities).
 3. Split into UserStories (user perspective).
@@ -74,6 +91,72 @@ The Ready gate ensures planning is complete before execution begins.
 
 - Use `scripts/backlog/*` or `scripts/fs/*` for backlog/skill artifacts.
 - Scripts only operate under `_kano/backlog/` or `_kano/backlog_sandbox/` to keep audit logs clean.
+
+## F.1) ID management best practices
+
+### Always use system-allocated IDs
+
+**Correct**:
+```bash
+# Let the system allocate the next ID
+kano-backlog item create --type task --title "..." --agent <agent> --product <product>
+# Output: OK: Created: KABSD-TSK-0340
+```
+
+**Incorrect**:
+```yaml
+# DON'T manually edit frontmatter to assign IDs
+id: KABSD-TSK-9999  # ❌ Will cause collisions
+```
+
+### Reference items by UID when ambiguous
+
+**Correct**:
+```bash
+# Use UID to avoid ambiguity
+kano-backlog item update-state 019c11e6-de87-7218-b89b-38c2e4e9cabd \
+  --state Done --agent <agent> --product <product>
+```
+
+**Incorrect**:
+```bash
+# Display ID may be ambiguous if duplicates exist
+kano-backlog item update-state KABSD-TSK-0001 --state Done ...
+# Error: Ambiguous item reference 'KABSD-TSK-0001': 2 matches
+```
+
+### Use trash command, never delete directly
+
+**Correct**:
+```bash
+# Move to _trash/ (recoverable)
+kano-backlog admin items trash <UID> \
+  --agent <agent> \
+  --reason "Duplicate/incorrect item" \
+  --product <product> \
+  --apply
+```
+
+**Incorrect**:
+```bash
+# DON'T delete files directly
+rm _kano/backlog/products/<product>/items/task/0000/KABSD-TSK-0001_*.md  # ❌
+```
+
+### Periodic health checks
+
+Run these commands periodically:
+
+```bash
+# Check DB sequence health
+kano-backlog doctor --product <product>
+
+# Validate UID uniqueness
+kano-backlog admin validate uids --product <product>
+
+# Sync sequences if needed
+kano-backlog admin sync-sequences --product <product>
+```
 
 ## G) Artifacts directory
 

@@ -192,6 +192,150 @@ Execution:
   - Uppercase the result.
 - Example: `product.name=kano-agent-backlog-skill-demo` -> `KABSD`.
 
+## ID allocation and sequence management
+
+### Understanding IDs vs UIDs
+
+The backlog system uses two types of identifiers:
+
+- **UID (UUID)**: The true unique identifier for each work item (e.g., `019c11e6-de87-7218-b89b-38c2e4e9cabd`).
+  - Immutable - never changes throughout the item's lifecycle.
+  - Guaranteed unique - no collisions possible.
+  - Used internally by the system for all operations.
+  - Stored in frontmatter: `uid: 019c11e6-de87-7218-b89b-38c2e4e9cabd`
+
+- **Display ID**: Human-readable identifier (e.g., `KABSD-TSK-0335`).
+  - Derived from DB sequence counter (auto-incremented).
+  - Used in filenames and for human reference.
+  - May have collisions if DB sequence is stale.
+  - Format: `<PREFIX>-<TYPE>-<NUMBER>` (e.g., `KABSD-TSK-0335`)
+
+**System behavior**: All CLI operations accept both UID and Display ID. When ambiguous (multiple items with same Display ID), the system requires UID.
+
+### ID allocation mechanism
+
+IDs are allocated from a SQLite database sequence to prevent collisions:
+
+1. **DB Sequence**: Tracks the next available ID for each type (EPIC, FTR, USR, TSK, BUG).
+2. **Auto-increment**: `item create` queries the DB for the next available ID.
+3. **File-first**: Markdown files are the source of truth; the DB is a derived index that must be kept in sync.
+
+### Sequence synchronization workflow
+
+The DB sequence must be synchronized with the filesystem after certain operations.
+
+**When to sync** (run `admin sync-sequences`):
+- After cloning the repository (DB doesn't exist yet).
+- After pulling changes that add/remove items (DB is out of sync).
+- Before bulk item creation (ensure no collisions).
+- When seeing "Ambiguous item reference" errors (multiple items with same Display ID).
+- After manually creating/deleting item files outside the CLI.
+
+**How to sync**:
+
+```bash
+# Preview changes (dry run)
+python skills/kano-agent-backlog-skill/scripts/kano-backlog admin sync-sequences --product <product> --dry-run
+
+# Apply synchronization
+python skills/kano-agent-backlog-skill/scripts/kano-backlog admin sync-sequences --product <product>
+```
+
+Output example:
+```
+Updated sequences:
+  EPIC: 15
+  FTR: 64
+  USR: 44
+  TSK: 336
+  BUG: 10
+```
+
+### Correct workflow for creating items
+
+**Always follow this order**:
+
+```bash
+# Step 1: Sync sequences (if not done recently)
+python skills/kano-agent-backlog-skill/scripts/kano-backlog admin sync-sequences --product <product>
+
+# Step 2: Create item (system auto-assigns next available ID)
+python skills/kano-agent-backlog-skill/scripts/kano-backlog item create \
+  --type task \
+  --title "Your task title" \
+  --agent <agent-id> \
+  --product <product>
+
+# Output: OK: Created: KABSD-TSK-0336
+#         Path: KABSD-TSK-0336_your-task-title.md
+```
+
+The system automatically:
+- Queries the DB for the next sequence number.
+- Allocates the Display ID (e.g., `KABSD-TSK-0336`).
+- Generates a unique UID (UUID v7).
+- Creates the file with both identifiers.
+
+### Handling ID conflicts
+
+If you encounter "Ambiguous item reference" errors (multiple items with same Display ID):
+
+**Option 1: Use UID instead of Display ID**
+```bash
+# Reference by UID (always unambiguous)
+python skills/kano-agent-backlog-skill/scripts/kano-backlog item update-state \
+  019c11e6-de87-7218-b89b-38c2e4e9cabd \
+  --state Done \
+  --agent <agent-id> \
+  --product <product>
+```
+
+**Option 2: Trash the incorrect item**
+```bash
+# Move incorrect item to _trash/ (recoverable)
+python skills/kano-agent-backlog-skill/scripts/kano-backlog admin items trash \
+  <UID> \
+  --agent <agent-id> \
+  --reason "ID conflict - incorrect duplicate" \
+  --product <product> \
+  --apply
+```
+
+**Option 3: Find which items have the same ID**
+```bash
+# Identify duplicates
+find _kano/backlog/products/<product>/items -name "KABSD-TSK-0001*.md"
+```
+
+### Best practices
+
+**DO**:
+- ✅ Run `sync-sequences` after cloning or pulling changes.
+- ✅ Let the system allocate IDs automatically (never manually assign).
+- ✅ Use UID when scripting or in ambiguous situations.
+- ✅ Use the `trash` command instead of deleting files directly.
+- ✅ Check `admin validate uids` periodically to detect UID collisions.
+
+**DON'T**:
+- ❌ Manually assign Display IDs in frontmatter.
+- ❌ Delete item files directly (use `admin items trash`).
+- ❌ Assume Display ID is unique (always be prepared to use UID).
+- ❌ Skip `sync-sequences` after repository operations.
+- ❌ Create items without running `sync-sequences` first (if DB might be stale).
+
+### Conflict resolution policy
+
+The system provides configurable conflict handling via product config:
+
+```toml
+# _kano/backlog/products/<product>/_config/config.toml
+[conflict_policy]
+id_conflict = "rename"           # Rename duplicate Display IDs
+uid_conflict = "trash_shorter"   # Move shorter duplicate to _trash/
+```
+
+See `admin links normalize-ids` and `admin validate uids` commands for conflict detection and resolution.
+
 ## Recommended layout
 
 This skill supports both single-product and multi-product layouts:
