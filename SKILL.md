@@ -152,6 +152,31 @@ If packages are missing, install once (recommended):
 - **Skill contributors**: `python -m pip install -e skills/kano-agent-backlog-skill[dev]`
 - Optional heavy dependencies (FAISS, sentence-transformers) should be installed manually per platform requirements before running the CLI against embedding features.
 
+### Container/Docker environments (agents)
+
+If you run inside a restricted container (no `pip`, no build tools), `admin init` will fail because
+the CLI cannot install its Python dependencies. In that case, use a prebuilt image or rebuild the
+image with Python + pip available.
+
+**Minimum requirements in the container**:
+- Python 3.11+
+- `pip` (or an equivalent package manager)
+- Ability to install the skill dependencies
+
+**Recommended flow (container)**:
+```bash
+python -m venv .venv
+./.venv/Scripts/python -m pip install -e skills/kano-agent-backlog-skill
+./.venv/Scripts/python skills/kano-agent-backlog-skill/scripts/kano-backlog admin init --product <product> --agent <agent-id>
+```
+
+If your container cannot install packages (no pip / no build tools), do **not** run the CLI there.
+Instead, run the CLI in a proper Python environment and mount the generated `_kano/backlog` and
+`.kano/backlog_config.toml` into the container.
+
+**Say this to your agent**:
+"I'm in a container without pip. Please run `kano-backlog admin init` in a Python environment that has pip, then copy/mount `_kano/backlog` and `.kano/backlog_config.toml` into the container. If pip is available, install the skill in a venv and run `admin init` inside the container."
+
 ### Backlog initialization (file scaffold + config + dashboards)
 
 Detect (multi-product / platform layout):
