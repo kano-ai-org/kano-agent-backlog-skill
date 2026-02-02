@@ -29,6 +29,10 @@ def _resolve_sqlite_vector_db_path(
     embedding_space_id: Optional[str],
     product: str,
 ) -> Path:
+    # Keep naming consistent with kano_backlog_core.vector.sqlite_backend.SQLiteVectorBackend
+    # so that `--force` can reliably delete the DB it will actually use.
+    base_dir = vec_path.parent if vec_path.suffix else vec_path
+
     if embedding_space_id:
         components = {}
         for segment in embedding_space_id.split('|'):
@@ -50,6 +54,12 @@ def _resolve_sqlite_vector_db_path(
         return base_dir / f"backlog.{product}.vectors.{emb_short}.{digest}.db"
 
     return vec_path if vec_path.suffix else vec_path / f"backlog.{product}.vectors.db"
+
+        digest = hashlib.sha256(embedding_space_id.encode("utf-8")).hexdigest()[:8]
+        return base_dir / f"vectors.{corpus}.{emb_short}.{digest}.db"
+
+    # No embedding space isolation: fallback to a stable per-collection DB name.
+    return vec_path if vec_path.suffix else base_dir / f"vectors.{collection}.db"
 
 
 def _chunks_db_is_stale(*, product_root: Path, chunks_db_path: Path) -> bool:
@@ -355,6 +365,17 @@ def build_vector_index(
 
         real_backlog_root = ctx.project_root / "_kano" / "backlog"
         build_chunks_db(product=product, backlog_root=real_backlog_root, force=True, cache_root=cache_root)
+
+        # Use the project config that resolved ctx (important when the backlog data
+        # lives in another repo and that repo's project config does not define this product).
+        project_config_file = ctx.project_root / ".kano" / "backlog_config.toml"
+        build_chunks_db(
+            product=product,
+            backlog_root=ops_backlog_root,
+            force=True,
+            cache_root=cache_root,
+            custom_config_file=project_config_file if project_config_file.exists() else None,
+        )
 
     if not chunks_db_path.exists():
         raise FileNotFoundError(f"Chunks DB not found: {chunks_db_path}")

@@ -170,7 +170,7 @@ def build_index(
         source_id = str(file_path)
         
         # Index the file
-        result = index_document(source_id, text_content, pc, product_root=ctx.product_root)
+        result = index_document(source_id, text_content, pc, product_root=ctx.project_root)
         
         if output_format == "json":
             payload = {

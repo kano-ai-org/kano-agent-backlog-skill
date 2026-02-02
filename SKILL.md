@@ -454,6 +454,32 @@ If the backlog structure is missing, propose creation and wait for user approval
 
 `scripts/` exposes a single executable: `scripts/kano-backlog`. The CLI is intentionally organized as nested command groups so agents can discover operations via `--help` on-demand (instead of hard-coding the full command surface into this skill).
 
+## Profile overlays (user-facing config presets)
+
+This skill supports **optional, file-based profile overlays** for end users who want
+simple presets (for example, switching between `noop`, local Hugging Face, or a hosted
+embedding provider) without editing the repo’s main `.kano/backlog_config.toml`.
+
+**Where profiles live**
+- `<repo>/.kano/backlog_config/<group>/<name>.toml`
+  - Example: `.kano/backlog_config/embedding/local-sentence-transformers-minilm.toml`
+
+**How to use a profile**
+- Pass `--profile <group>/<name>` to `scripts/kano-backlog` (global option).
+  - Example:
+    - `python skills/kano-agent-backlog-skill/scripts/kano-backlog --profile embedding/local-noop config show --product <product> --agent <agent-id>`
+    - `python skills/kano-agent-backlog-skill/scripts/kano-backlog --profile embedding/local-sentence-transformers-minilm embedding build --product <product>`
+
+**Optional: set a default profile in `.kano/backlog_config.toml`**
+- Add either:
+  - `[defaults] profile = "embedding/local-noop"`, or
+  - `[shared.profiles] active = "embedding/local-noop"`
+- CLI `--profile ...` always overrides the default.
+
+**Precedence**
+- Profile overlays are merged on top of the effective config (higher priority than repo defaults and topic/workset overlays in the current implementation).
+- Explicit CLI flags still have the highest priority.
+
 ### Help-driven discovery (preferred)
 
 Run these in order, expanding only what you need:

@@ -181,6 +181,7 @@ def build_chunks_db(
     backlog_root: Optional[Path] = None,
     force: bool = False,
     cache_root: Optional[Path] = None,
+    custom_config_file: Optional[Path] = None,
 ) -> ChunksDbBuildResult:
     """Build the canonical chunks DB for a product.
     
@@ -201,7 +202,11 @@ def build_chunks_db(
     if cache_root:
         cache_dir = Path(cache_root)
     else:
-        _, effective = ConfigLoader.load_effective_config(backlog_root_path, product=product)
+        _, effective = ConfigLoader.load_effective_config(
+            backlog_root_path,
+            product=product,
+            custom_config_file=custom_config_file,
+        )
         cache_dir = ConfigLoader.get_chunks_cache_root(backlog_root_path, effective)
     
     cache_dir.mkdir(parents=True, exist_ok=True)
@@ -215,7 +220,11 @@ def build_chunks_db(
     # Resolve pipeline config so chunking/tokenizer matches embedding pipeline.
     # Fall back to deterministic defaults when config is absent (e.g., in tests).
     try:
-        _, effective = ConfigLoader.load_effective_config(backlog_root_path, product=product)
+        _, effective = ConfigLoader.load_effective_config(
+            backlog_root_path,
+            product=product,
+            custom_config_file=custom_config_file,
+        )
         pc = ConfigLoader.validate_pipeline_config(effective)
         chunking_options = pc.chunking
         tokenizer_model = pc.tokenizer.model
@@ -256,6 +265,14 @@ def build_chunks_db(
 
     conn = sqlite3.connect(str(db_path))
     try:
+        # Use in-memory journaling for derived DBs to avoid environments where
+        # rollback journal file operations (rename/lock) are blocked.
+        try:
+            conn.execute("PRAGMA journal_mode=MEMORY")
+            conn.execute("PRAGMA synchronous=OFF")
+            conn.execute("PRAGMA temp_store=MEMORY")
+        except sqlite3.OperationalError:
+            pass
         conn.execute("PRAGMA foreign_keys = ON")
         cur = conn.cursor()
         cur.executescript(load_canonical_schema())

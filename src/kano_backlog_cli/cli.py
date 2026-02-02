@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 from typing import Optional
 import typer
@@ -21,6 +22,12 @@ def _init(
         dir_okay=False,
         readable=True,
     )
+    ,
+    profile: Optional[str] = typer.Option(
+        None,
+        "--profile",
+        help="Config profile to overlay (loads .kano/backlog_config/<profile>.toml relative to project root)",
+    ),
 ):
     configure_stdio()
     ensure_core_on_path()
@@ -28,6 +35,11 @@ def _init(
     # Store the config file path globally for use by utility functions
     if config_file:
         set_global_config_file(config_file)
+
+    # Expose profile selection to the core layer without creating a dependency
+    # on CLI state (core reads this env var when computing effective config).
+    if profile and profile.strip():
+        os.environ["KANO_BACKLOG_PROFILE"] = profile.strip()
 
 
 from .commands import admin as admin_cmd  # noqa: E402

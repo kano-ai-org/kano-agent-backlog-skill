@@ -21,6 +21,7 @@ _kano/backlog/.cache/worksets/active_topic.<agent>.txt
 import json
 import logging
 import re
+import os
 import warnings
 from pathlib import Path
 from typing import Any, Optional
@@ -584,6 +585,58 @@ class ConfigLoader:
         return product.to_overrides()
 
     @staticmethod
+    def _resolve_project_root_for_profiles(start_path: Path, custom_config_file: Optional[Path] = None) -> Path:
+        config_path = ProjectConfigLoader.find_project_config(start_path, custom_config_file)
+        if not config_path:
+            raise ConfigError("Project config file not found; cannot resolve profile root")
+        if config_path.parent.name == ".kano":
+            return config_path.parent.parent
+        return config_path.parent
+
+    @staticmethod
+    def load_profile_overrides(
+        start_path: Path,
+        *,
+        profile: Optional[str] = None,
+        custom_config_file: Optional[Path] = None,
+    ) -> dict[str, Any]:
+        """Load an optional profile overlay TOML.
+
+        Profile resolution:
+        - CLI/env provides `profile` (or env KANO_BACKLOG_PROFILE).
+        - If set, load: <project_root>/.kano/backlog_config/<profile>.toml
+          where <profile> can include subfolders (e.g., "embedding/local-noop").
+
+        The profile file is treated as a config overlay (higher priority than
+        topic/workset in this implementation, but lower than explicit CLI flags).
+        """
+        profile_name = (profile or os.environ.get("KANO_BACKLOG_PROFILE") or "").strip()
+        if not profile_name:
+            return {}
+
+        project_root = ConfigLoader._resolve_project_root_for_profiles(start_path, custom_config_file)
+        profiles_root = (project_root / ".kano" / "backlog_config").resolve()
+
+        # Allow an explicit absolute path (advanced usage); otherwise resolve within profiles_root.
+        raw_path = Path(profile_name)
+        if raw_path.is_absolute():
+            candidate = raw_path
+        else:
+            rel = raw_path
+            if not rel.suffix:
+                rel = rel.with_suffix(".toml")
+            candidate = (profiles_root / rel).resolve()
+            if profiles_root not in candidate.parents and candidate != profiles_root:
+                raise ConfigError(f"Invalid profile path traversal: {profile_name}")
+
+        if not candidate.exists():
+            raise ConfigError(f"Profile config not found: {candidate}")
+        if not candidate.is_file():
+            raise ConfigError(f"Profile config is not a file: {candidate}")
+
+        return ConfigLoader._read_toml_optional(candidate)
+
+    @staticmethod
     def load_effective_config(
         resource_path: Path,
         *,
@@ -594,6 +647,7 @@ class ConfigLoader:
         profile: Optional[str] = None,
         workset_item_id: Optional[str] = None,
         custom_config_file: Optional[Path] = None,
+        profile: Optional[str] = None,
     ) -> tuple[BacklogContext, dict[str, Any]]:
         """Return (context, effective_config) using the layered merge order.
         
@@ -628,6 +682,27 @@ class ConfigLoader:
         
         topic_cfg = ConfigLoader.load_topic_overrides(ctx.backlog_root, topic=topic, agent=agent)
         workset_cfg = ConfigLoader.load_workset_overrides(ctx.backlog_root, item_id=workset_item_id)
+        # Profile selection can be supplied via:
+        # - CLI arg (profile=...)
+        # - env var KANO_BACKLOG_PROFILE (set by CLI callback)
+        # - repo defaults/shared (e.g., [defaults].profile or [shared.profiles].active)
+        resolved_profile = (profile or os.environ.get("KANO_BACKLOG_PROFILE") or "").strip() or None
+        if not resolved_profile:
+            candidate = project_cfg.get("profile")
+            if isinstance(candidate, str) and candidate.strip():
+                resolved_profile = candidate.strip()
+            else:
+                profiles_block = project_cfg.get("profiles")
+                if isinstance(profiles_block, dict):
+                    active = profiles_block.get("active")
+                    if isinstance(active, str) and active.strip():
+                        resolved_profile = active.strip()
+
+        profile_cfg = ConfigLoader.load_profile_overrides(
+            resource_path,
+            profile=resolved_profile,
+            custom_config_file=custom_config_file,
+        )
 
         # Merge layers in precedence order (system defaults first, then user configs)
         effective: dict[str, Any] = {}

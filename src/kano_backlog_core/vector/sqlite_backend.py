@@ -118,6 +118,15 @@ class SQLiteVectorBackend(VectorBackendAdapter):
         self._db_path = db_path
 
         self._conn = sqlite3.connect(str(db_path), timeout=10.0)
+        # Some environments block SQLite rollback journal file operations (e.g., atomic renames),
+        # which can surface as "disk I/O error" even when the directory is writable.
+        # For derived caches, prefer in-memory journaling to keep the pipeline usable.
+        try:
+            self._conn.execute("PRAGMA journal_mode=MEMORY")
+            self._conn.execute("PRAGMA synchronous=OFF")
+            self._conn.execute("PRAGMA temp_store=MEMORY")
+        except sqlite3.OperationalError:
+            pass
 
         # Attempt to load vec extension (optional)
         try:
