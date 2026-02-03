@@ -16,13 +16,49 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Optional, List
+from typing import Optional, List, Any
 
 import typer
+import click
 
 from ..util import ensure_core_on_path
 
 app = typer.Typer(help="Manage topic-based context groupings")
+
+
+def _resolve_backlog_root_override(path: Optional[Path]) -> Optional[Path]:
+    if path is None:
+        return None
+    p = Path(path).expanduser()
+    if not p.is_absolute():
+        p = Path.cwd() / p
+    return p.resolve()
+
+
+def _get_backlog_root_override() -> Optional[Path]:
+    ctx = click.get_current_context(silent=True)
+    if ctx is None:
+        return None
+    obj: Any = getattr(ctx, "obj", None)
+    if not isinstance(obj, dict):
+        return None
+    value = obj.get("backlog_root_override")
+    if isinstance(value, Path):
+        return value
+    return None
+
+
+@app.callback()
+def _topic_callback(
+    ctx: typer.Context,
+    backlog_root_override: Optional[Path] = typer.Option(
+        None,
+        "--backlog-root-override",
+        help="Operate on this backlog root (e.g. _kano/backlog_sandbox/<name>)",
+    ),
+):
+    ctx.ensure_object(dict)
+    ctx.obj["backlog_root_override"] = _resolve_backlog_root_override(backlog_root_override)
 
 
 @app.command()
@@ -38,12 +74,13 @@ def create(
 ):
     """Create a new topic, optionally from a template."""
     ensure_core_on_path()
+    backlog_root = _get_backlog_root_override()
     
     # Handle template listing
     if list_templates:
         from kano_backlog_ops.template import get_available_templates
         try:
-            templates = get_available_templates()
+            templates = get_available_templates(backlog_root=backlog_root)
             if output_format == "json":
                 payload = {
                     "templates": [
@@ -102,6 +139,7 @@ def create(
                 template,
                 agent=agent,
                 variables=template_vars,
+                backlog_root=backlog_root,
             )
         except TemplateNotFoundError as exc:
             typer.echo(f"❌ {exc.message}", err=True)
@@ -134,6 +172,7 @@ def create(
                 agent=agent,
                 create_notes=not no_notes,
                 create_spec=with_spec,
+                backlog_root=backlog_root,
             )
         except TopicExistsError as exc:
             typer.echo(f"❌ {exc.message}", err=True)
@@ -185,8 +224,10 @@ def add(
         TopicError,
     )
 
+    backlog_root = _get_backlog_root_override()
+
     try:
-        result = add_item_to_topic(topic_name, item)
+        result = add_item_to_topic(topic_name, item, backlog_root=backlog_root)
     except TopicNotFoundError as exc:
         typer.echo(f"❌ {exc.message}", err=True)
         if exc.suggestion:
@@ -231,7 +272,8 @@ def pin(
     )
 
     try:
-        result = pin_document(topic_name, doc)
+        backlog_root = _get_backlog_root_override()
+        result = pin_document(topic_name, doc, backlog_root=backlog_root)
     except TopicNotFoundError as exc:
         typer.echo(f"❌ {exc.message}", err=True)
         if exc.suggestion:
@@ -287,6 +329,7 @@ def add_snippet(
             end_line=end,
             agent=agent,
             include_snapshot=snapshot,
+            backlog_root=_get_backlog_root_override(),
         )
     except TopicNotFoundError as exc:
         typer.echo(f"❌ {exc.message}", err=True)
@@ -328,7 +371,7 @@ def distill(
     from kano_backlog_ops.topic import distill_topic, TopicNotFoundError, TopicError
 
     try:
-        brief_path = distill_topic(topic_name)
+        brief_path = distill_topic(topic_name, backlog_root=_get_backlog_root_override())
     except TopicNotFoundError as exc:
         typer.echo(f"❌ {exc.message}", err=True)
         if exc.suggestion:
@@ -359,7 +402,7 @@ def decision_audit(
     from kano_backlog_ops.topic import generate_decision_audit_report, TopicNotFoundError, TopicError
 
     try:
-        result = generate_decision_audit_report(topic_name)
+        result = generate_decision_audit_report(topic_name, backlog_root=_get_backlog_root_override())
     except TopicNotFoundError as exc:
         typer.echo(f"❌ {exc.message}", err=True)
         if exc.suggestion:
@@ -403,7 +446,7 @@ def close(
     from kano_backlog_ops.topic import close_topic, TopicNotFoundError, TopicError
 
     try:
-        result = close_topic(topic_name, agent=agent)
+        result = close_topic(topic_name, agent=agent, backlog_root=_get_backlog_root_override())
     except TopicNotFoundError as exc:
         typer.echo(f"❌ {exc.message}", err=True)
         if exc.suggestion:
@@ -445,7 +488,12 @@ def cleanup(
     from kano_backlog_ops.topic import cleanup_topics, TopicError
 
     try:
-        result = cleanup_topics(ttl_days=ttl_days, dry_run=(not apply), delete_topic_dir=delete_topic_dir)
+        result = cleanup_topics(
+            ttl_days=ttl_days,
+            backlog_root=_get_backlog_root_override(),
+            dry_run=(not apply),
+            delete_topic_dir=delete_topic_dir,
+        )
     except TopicError as exc:
         typer.echo(f"❌ {exc.message}", err=True)
         if exc.suggestion:
@@ -495,6 +543,7 @@ def merge(
             target,
             sources,
             agent=agent or "",
+            backlog_root=_get_backlog_root_override(),
             dry_run=dry_run,
             delete_source_topics=delete_sources,
         )
@@ -515,7 +564,7 @@ def merge(
     # Update worksets state if requested and not dry_run
     if update_worksets and not dry_run:
         try:
-            update_worksets_after_merge(target, sources)
+            update_worksets_after_merge(target, sources, backlog_root=_get_backlog_root_override())
         except Exception as exc:
             # Non-fatal; report and continue
             typer.echo(f"⚠️  Worksets state update warning: {exc}", err=True)
@@ -561,7 +610,7 @@ def switch(
     )
 
     try:
-        result = switch_topic(topic_name, agent=agent)
+        result = switch_topic(topic_name, agent=agent, backlog_root=_get_backlog_root_override())
     except TopicNotFoundError as exc:
         typer.echo(f"❌ {exc.message}", err=True)
         if exc.suggestion:
@@ -606,7 +655,7 @@ def export_context(
     )
 
     try:
-        bundle = export_topic_context(topic_name, format=output_format)
+        bundle = export_topic_context(topic_name, backlog_root=_get_backlog_root_override(), format=output_format)
     except TopicNotFoundError as exc:
         typer.echo(f"❌ {exc.message}", err=True)
         if exc.suggestion:
@@ -674,8 +723,9 @@ def list_cmd(
     from kano_backlog_ops.topic import list_topics, get_active_topic, TopicError
 
     try:
-        topics = list_topics()
-        active_topic = get_active_topic(agent) if agent else None
+        backlog_root = _get_backlog_root_override()
+        topics = list_topics(backlog_root=backlog_root)
+        active_topic = get_active_topic(agent, backlog_root=backlog_root) if agent else None
     except TopicError as exc:
         typer.echo(f"❌ {exc.message}", err=True)
         if exc.suggestion:
@@ -732,7 +782,7 @@ def add_reference(
     )
 
     try:
-        result = add_topic_reference(topic_name, referenced_topic)
+        result = add_topic_reference(topic_name, referenced_topic, backlog_root=_get_backlog_root_override())
     except TopicNotFoundError as exc:
         typer.echo(f"❌ {exc.message}", err=True)
         if exc.suggestion:
@@ -777,7 +827,7 @@ def remove_reference(
     )
 
     try:
-        result = remove_topic_reference(topic_name, referenced_topic)
+        result = remove_topic_reference(topic_name, referenced_topic, backlog_root=_get_backlog_root_override())
     except TopicNotFoundError as exc:
         typer.echo(f"❌ {exc.message}", err=True)
         if exc.suggestion:
@@ -821,7 +871,7 @@ def template_list(
     from kano_backlog_ops.template import get_available_templates, TemplateError
 
     try:
-        templates = get_available_templates()
+        templates = get_available_templates(backlog_root=_get_backlog_root_override())
     except TemplateError as exc:
         typer.echo(f"❌ {exc.message}", err=True)
         if exc.suggestion:
@@ -887,7 +937,7 @@ def template_show(
     from kano_backlog_ops.template import get_template_info, TemplateNotFoundError, TemplateError
 
     try:
-        template_info = get_template_info(template_name)
+        template_info = get_template_info(template_name, backlog_root=_get_backlog_root_override())
         template = template_info.template
     except TemplateNotFoundError as exc:
         typer.echo(f"❌ {exc.message}", err=True)
@@ -956,7 +1006,7 @@ def template_validate(
     from kano_backlog_ops.template import validate_template_by_name, TemplateError
 
     try:
-        errors = validate_template_by_name(template_name)
+        errors = validate_template_by_name(template_name, backlog_root=_get_backlog_root_override())
     except TemplateError as exc:
         typer.echo(f"❌ {exc.message}", err=True)
         if exc.suggestion:
@@ -1019,6 +1069,7 @@ def snapshot_create(
             description=description,
             agent=agent,
             include_materials=not no_materials,
+            backlog_root=_get_backlog_root_override(),
         )
     except TopicNotFoundError as exc:
         typer.echo(f"❌ {exc.message}", err=True)
@@ -1062,7 +1113,7 @@ def snapshot_list(
     )
 
     try:
-        result = list_topic_snapshots(topic_name)
+        result = list_topic_snapshots(topic_name, backlog_root=_get_backlog_root_override())
     except TopicNotFoundError as exc:
         typer.echo(f"❌ {exc.message}", err=True)
         if exc.suggestion:
@@ -1137,6 +1188,7 @@ def snapshot_restore(
             restore_brief=restore_brief,
             restore_notes=restore_notes,
             backup_current=not no_backup,
+            backlog_root=_get_backlog_root_override(),
         )
     except TopicNotFoundError as exc:
         typer.echo(f"❌ {exc.message}", err=True)
@@ -1190,6 +1242,7 @@ def snapshot_cleanup(
             ttl_days=ttl_days,
             keep_latest=keep_latest,
             dry_run=not apply,
+            backlog_root=_get_backlog_root_override(),
         )
     except TopicNotFoundError as exc:
         typer.echo(f"❌ {exc.message}", err=True)
@@ -1263,6 +1316,7 @@ def split_topic_cmd(
             source_topic,
             split_config,
             agent=agent,
+            backlog_root=_get_backlog_root_override(),
             dry_run=dry_run,
             create_snapshots=not no_snapshots,
         )

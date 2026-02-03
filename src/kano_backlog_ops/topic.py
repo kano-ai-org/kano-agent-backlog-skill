@@ -1112,7 +1112,7 @@ def get_topics_root(backlog_root: Optional[Path] = None) -> Path:
         so that brief.generated.md can optionally be version-controlled.
     """
     if backlog_root is None:
-        backlog_root = Path.cwd() / "_kano" / "backlog"
+        backlog_root = _find_backlog_root()
     return backlog_root / "topics"
 
 
@@ -1143,7 +1143,7 @@ def get_active_topic_path(agent: str, backlog_root: Optional[Path] = None) -> Pa
         Path to _kano/backlog/.cache/worksets/active_topic.<agent>.txt
     """
     if backlog_root is None:
-        backlog_root = Path.cwd() / "_kano" / "backlog"
+        backlog_root = _find_backlog_root()
     cache_root = backlog_root / ".cache" / "worksets"
     return cache_root / f"active_topic.{agent}.txt"
 
