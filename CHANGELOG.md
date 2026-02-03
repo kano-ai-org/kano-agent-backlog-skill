@@ -4,28 +4,26 @@ All notable changes to `kano-agent-backlog-skill` will be documented in this fil
 
 This project uses Git tags as releases: `vX.Y.Z`.
 
-## [0.0.3] - 2026-01-27
+## [0.0.3] - 2026-02-04
 
 ### Added
-- Binary vector storage format using `struct.pack` for 74.5% space savings (836 MB → 213 MB for 26k vectors)
-- Human-readable `.meta.json` metadata files for vector indexes (no SQL queries needed to understand database configuration)
-- vLLM and OpenAI-compatible API support via `base_url` parameter (enables self-hosted embedding services)
-- Orphan commit detection: Git hooks and CLI commands to remind developers to create backlog items
-- `kano-backlog orphan check` command to analyze commits for missing ticket IDs
-- `kano-backlog orphan suggest` command to recommend ticket types based on commit content
-- Git hooks with soft reminders (`.githooks/commit-msg`, `.githooks/post-commit`)
-- WIP commit exemption in git hooks
-- Config option to disable reminders: `git config kano.backlog.reminders false`
+- Effective config artifacts (stable vs runtime) written to deterministic paths under `.kano/cache/`.
+- Gemini embedding provider support (google-genai) with a profile for `gemini-embedding-001`.
+- CLI env auto-load for local development: `env/local.secrets.env` by default, override via `--env-file` / `KANO_ENV_FILE`.
 
 ### Changed
-- Vector storage defaults to binary format for space efficiency
-- Git hook reminders use gentle tone (💡 Reminder) instead of warnings
-- Orphan detection respects trivial commits (docs, chore, style, WIP)
+- Profile resolution precedence:
+  - Explicit path inputs are honored.
+  - Shorthand prefers `.kano/backlog_config/<ref>.toml`, with fallback to `<repo_root>/<ref>.toml`.
+- `cache.root` handling: relative paths are resolved relative to repo root (not CWD).
+- Release check Phase2 is stabilized by aligning tests with the project-level config model.
+
+### Fixed
+- SQLite vector query path alignment: query now resolves the same DB path + `embedding_space_id` as the index builder.
+- Repo corpus indexing/search no longer requires a fully initialized backlog/project config to function.
 
 ### Documentation
-- Complete vLLM setup guide with model comparisons and configuration examples
-- Orphan commit detection guide explaining the soft reminder philosophy
-- Git hooks README with usage examples and customization options
+- Release notes: `docs/releases/0.0.3.md`.
 
 ## [0.0.2] - 2026-01-19
 

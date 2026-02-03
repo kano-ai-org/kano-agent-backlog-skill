@@ -37,6 +37,20 @@ Non-exhaustive examples:
 ## Release checklist (minimum)
 
 - Docs reflect current behavior (`README*`, `REFERENCE.md`, `references/*`)
+- Release notes exist in both locations:
+  - `docs/releases/<version>.md`
+  - `skills/kano-agent-backlog-skill/docs/releases/<version>.md`
+- Release checks are run and reports are written:
+  - Phase1 (version/docs checks):
+    - `python skills/kano-agent-backlog-skill/scripts/kano-backlog admin release check --version <version> --topic release-<version-dashed> --agent <id> --phase phase1 --product kano-agent-backlog-skill`
+    - Expected report: `_kano/backlog/topics/release-<version-dashed>/publish/release_check_<version>_phase1.md`
+  - Phase2 (doctor/pytest/smoke):
+    - `python skills/kano-agent-backlog-skill/scripts/kano-backlog admin release check --version <version> --topic release-<version-dashed> --agent <id> --phase phase2 --product kano-agent-backlog-skill --sandbox release-<version-dashed>-smoke`
+    - Expected report: `_kano/backlog/topics/release-<version-dashed>/publish/release_check_<version>_phase2.md`
+    - Expected artifacts: `_kano/backlog/topics/release-<version-dashed>/publish/phase2_*.txt`
+- Smoke topics must be sandboxed:
+  - Smoke topics are disposable and must be created under `_kano/backlog_sandbox/<sandbox>/...`.
+  - If you see `release-<version-dashed>-smoke-a/b` under `_kano/backlog/topics/`, delete them and re-run Phase2.
 - Canonical CLI commands run end-to-end:
   - `python skills/kano-agent-backlog-skill/scripts/kano-backlog view refresh --agent <id>`
   - `python skills/kano-agent-backlog-skill/scripts/kano-backlog workitem update-state <item> --state Done --agent <id>`
