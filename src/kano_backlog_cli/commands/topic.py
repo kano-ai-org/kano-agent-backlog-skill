@@ -521,6 +521,7 @@ def cleanup(
 
 @app.command("merge")
 def merge(
+    ctx: typer.Context,
     target: str = typer.Argument(..., help="Target topic name"),
     sources: List[str] = typer.Argument(..., help="Source topics to merge (space-separated)"),
     agent: Optional[str] = typer.Option(None, "--agent", help="Agent performing merge"),
@@ -531,6 +532,19 @@ def merge(
 ):
     """Merge one or more topics into a target and optionally update worksets state."""
     ensure_core_on_path()
+
+    # Fix: Resolve backlog root manually from context traversal
+    # This works around potential Typer context issues with variadic arguments
+    backlog_root = None
+    curr = ctx
+    while curr:
+        if curr.obj and isinstance(curr.obj, dict):
+            val = curr.obj.get("backlog_root_override")
+            if isinstance(val, Path):
+                backlog_root = val
+                break
+        curr = curr.parent
+
     from kano_backlog_ops.topic import (
         merge_topics,
         update_worksets_after_merge,
@@ -543,7 +557,7 @@ def merge(
             target,
             sources,
             agent=agent or "",
-            backlog_root=_get_backlog_root_override(),
+            backlog_root=backlog_root,
             dry_run=dry_run,
             delete_source_topics=delete_sources,
         )
@@ -564,7 +578,7 @@ def merge(
     # Update worksets state if requested and not dry_run
     if update_worksets and not dry_run:
         try:
-            update_worksets_after_merge(target, sources, backlog_root=_get_backlog_root_override())
+            update_worksets_after_merge(target, sources, backlog_root=backlog_root)
         except Exception as exc:
             # Non-fatal; report and continue
             typer.echo(f"⚠️  Worksets state update warning: {exc}", err=True)

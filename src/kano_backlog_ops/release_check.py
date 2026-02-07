@@ -398,6 +398,23 @@ def run_phase2(
 
     sandbox_backlog_root = repo_root / "_kano" / "backlog_sandbox" / sandbox_name
 
+    # Cleanup smoke topics from previous runs to ensure deterministic creation
+    import shutil
+    smoke_topics_dir = sandbox_backlog_root / "topics"
+    if smoke_topics_dir.exists():
+        smoke_topic_a_path = smoke_topics_dir / f"release-{version.replace('.', '-')}-smoke-a"
+        smoke_topic_b_path = smoke_topics_dir / f"release-{version.replace('.', '-')}-smoke-b"
+        if smoke_topic_a_path.exists():
+            try:
+                shutil.rmtree(smoke_topic_a_path)
+            except Exception:
+                pass
+        if smoke_topic_b_path.exists():
+            try:
+                shutil.rmtree(smoke_topic_b_path)
+            except Exception:
+                pass
+
     # Topic smoke (0.0.2 features)
     def smoke(
         name: str,
