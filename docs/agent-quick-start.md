@@ -143,7 +143,7 @@ echo ".kano/cache" >> .gitignore
 **Or manually edit `.gitignore` and add:**
 ```gitignore
 # Kano backlog cache (derived data)
-.kano/cache/
+.kano/cache
 ```
 
 **Why this is important:**

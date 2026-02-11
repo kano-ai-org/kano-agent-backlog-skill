@@ -85,7 +85,7 @@ kano-backlog item update-state MYAPP-TSK-0001 --state Done \
   --agent kiro --product my-app
 ```
 
-**Note:** Always add `.kano/cache/` to your `.gitignore` after initialization to avoid committing derived data (embeddings, SQLite indexes).
+**Note:** Always add `.kano/cache` to your `.gitignore` after initialization to avoid committing derived data (embeddings, SQLite indexes).
 
 ## Documentation
 

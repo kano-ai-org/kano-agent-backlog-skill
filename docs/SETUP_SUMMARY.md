@@ -46,7 +46,7 @@ cd /path/to/your/project
 kano-backlog admin init --product my-app --agent <your-agent>
 
 # Add cache to .gitignore (IMPORTANT)
-echo ".kano/cache/" >> .gitignore
+echo ".kano/cache" >> .gitignore
 ```
 
 **Key difference:** `-e` flag installs in "editable mode" so code changes take effect immediately.
@@ -147,7 +147,7 @@ kano-backlog doctor       # Validate environment
 kano-backlog admin init --product <name> --agent <agent>
 
 # IMPORTANT: Add cache to .gitignore after initialization
-echo ".kano/cache/" >> .gitignore
+echo ".kano/cache" >> .gitignore
 ```
 
 ### Common Operations
