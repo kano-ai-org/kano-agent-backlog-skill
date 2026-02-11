@@ -127,6 +127,35 @@ ls -la _kano/backlog/products/my-app/
 # Should see: items/, decisions/, views/, _meta/
 ```
 
+### Step 4: Add Cache Directory to .gitignore (IMPORTANT)
+
+**CRITICAL:** The backlog system creates cache files (SQLite databases, vector embeddings) that should NOT be committed to git.
+
+**Add to your project's `.gitignore`:**
+
+```bash
+# Add cache directory to .gitignore
+echo "" >> .gitignore
+echo "# Kano backlog cache (derived data)" >> .gitignore
+echo ".kano/cache" >> .gitignore
+```
+
+**Or manually edit `.gitignore` and add:**
+```gitignore
+# Kano backlog cache (derived data)
+.kano/cache/
+```
+
+**Why this is important:**
+- Cache files can be large (embeddings, vector indexes)
+- Cache is derived data that can be regenerated
+- Prevents merge conflicts on binary files
+- Keeps repository size manageable
+
+**What gets cached:**
+- `.kano/cache/backlog/` - Backlog-specific caches (chunks, embeddings)
+- `.kano/cache/repo/` - Repository code analysis caches (if enabled)
+
 ## Common Agent Workflow
 
 ### Creating Work Items
