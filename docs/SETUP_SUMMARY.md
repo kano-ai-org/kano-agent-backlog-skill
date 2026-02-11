@@ -18,8 +18,9 @@ kano-backlog doctor
 cd /path/to/your/project
 kano-backlog admin init --product my-app --agent <your-agent>
 
-# Add cache to .gitignore (IMPORTANT)
+# Add cache and logs to .gitignore (IMPORTANT)
 echo ".kano/cache" >> .gitignore
+echo "_kano/backlog/_shared/logs" >> .gitignore
 ```
 
 **Status:** Not yet published to PyPI (alpha release)
@@ -45,8 +46,9 @@ kano-backlog doctor
 cd /path/to/your/project
 kano-backlog admin init --product my-app --agent <your-agent>
 
-# Add cache to .gitignore (IMPORTANT)
+# Add cache and logs to .gitignore (IMPORTANT)
 echo ".kano/cache" >> .gitignore
+echo "_kano/backlog/_shared/logs" >> .gitignore
 ```
 
 **Key difference:** `-e` flag installs in "editable mode" so code changes take effect immediately.
@@ -80,8 +82,9 @@ See: [Agent Quick Start Guide](agent-quick-start.md)
    cd /path/to/project
    kano-backlog admin init --product <product> --agent <agent-id>
    
-   # Add cache to .gitignore (IMPORTANT)
+   # Add cache and logs to .gitignore (IMPORTANT)
    echo ".kano/cache" >> .gitignore
+   echo "_kano/backlog/_shared/logs" >> .gitignore
    ```
 
 **Important:** Always use explicit `--agent` flags (e.g., `kiro`, `copilot`, `claude`), never placeholders.
@@ -146,8 +149,9 @@ kano-backlog doctor       # Validate environment
 ```bash
 kano-backlog admin init --product <name> --agent <agent>
 
-# IMPORTANT: Add cache to .gitignore after initialization
+# IMPORTANT: Add cache and logs to .gitignore after initialization
 echo ".kano/cache" >> .gitignore
+echo "_kano/backlog/_shared/logs" >> .gitignore
 ```
 
 ### Common Operations

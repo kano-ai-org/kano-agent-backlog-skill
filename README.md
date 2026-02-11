@@ -60,8 +60,9 @@ kano-backlog doctor
 # Initialize a backlog for your product
 kano-backlog admin init --product my-app --agent kiro
 
-# IMPORTANT: Add cache directory to .gitignore
+# IMPORTANT: Add cache and logs to .gitignore
 echo ".kano/cache" >> .gitignore
+echo "_kano/backlog/_shared/logs" >> .gitignore
 
 # Create a task with required fields
 kano-backlog item create --type task \
@@ -85,7 +86,7 @@ kano-backlog item update-state MYAPP-TSK-0001 --state Done \
   --agent kiro --product my-app
 ```
 
-**Note:** Always add `.kano/cache` to your `.gitignore` after initialization to avoid committing derived data (embeddings, SQLite indexes).
+**Note:** Always add `.kano/cache` and `_kano/backlog/_shared/logs` to your `.gitignore` after initialization to avoid committing derived data (embeddings, SQLite indexes, audit logs).
 
 ## Documentation
 

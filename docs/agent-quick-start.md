@@ -134,27 +134,31 @@ ls -la _kano/backlog/products/my-app/
 **Add to your project's `.gitignore`:**
 
 ```bash
-# Add cache directory to .gitignore
+# Add cache and logs directories to .gitignore
 echo "" >> .gitignore
-echo "# Kano backlog cache (derived data)" >> .gitignore
+echo "# Kano backlog cache and logs (derived data)" >> .gitignore
 echo ".kano/cache" >> .gitignore
+echo "_kano/backlog/_shared/logs" >> .gitignore
 ```
 
 **Or manually edit `.gitignore` and add:**
 ```gitignore
-# Kano backlog cache (derived data)
+# Kano backlog cache and logs (derived data)
 .kano/cache
+_kano/backlog/_shared/logs
 ```
 
 **Why this is important:**
 - Cache files can be large (embeddings, vector indexes)
-- Cache is derived data that can be regenerated
+- Log files accumulate over time and can grow large
+- Both are derived data that can be regenerated
 - Prevents merge conflicts on binary files
 - Keeps repository size manageable
 
-**What gets cached:**
+**What gets ignored:**
 - `.kano/cache/backlog/` - Backlog-specific caches (chunks, embeddings)
 - `.kano/cache/repo/` - Repository code analysis caches (if enabled)
+- `_kano/backlog/_shared/logs/` - Audit logs and operation logs
 
 ## Common Agent Workflow
 
