@@ -9,7 +9,6 @@ dimension = 384
 [vector]
 enabled = true
 backend = "sqlite"
-path = ".kano/cache/backlog/vector"
 collection = "backlog"
 metric = "cosine"
 

@@ -6,6 +6,8 @@ from pathlib import Path
 from typing import Optional
 import typer
 
+from kano_backlog_core import __version__
+
 from .util import (
     configure_stdio,
     ensure_core_on_path,
@@ -15,6 +17,13 @@ from .util import (
 )
 
 app = typer.Typer(help="kano-backlog: Backlog management CLI (MVP)")
+
+
+def version_callback(value: bool):
+    """Display version information."""
+    if value:
+        typer.echo(f"kano-backlog version {__version__}")
+        raise typer.Exit()
 
 
 @app.callback()
@@ -38,6 +47,13 @@ def _init(
         None,
         "--profile",
         help="Config profile to overlay (loads .kano/backlog_config/<profile>.toml relative to project root)",
+    ),
+    version: Optional[bool] = typer.Option(
+        None,
+        "--version",
+        help="Show version and exit",
+        callback=version_callback,
+        is_eager=True,
     ),
 ):
     configure_stdio()

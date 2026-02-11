@@ -4,6 +4,98 @@ All notable changes to `kano-agent-backlog-skill` will be documented in this fil
 
 This project uses Git tags as releases: `vX.Y.Z`.
 
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [0.1.0] - 2026-02-05
+
+### Overview
+
+**Initial alpha release** - Transition from pre-alpha development tool to distributable package. This release focuses on packaging infrastructure, documentation, and core functionality validation while maintaining the local-first architecture.
+
+**Status**: Alpha - Core functionality is working but still under active development. API may change significantly based on testing and feedback.
+
+### Added
+
+#### Package Distribution
+- **PyPI Distribution**: Package now available via `pip install kano-agent-backlog-skill`
+- **Console Script**: `kano-backlog` command automatically installed and available in PATH
+- **Python 3.8+ Support**: Compatible with Python 3.8, 3.9, 3.10, 3.11, and 3.12
+- **Modern Packaging**: Uses `pyproject.toml` (PEP 621) with proper metadata and classifiers
+- **Optional Dependencies**: Organized extras groups ([dev], [vector]) for flexible installation
+
+#### Documentation
+- **Quick Start Guide**: 5-10 minute walkthrough covering installation and first backlog creation
+- **Installation Guide**: System requirements, virtual environment setup, and troubleshooting
+- **Configuration Guide**: Profiles, layered config, environment variables, and multi-product setup
+- **Usage Examples**: Copy-paste commands for common workflows
+- **CONTRIBUTING.md**: Development setup, code style guidelines, testing approach, and release process
+- **README.md**: Project overview with key features, installation command, and minimal usage example
+
+#### Core Features (Validated for Beta)
+- **Structured Work Items**: Hierarchical backlog (Epic → Feature → User Story → Task/Bug) with frontmatter metadata
+- **Ready Gate Validation**: Enforce required fields (Context, Goal, Approach, Acceptance Criteria, Risks/Dependencies) before Task/Bug can move to Ready state
+- **Append-Only Worklog**: Auditable decision trail with timestamps and agent identity
+- **Architecture Decision Records (ADRs)**: Capture significant technical decisions with trade-offs and consequences
+- **State Management**: Validated state transitions with automatic Worklog updates
+- **Multi-Product Support**: Isolated product data with independent ID sequences
+- **ID Assignment**: Unique IDs following pattern `{PRODUCT}-{TYPE}-{SEQUENCE}` with collision-free incrementing
+- **Doctor Command**: Environment validation with actionable recommendations for Python version, SQLite, permissions, and optional dependencies
+
+#### Developer Tools
+- **Version Management**: Single source of truth in `VERSION` file, accessible programmatically
+- **Build System**: Modern Python packaging with `python -m build` producing .tar.gz and .whl
+- **Release Checklist**: Documented process covering pre-release validation, build, test installation, PyPI upload, and post-release verification
+
+### Changed
+- **Package Structure**: Reorganized to follow standard Python packaging conventions
+- **Entry Point**: CLI now installed as proper console script via setuptools entry_points
+- **Dependency Management**: Runtime dependencies use version ranges (not pinned) for flexibility
+- **Documentation Structure**: Consolidated user-facing docs in `docs/` directory
+
+### Known Limitations
+
+#### Alpha Status
+- **API Stability**: Command-line interface and configuration format will change as we refine the design
+- **Breaking Changes**: Pre-1.0 releases (0.x.y) will introduce breaking changes without major version bump
+- **Testing**: Core functionality tested but edge cases may not be fully covered
+
+#### Feature Maturity
+- **Vector Search**: Experimental - SQLite indexing and vector embeddings are functional but may have performance issues with large backlogs
+- **Windows Support**: Core functionality works, but some path handling edge cases may exist
+- **Multi-User Workflows**: Designed for single-user or small team use; concurrent writes may cause conflicts
+
+#### Documentation Gaps
+- **Advanced Workflows**: Some advanced use cases (complex state transitions, custom templates) are not yet fully documented
+- **Migration Guides**: No automated migration from pre-0.1.0 backlog structures
+- **Troubleshooting**: Limited troubleshooting documentation for edge cases
+
+#### Testing Coverage
+- **Property-Based Tests**: Core properties validated, but some edge cases may not be covered
+- **Integration Tests**: Basic workflows tested, but complex multi-product scenarios need more coverage
+- **Platform Testing**: Primarily tested on Linux and macOS; Windows testing is limited
+
+#### Performance
+- **Large Backlogs**: Performance with 1000+ items not extensively tested
+- **View Generation**: Dashboard generation may be slow for large backlogs without SQLite indexing
+- **Search**: Vector search performance depends on embedding model and hardware
+
+### Security
+- **Audit Logging**: Tool invocations logged with agent identity and timestamp
+- **Secret Redaction**: Automatic redaction of sensitive data in audit logs
+- **Log Rotation**: Audit logs automatically rotated to prevent unbounded growth
+
+### Upgrade Notes
+- **First Release**: No upgrade path needed - this is the initial beta release
+- **Future Upgrades**: Breaking changes in 0.x.y releases will be documented in CHANGELOG
+
+### Feedback Welcome
+This is an alpha release. Please report issues, suggest improvements, or share your use cases:
+- **GitHub Issues**: [Report bugs or request features](https://github.com/yourusername/kano-agent-backlog-skill/issues)
+- **Discussions**: [Share feedback and ask questions](https://github.com/yourusername/kano-agent-backlog-skill/discussions)
+
+---
+
 ## [0.0.3] - 2026-02-04
 
 ### Added

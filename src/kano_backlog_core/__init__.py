@@ -1,6 +1,6 @@
 """Kano Backlog Core - Transport-agnostic backlog domain library."""
 
-__version__ = "0.1.0"
+from .__version__ import __version__, __version_info__
 
 from .config import BacklogContext, ConfigLoader
 from .canonical import BacklogItem, CanonicalStore, ItemType, ItemState
@@ -48,6 +48,7 @@ from .errors import (
 __all__ = [
     # Version
     "__version__",
+    "__version_info__",
     # Config
     "BacklogContext",
     "ConfigLoader",

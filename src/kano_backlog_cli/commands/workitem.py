@@ -374,6 +374,7 @@ def set_ready(
         "--risks",
         help="# Risks / Dependencies body",
     ),
+    agent: str = typer.Option(..., "--agent", help="Agent name (for audit trail)"),
     product: Optional[str] = typer.Option(None, "--product", help="Product name"),
     backlog_root_override: Optional[Path] = typer.Option(
         None,
@@ -384,22 +385,36 @@ def set_ready(
     """Set Ready-gate body sections for an existing item."""
     ensure_core_on_path()
     from kano_backlog_core.canonical import CanonicalStore
+    from kano_backlog_ops.worklog import append_worklog_entry
 
     product_root = resolve_product_root(product, backlog_root_override=backlog_root_override)
     store = CanonicalStore(product_root)
     item_path = find_item_path_by_id(store.items_root, item_id)
     item = store.read(item_path)
 
+    updated_fields = []
     if context is not None:
         item.context = context
+        updated_fields.append("Context")
     if goal is not None:
         item.goal = goal
+        updated_fields.append("Goal")
     if approach is not None:
         item.approach = approach
+        updated_fields.append("Approach")
     if acceptance_criteria is not None:
         item.acceptance_criteria = acceptance_criteria
+        updated_fields.append("Acceptance Criteria")
     if risks is not None:
         item.risks = risks
+        updated_fields.append("Risks")
+
+    if updated_fields:
+        from datetime import datetime
+        fields_str = ", ".join(updated_fields)
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M")
+        entry = f"{timestamp} [agent={agent}] Updated Ready fields: {fields_str}"
+        item.worklog.append(entry)
 
     try:
         store.write(item)
@@ -408,6 +423,8 @@ def set_ready(
         raise typer.Exit(2)
 
     typer.echo(f"OK: Updated Ready fields for {item.id}")
+    if updated_fields:
+        typer.echo(f"  Worklog: Updated {fields_str}")
 
 
 @app.command(name="update-state")

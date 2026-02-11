@@ -5,6 +5,7 @@ __pycache__/
 # Distribution / packaging
 .Python
 build/
+dist-test/
 develop-eggs/
 dist/
 downloads/
@@ -28,6 +29,7 @@ MANIFEST
 .coverage
 htmlcov/
 .coverage.*
+.mypy_cache/
 
 # Environments
 .env
