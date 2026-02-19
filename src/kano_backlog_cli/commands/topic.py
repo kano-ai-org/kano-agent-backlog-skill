@@ -16,7 +16,8 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Optional, List, Any
+import shutil
+from typing import Optional, List, Any, Literal, cast
 
 import typer
 import click
@@ -46,6 +47,54 @@ def _get_backlog_root_override() -> Optional[Path]:
     if isinstance(value, Path):
         return value
     return None
+
+
+def _write_opencode_boulder(boulder_path: Path, active_plan: Path) -> None:
+    if boulder_path.exists():
+        data = json.loads(boulder_path.read_text(encoding="utf-8"))
+        if not isinstance(data, dict):
+            data = {}
+    else:
+        data = {}
+
+    data["active_plan"] = str(active_plan.resolve())
+    data["plan_name"] = active_plan.stem
+    data.setdefault("started_at", "")
+    data.setdefault("session_ids", [])
+    data.setdefault("agent", "atlas")
+    boulder_path.parent.mkdir(parents=True, exist_ok=True)
+    boulder_path.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+
+def _resolve_opencode_topic_plan(
+    topic_name: str,
+    plan_file: str,
+    provider: Literal["backlog", "sisyphus", "auto"],
+    backlog_root: Optional[Path],
+    workspace_root: Path,
+) -> tuple[Path, str, Path, Path]:
+    from kano_backlog_ops.topic import get_topic_path
+
+    topic_path = get_topic_path(topic_name, backlog_root=backlog_root)
+    topic_plan = topic_path / plan_file
+    sis_plan_dir = workspace_root / ".sisyphus" / "plans"
+    sis_plan = sis_plan_dir / f"{topic_name}.md"
+
+    if provider == "backlog":
+        if not topic_plan.exists():
+            raise RuntimeError(f"Topic plan not found: {topic_plan}")
+        return topic_plan, "backlog", topic_path, sis_plan
+
+    if provider == "sisyphus":
+        if not sis_plan.exists():
+            raise RuntimeError(f"Sisyphus plan not found: {sis_plan}")
+        return sis_plan, "sisyphus", topic_path, sis_plan
+
+    if topic_plan.exists():
+        return topic_plan, "backlog", topic_path, sis_plan
+    if sis_plan.exists():
+        return sis_plan, "sisyphus", topic_path, sis_plan
+    raise RuntimeError(f"No plan found for topic '{topic_name}' in backlog or .sisyphus")
 
 
 @app.callback()
@@ -208,6 +257,176 @@ def create(
             if template_vars:
                 typer.echo(f"  Variables: {len(template_vars)} provided")
         typer.echo(f"  Path: {result.topic_path}")
+
+
+@app.command("sync-opencode-plan")
+def sync_opencode_plan(
+    topic_name: str = typer.Argument(..., help="Topic name"),
+    plan_file: str = typer.Option("plan.md", "--plan-file", help="Plan filename inside topic directory"),
+    target_name: Optional[str] = typer.Option(None, "--target-name", help="Output filename under .sisyphus/plans"),
+    import_sisyphus_plan: Optional[str] = typer.Option(
+        None,
+        "--import-sisyphus-plan",
+        help="Import .sisyphus/plans/<file> into topic plan before sync",
+    ),
+    set_active: bool = typer.Option(False, "--set-active", help="Update .sisyphus/boulder.json active_plan"),
+    oh_my_opencode: bool = typer.Option(
+        False,
+        "--oh-my-opencode",
+        help="Required acknowledgment: this command is for Oh My OpenCode .sisyphus integration",
+    ),
+    output_format: str = typer.Option("plain", "--format", help="Output format: plain|json"),
+):
+    ensure_core_on_path()
+
+    if not oh_my_opencode:
+        typer.echo("❌ Missing required flag: --oh-my-opencode", err=True)
+        raise typer.Exit(1)
+
+    from kano_backlog_ops.topic import get_topic_path
+
+    backlog_root = _get_backlog_root_override()
+    topic_path = get_topic_path(topic_name, backlog_root=backlog_root)
+    if not topic_path.exists():
+        typer.echo(f"❌ Topic not found: {topic_path}", err=True)
+        raise typer.Exit(1)
+
+    source_plan = topic_path / plan_file
+    workspace_root = Path.cwd().resolve()
+    sis_plan_dir = workspace_root / ".sisyphus" / "plans"
+    sis_boulder = workspace_root / ".sisyphus" / "boulder.json"
+
+    imported = False
+    import_source: Optional[Path] = None
+    if import_sisyphus_plan:
+        import_source = sis_plan_dir / import_sisyphus_plan
+        if not import_source.exists():
+            typer.echo(f"❌ Sisyphus plan not found: {import_source}", err=True)
+            raise typer.Exit(1)
+        source_plan.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(import_source, source_plan)
+        imported = True
+    elif not source_plan.exists():
+        typer.echo(f"❌ Topic plan not found: {source_plan}", err=True)
+        raise typer.Exit(1)
+
+    sis_plan_dir.mkdir(parents=True, exist_ok=True)
+    resolved_target_name = target_name or f"{topic_name}.md"
+    target_plan = sis_plan_dir / resolved_target_name
+    shutil.copyfile(source_plan, target_plan)
+
+    if set_active:
+        _write_opencode_boulder(sis_boulder, target_plan)
+
+    payload = {
+        "topic": topic_name,
+        "topic_path": str(topic_path),
+        "source_plan": str(source_plan),
+        "target_plan": str(target_plan),
+        "imported": imported,
+        "import_source": str(import_source) if import_source else None,
+        "set_active": set_active,
+        "boulder": str(sis_boulder) if set_active else None,
+        "integration": "oh-my-opencode",
+    }
+
+    if output_format == "json":
+        typer.echo(json.dumps(payload, ensure_ascii=False, indent=2))
+    else:
+        typer.echo(f"✓ Synced topic plan '{topic_name}' to {target_plan}")
+        if imported:
+            typer.echo(f"  Imported from: {import_source}")
+        if set_active:
+            typer.echo(f"  Updated active plan: {sis_boulder}")
+
+
+@app.command("resolve-opencode-plan")
+def resolve_opencode_plan(
+    topic_name: Optional[str] = typer.Argument(None, help="Topic name (defaults to active topic for agent)"),
+    agent: str = typer.Option("atlas", "--agent", help="Agent identity used when topic is omitted"),
+    plan_file: str = typer.Option("plan.md", "--plan-file", help="Plan filename inside topic directory"),
+    provider: str = typer.Option("backlog", "--provider", help="Plan source: backlog|sisyphus|auto"),
+    sync_compat: bool = typer.Option(
+        False,
+        "--sync-compat",
+        help="When provider resolves to backlog, also copy to .sisyphus/plans for compatibility",
+    ),
+    set_active_compat: bool = typer.Option(
+        False,
+        "--set-active-compat",
+        help="When syncing compatibility layer, update .sisyphus/boulder.json active_plan",
+    ),
+    oh_my_opencode: bool = typer.Option(
+        False,
+        "--oh-my-opencode",
+        help="Required acknowledgment: this command is for Oh My OpenCode plan provider integration",
+    ),
+    output_format: str = typer.Option("json", "--format", help="Output format: plain|json"),
+):
+    ensure_core_on_path()
+
+    if not oh_my_opencode:
+        typer.echo("❌ Missing required flag: --oh-my-opencode", err=True)
+        raise typer.Exit(1)
+
+    from kano_backlog_ops.topic import get_active_topic
+
+    backlog_root = _get_backlog_root_override()
+    selected_topic = topic_name or get_active_topic(agent, backlog_root=backlog_root)
+    if not selected_topic:
+        typer.echo(f"❌ No active topic found for agent '{agent}'. Pass topic_name explicitly.", err=True)
+        raise typer.Exit(1)
+
+    provider_value = provider.strip().lower()
+    if provider_value not in {"backlog", "sisyphus", "auto"}:
+        typer.echo("❌ Invalid --provider. Use backlog|sisyphus|auto.", err=True)
+        raise typer.Exit(1)
+    provider_literal = cast(Literal["backlog", "sisyphus", "auto"], provider_value)
+
+    workspace_root = Path.cwd().resolve()
+
+    try:
+        selected_plan, selected_provider, topic_path, sis_plan_path = _resolve_opencode_topic_plan(
+            selected_topic,
+            plan_file,
+            provider_literal,
+            backlog_root,
+            workspace_root,
+        )
+    except RuntimeError as exc:
+        typer.echo(f"❌ {exc}", err=True)
+        raise typer.Exit(1)
+
+    synced_compat = False
+    boulder_path: Optional[Path] = None
+    if sync_compat and selected_provider == "backlog":
+        sis_plan_path.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(selected_plan, sis_plan_path)
+        synced_compat = True
+        if set_active_compat:
+            boulder_path = workspace_root / ".sisyphus" / "boulder.json"
+            _write_opencode_boulder(boulder_path, sis_plan_path)
+
+    payload = {
+        "topic": selected_topic,
+        "topic_path": str(topic_path),
+        "provider": selected_provider,
+        "plan_path": str(selected_plan.resolve()),
+        "sync_compat": synced_compat,
+        "compat_plan_path": str(sis_plan_path),
+        "set_active_compat": bool(boulder_path),
+        "boulder": str(boulder_path) if boulder_path else None,
+        "integration": "oh-my-opencode",
+    }
+
+    if output_format == "json":
+        typer.echo(json.dumps(payload, ensure_ascii=False, indent=2))
+    else:
+        typer.echo(f"✓ Resolved plan for topic '{selected_topic}' from {selected_provider}: {selected_plan}")
+        if synced_compat:
+            typer.echo(f"  Synced compatibility plan: {sis_plan_path}")
+        if boulder_path:
+            typer.echo(f"  Updated active plan: {boulder_path}")
 
 
 @app.command()
@@ -1623,4 +1842,3 @@ def migrate_filenames(
                 typer.echo(f"  {old_name} → {new_name}")
             if not no_dry_run:
                 typer.echo("  (use --no-dry-run to actually rename)")
-

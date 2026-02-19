@@ -646,6 +646,19 @@ After creating a Topic, always print this (fill in values):
 6. **Cleanup**: `python skills/kano-agent-backlog-skill/scripts/kano-backlog topic cleanup --ttl-days <N> [--dry-run]`
    - Removes raw materials from closed topics older than TTL
 
+**Oh My OpenCode plan integration**:
+- Resolve plan path from topic without requiring `.sisyphus`:
+  - `python skills/kano-agent-backlog-skill/scripts/kano-backlog topic resolve-opencode-plan <topic-name> --provider backlog --oh-my-opencode --format json`
+- Keep legacy `/start-work` compatibility only when needed:
+  - `python skills/kano-agent-backlog-skill/scripts/kano-backlog topic resolve-opencode-plan <topic-name> --provider backlog --sync-compat --set-active-compat --oh-my-opencode --format json`
+- One-shot import/sync from existing `.sisyphus/plans/*.md` into topic then back to compatibility layer:
+  - `python skills/kano-agent-backlog-skill/scripts/kano-backlog topic sync-opencode-plan <topic-name> --import-sisyphus-plan <plan-file.md> --oh-my-opencode --format json`
+
+**When to write back `.sisyphus`**:
+- Write back (`--sync-compat`) only if you will run builtin `/start-work` or any tool that hardcodes `.sisyphus/plans` + `.sisyphus/boulder.json`.
+- Do not write back if your runner consumes `plan_path` from `resolve-opencode-plan --provider backlog` directly.
+- If uncertain, use `--provider auto` first; if it resolves `backlog`, stay backlog-native unless you must invoke legacy `/start-work`.
+
 **Topic snapshots (retention policy)**:
 - Snapshots are intended for **milestone checkpoints** (pre-merge/split/restore, risky bulk edits), not every small edit.
 - To prevent noise, keep only the **latest snapshot per topic** in this demo repo.
@@ -778,4 +791,3 @@ _kano/backlog/.cache/worksets/items/<ITEM_ID>/
 
 ---
 END_OF_SKILL_SENTINEL
-
