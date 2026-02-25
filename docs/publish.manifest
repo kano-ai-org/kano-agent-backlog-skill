@@ -1,0 +1,31 @@
+# Documentation Publish Manifest for Skill
+# Only files listed here will be published to the documentation website
+# Format: one file path per line, supports glob patterns
+
+# Core skill files
+README.md
+SKILL.md
+REFERENCE.md
+CHANGELOG.md
+VERSIONING.md
+LICENSE
+
+# Documentation
+docs/**/*.md
+references/**/*.md
+references/**/*.json
+references/**/*.sql
+
+# Examples and templates
+examples/**/*.py
+templates/**/*.md
+
+# Exclude patterns (prefix with !)
+!docs/publish.manifest
+# Exclude derived/generated data
+!htmlcov/
+!.hypothesis/
+!.pytest_cache/
+!.kano/
+!src/
+!tests/
