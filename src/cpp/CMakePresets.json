@@ -1,0 +1,70 @@
+{
+  "version": 6,
+  "cmakeMinimumRequired": {
+    "major": 3,
+    "minor": 24,
+    "patch": 0
+  },
+  "configurePresets": [
+    {
+      "name": "linux-ninja-gcc",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/linux-ninja-gcc",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "CMAKE_C_COMPILER": "gcc",
+        "CMAKE_CXX_COMPILER": "g++"
+      }
+    },
+    {
+      "name": "windows-ninja-msvc",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/windows-ninja-msvc",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug"
+      }
+    },
+    {
+      "name": "windows-ninja-clang",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/windows-ninja-clang",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "CMAKE_C_COMPILER": "clang-cl",
+        "CMAKE_CXX_COMPILER": "clang-cl"
+      }
+    },
+    {
+      "name": "linux-ninja-clang",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/linux-ninja-clang",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "CMAKE_C_COMPILER": "clang",
+        "CMAKE_CXX_COMPILER": "clang++"
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "build-linux",
+      "configurePreset": "linux-ninja-gcc"
+    },
+    {
+      "name": "build-windows",
+      "configurePreset": "windows-ninja-msvc"
+    },
+    {
+      "name": "windows-ninja-msvc-debug",
+      "configurePreset": "windows-ninja-msvc"
+    },
+    {
+      "name": "windows-ninja-clang-debug",
+      "configurePreset": "windows-ninja-clang"
+    },
+    {
+      "name": "linux-ninja-clang-debug",
+      "configurePreset": "linux-ninja-clang"
+    }
+  ]
+}
