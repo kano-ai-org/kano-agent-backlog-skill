@@ -11,7 +11,6 @@ from pathlib import Path
 from typing import List, Optional
 from datetime import date
 import re
-import sys
 
 import frontmatter
 
@@ -56,10 +55,9 @@ class AdrUidFixResult:
     actions: List[AdrUidFixAction]
 
 
-# Conditional import for UUIDv7
-if sys.version_info >= (3, 12):
-    from uuid import uuid7  # type: ignore
-else:
+try:
+    from uuid import uuid7  # type: ignore[attr-defined]
+except ImportError:
     from uuid6 import uuid7  # type: ignore
 
 

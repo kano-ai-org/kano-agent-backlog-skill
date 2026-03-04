@@ -16,9 +16,9 @@ import uuid
 import re
 
 from kano_backlog_core.models import BacklogItem, ItemType, ItemState
-if sys.version_info >= (3, 12):
-    from uuid import uuid7  # type: ignore
-else:
+try:
+    from uuid import uuid7  # type: ignore[attr-defined]
+except ImportError:
     from uuid6 import uuid7  # type: ignore
 from kano_backlog_core.config import BacklogContext, ConfigLoader
 from kano_backlog_core.validation import is_ready

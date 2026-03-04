@@ -1,7 +1,6 @@
 """Canonical store for markdown backlog items (SSOT)."""
 
 import re
-import sys
 from pathlib import Path
 from typing import List, Optional, Dict, Any
 from datetime import date
@@ -11,10 +10,10 @@ import frontmatter
 from .models import BacklogItem, ItemType, ItemState, WorklogEntry
 from .errors import ItemNotFoundError, ParseError, ValidationError, WriteError
 
-# Conditional import for UUIDv7
-if sys.version_info >= (3, 12):
-    from uuid import uuid7  # type: ignore
-else:
+# UUIDv7 import with runtime fallback for Python versions without stdlib uuid7.
+try:
+    from uuid import uuid7  # type: ignore[attr-defined]
+except ImportError:
     from uuid6 import uuid7  # type: ignore
 
 

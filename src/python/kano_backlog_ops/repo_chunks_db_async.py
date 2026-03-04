@@ -11,7 +11,6 @@ from __future__ import annotations
 
 import json
 import sqlite3
-import sys
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, asdict
@@ -34,10 +33,9 @@ from .repo_chunks_db import (
     _map_file_to_item,
 )
 
-# Conditional import for UUIDv7
-if sys.version_info >= (3, 12):
-    from uuid import uuid7  # type: ignore
-else:
+try:
+    from uuid import uuid7  # type: ignore[attr-defined]
+except ImportError:
     from uuid6 import uuid7  # type: ignore
 
 

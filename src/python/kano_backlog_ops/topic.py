@@ -22,6 +22,11 @@ import subprocess
 
 from kano_backlog_core.errors import BacklogError
 
+try:
+    from uuid import uuid7  # type: ignore[attr-defined]
+except ImportError:
+    from uuid6 import uuid7  # type: ignore
+
 
 # =============================================================================
 # Error Types (Task 8.2)
@@ -725,7 +730,7 @@ def generate_topic_id() -> str:
     Returns:
         UUIDv7 as string
     """
-    return str(uuid.uuid7())
+    return str(uuid7())
 
 
 def migrate_legacy_active_topics(backlog_root: Optional[Path] = None) -> Dict[str, str]:

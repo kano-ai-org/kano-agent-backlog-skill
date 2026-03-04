@@ -12,7 +12,6 @@ from __future__ import annotations
 import json
 import os
 import sqlite3
-import sys
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -25,10 +24,9 @@ from kano_backlog_core.tokenizer import resolve_tokenizer
 
 from .init import _resolve_backlog_root
 
-# Conditional import for UUIDv7
-if sys.version_info >= (3, 12):
-    from uuid import uuid7  # type: ignore
-else:
+try:
+    from uuid import uuid7  # type: ignore[attr-defined]
+except ImportError:
     from uuid6 import uuid7  # type: ignore
 
 
