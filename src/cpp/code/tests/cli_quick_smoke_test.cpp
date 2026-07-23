@@ -683,6 +683,17 @@ int main(int argc, char** argv) {
 
         expect(run_command(binary, with_duplicate_admission({"-P", "quick-smoke-product", "workitem", "create", "-t", "feature", "--title", "Quick smoke parent feature", "--agent", "tester"}, "Quick smoke parent feature")) == 0,
             "workitem create parent feature failed");
+        const auto parent_feature_path = temp_root / "_kano" / "backlog" / "products" / "quick-smoke-product" / "items" / "feature" / "0000" / "QS-FTR-0001_quick-smoke-parent-feature.md";
+        const auto update_state_help_output = temp_root / "update-state-help.txt";
+        expect_command_capture_success(
+            run_command_capture(binary, {
+                "-P", "quick-smoke-product", "workitem", "update-state", "--help"
+            }, update_state_help_output),
+            update_state_help_output,
+            "update-state help failed");
+        expect(
+            read_text(update_state_help_output).find("--no-sync-parent") != std::string::npos,
+            "update-state help should expose the documented parent-sync opt-out");
         expect(run_command(binary, {"-P", "quick-smoke-product", "workitem", "set-ready", "QS-FTR-0001",
             "--context", "Parent feature context.",
             "--goal", "Parent feature goal.",
@@ -1031,8 +1042,18 @@ int main(int argc, char** argv) {
         expect(amended_task_text.find("applies_to: Approach") != std::string::npos, "intent-amend should record applies_to metadata");
         expect(amended_task_text.find("Intent Amendment appended: Human clarified task scope.") != std::string::npos, "intent-amend should append worklog evidence");
 
-        expect(run_command(binary, {"-P", "quick-smoke-product", "workitem", "update-state", "QS-TSK-0002", "--state", "InProgress", "--agent", "tester", "--force"}) == 0,
+        expect(run_command(binary, {
+            "-P", "quick-smoke-product", "workitem", "update-state", "QS-TSK-0002",
+            "--state", "InProgress", "--agent", "tester", "--force", "--no-sync-parent"
+        }) == 0,
             "intent-amend child update InProgress failed");
+        const auto parent_after_no_sync = read_text(parent_feature_path);
+        expect(
+            parent_after_no_sync.find("state: Proposed") != std::string::npos,
+            "CLI --no-sync-parent should leave the eligible parent Proposed");
+        expect(
+            parent_after_no_sync.find("Auto parent sync: child QS-TSK-0002") == std::string::npos,
+            "CLI --no-sync-parent should not append an auto-sync parent worklog");
         const auto inprogress_amend_output = temp_root / "intent-amend-inprogress.txt";
         expect_command_capture_success(
             run_command_capture(binary, {
@@ -1049,6 +1070,9 @@ int main(int argc, char** argv) {
 
         expect(run_command(binary, {"-P", "quick-smoke-product", "workitem", "update-state", "QS-TSK-0002", "--state", "Review", "--agent", "tester", "--force"}) == 0,
             "intent-amend child update Review failed");
+        expect(
+            read_text(parent_feature_path).find("state: InProgress") != std::string::npos,
+            "default CLI update-state should retain forward-only parent synchronization");
         const auto review_amend_output = temp_root / "intent-amend-review.txt";
         expect_command_capture_success(
             run_command_capture(binary, {

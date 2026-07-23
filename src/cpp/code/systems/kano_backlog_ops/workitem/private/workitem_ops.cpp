@@ -1439,7 +1439,8 @@ UpdateStateResult WorkitemOps::update_state(
     std::optional<std::string> message,
     std::optional<std::string> duplicate_of,
     bool force,
-    bool refresh_views
+    bool refresh_views,
+    bool sync_parent
 ) {
     diagnostics::ScopedMutationSpan total_span("workitem.update_state.total", item_ref);
     CanonicalStore store(backlog_root);
@@ -1547,7 +1548,7 @@ UpdateStateResult WorkitemOps::update_state(
     
     // 7. Parent sync logic
     bool parent_synced = false;
-    if (item.parent) {
+    if (sync_parent && item.parent) {
         diagnostics::ScopedMutationSpan span("workitem.update_state.parent_sync", item.id);
         BacklogItem parent_item = resolve_parent_item(index, store, backlog_root, *item.parent);
         ItemState parent_next_state = parent_item.state;

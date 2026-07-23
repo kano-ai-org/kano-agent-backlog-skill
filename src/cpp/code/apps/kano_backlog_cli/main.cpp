@@ -6138,6 +6138,7 @@ std::optional<int> try_run_workitem_update_state_fast_path(int argc, char** argv
     bool consume_input_files = false;
     bool force = false;
     bool refresh_views = false;
+    bool sync_parent = true;
 
     const auto option_value = [&](int& index, const std::string& option) -> std::optional<std::string> {
         const std::string arg = argv[index];
@@ -6230,6 +6231,10 @@ std::optional<int> try_run_workitem_update_state_fast_path(int argc, char** argv
             refresh_views = true;
             continue;
         }
+        if (arg == "--no-sync-parent") {
+            sync_parent = false;
+            continue;
+        }
         if (arg.rfind("-", 0) != 0) {
             if (ref.empty()) {
                 ref = arg;
@@ -6277,7 +6282,8 @@ std::optional<int> try_run_workitem_update_state_fast_path(int argc, char** argv
         message.empty() ? std::nullopt : std::optional<std::string>(message),
         duplicate_of.empty() ? std::nullopt : std::optional<std::string>(duplicate_of),
         force,
-        refresh_views
+        refresh_views,
+        sync_parent
     );
 
     if (result.worklog_appended) {
@@ -8782,6 +8788,7 @@ int main(int InArgc, char* InArgv[]) {
             std::string ref, state_str, state_opt_str, update_agent, update_msg, update_msg_file, update_duplicate_of;
             bool update_consume_input_files = false;
             bool update_refresh_views = false;
+            bool update_no_sync_parent = false;
             updateStateCmd->add_option("ref", ref, "Item ID or UID")->required();
             updateStateCmd->add_option("state_arg", state_str, "New state (positional)");
             updateStateCmd->add_option("--state", state_opt_str, "New state (option form)");
@@ -8799,6 +8806,10 @@ int main(int InArgc, char* InArgv[]) {
                 update_force,
                 "Bypass Ready gate validation for InProgress; never bypasses reopen audit requirements");
             updateStateCmd->add_flag("--refresh-views", update_refresh_views, "Synchronously refresh dashboards after the state update");
+            updateStateCmd->add_flag(
+                "--no-sync-parent",
+                update_no_sync_parent,
+                "Skip forward-only parent state synchronization for this update");
 
             updateStateCmd->callback([&]() {
                 auto ctx = resolve_ctx();
@@ -8823,7 +8834,8 @@ int main(int InArgc, char* InArgv[]) {
                     update_msg.empty() ? std::nullopt : std::optional<std::string>(update_msg),
                     update_duplicate_of.empty() ? std::nullopt : std::optional<std::string>(update_duplicate_of),
                     update_force,
-                    update_refresh_views
+                    update_refresh_views,
+                    !update_no_sync_parent
                 );
 
                 if (result.worklog_appended) {

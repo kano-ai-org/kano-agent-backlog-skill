@@ -255,6 +255,34 @@ int main() {
             expect(subtask_after_update.state == ItemState::InProgress, "subtask should transition to InProgress");
             auto task_parent_after_subtask = store.read(created.path);
             expect(task_parent_after_subtask.state == ItemState::InProgress, "Task parent should transition to InProgress for active SubTask child");
+            task_parent_after_subtask.state = ItemState::Ready;
+            store.write(task_parent_after_subtask);
+            index.index_item(task_parent_after_subtask);
+            auto subtask_review_without_parent_sync = WorkitemOps::update_state(
+                index,
+                root,
+                subtask_created.id,
+                ItemState::Review,
+                "opencode",
+                std::string("Manual replan keeps the parent Ready."),
+                std::nullopt,
+                false,
+                false,
+                false);
+            expect(
+                subtask_review_without_parent_sync.worklog_appended,
+                "no-sync-parent update should still persist the child transition");
+            expect(
+                !subtask_review_without_parent_sync.parent_synced,
+                "no-sync-parent update should report that parent synchronization was skipped");
+            auto task_parent_after_no_sync = store.read(created.path);
+            expect(
+                task_parent_after_no_sync.state == ItemState::Ready,
+                "no-sync-parent update should leave an eligible parent unchanged");
+            auto subtask_after_no_sync = store.read(subtask_created.path);
+            expect(
+                subtask_after_no_sync.state == ItemState::Review,
+                "no-sync-parent update should not skip child persistence");
             kano::backlog_ops::ViewOps::refresh_dashboards(root, "opencode");
             expect(read_text(root / "views" / "Dashboard_PlainMarkdown_Active.md").find(subtask_created.id) != std::string::npos,
                 "plain Markdown dashboard should include active subtask");
