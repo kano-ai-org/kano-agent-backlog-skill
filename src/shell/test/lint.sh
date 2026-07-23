@@ -103,6 +103,20 @@ check_present "native-runtime-gate" "$SKILL_ROOT/pixi.toml" "pixi exposes native
 check_universal_pixi_task "build" "pixi exposes universal Release build task"
 check_universal_pixi_task "build-release" "pixi exposes universal explicit Release build task"
 check_universal_pixi_task "build-debug" "pixi exposes universal explicit Debug build task"
+check_universal_pixi_task "build-webview" "pixi exposes universal Webview Release build task"
+check_universal_pixi_task "build-webview-release" "pixi exposes universal explicit Webview Release build task"
+check_universal_pixi_task "build-webview-debug" "pixi exposes universal explicit Webview Debug build task"
+check_universal_pixi_task "webview-host" "pixi exposes universal Webview build-and-host task"
+check_present 'webview-smoke-artifacts = "pixi run build-webview-release && bash src/shell/webview/smoke-artifacts.sh"' \
+  "$SKILL_ROOT/pixi.toml" "pixi Webview smoke task builds its required Release binary"
+check_present "Wno-error" "$SKILL_ROOT/src/cpp/CMakeLists.txt" \
+  "Unix Webview builds keep third-party Drogon warnings non-fatal"
+check_present "Create ZLIB::ZLIB in KOB's directory scope before Drogon configures" \
+  "$SKILL_ROOT/src/cpp/CMakeLists.txt" \
+  "macOS Webview builds do not reinsert the SDK C header root ahead of libc++"
+check_present "duration_cast<std::chrono::system_clock::duration>" \
+  "$SKILL_ROOT/src/cpp/code/systems/kano_backlog_webview_core/private/BacklogWebviewService.cpp" \
+  "Webview filesystem timestamps convert through the system clock duration"
 
 windows_error_refs="$(
   grep -RInE "Set(ErrorMode|ThreadErrorMode)|_CrtSetReportMode|_set_abort_behavior|_set_invalid_parameter_handler" \

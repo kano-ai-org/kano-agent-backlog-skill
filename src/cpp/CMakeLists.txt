@@ -451,6 +451,23 @@ function(kb_ensure_drogon_target)
             GIT_SUBMODULES trantor
             GIT_SUBMODULES_RECURSE TRUE
         )
+        if(APPLE AND CMAKE_OSX_SYSROOT)
+            # Create ZLIB::ZLIB in KOB's directory scope before Drogon configures
+            # its child directory. FindZLIB otherwise creates a child-scoped
+            # imported target whose SDK include path cannot be corrected here.
+            find_package(ZLIB REQUIRED)
+            get_target_property(_kb_zlib_interface_includes
+                ZLIB::ZLIB INTERFACE_INCLUDE_DIRECTORIES)
+            if(_kb_zlib_interface_includes)
+                set(_kb_sdk_usr_include "${CMAKE_OSX_SYSROOT}/usr/include")
+                list(REMOVE_ITEM _kb_zlib_interface_includes
+                    "${_kb_sdk_usr_include}")
+                set_target_properties(ZLIB::ZLIB PROPERTIES
+                    INTERFACE_INCLUDE_DIRECTORIES
+                    "${_kb_zlib_interface_includes}"
+                )
+            endif()
+        endif()
         kb_prepare_drogon_jsoncpp_variables()
         FetchContent_MakeAvailable(drogon)
         if(MSVC)
@@ -461,6 +478,17 @@ function(kb_ensure_drogon_target)
                         /wd4267
                         /wd4251
                         /wd4275
+                    )
+                endif()
+            endforeach()
+        elseif(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
+            # Drogon and Trantor enable -Werror in their own CMake projects.
+            # Keep their warnings visible without allowing a new host compiler
+            # warning to break KOB's optional Webview build.
+            foreach(_kb_third_party_target IN ITEMS drogon trantor)
+                if(TARGET ${_kb_third_party_target})
+                    target_compile_options(${_kb_third_party_target} PRIVATE
+                        -Wno-error
                     )
                 endif()
             endforeach()

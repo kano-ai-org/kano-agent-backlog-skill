@@ -4816,7 +4816,9 @@ std::string BacklogWebviewService::ToIsoString(
   }
   const auto nowFile = std::filesystem::file_time_type::clock::now();
   const auto nowSys = std::chrono::system_clock::now();
-  const auto converted = nowSys + (value - nowFile);
+  const auto converted =
+      nowSys + std::chrono::duration_cast<std::chrono::system_clock::duration>(
+                   value - nowFile);
   const std::time_t time = std::chrono::system_clock::to_time_t(converted);
   std::tm tm{};
 #if defined(_WIN32)

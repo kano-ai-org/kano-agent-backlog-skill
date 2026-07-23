@@ -33,6 +33,9 @@ release-install-verify-smoke = "bash src/shell/test/release-install-verification
 build = "pixi run build-release"
 build-release = "bash -lc 'export KOB_CPP_ROOT=src/cpp KABSD_CPP_ROOT=src/cpp KABSD_BUILD_PREFIX=KOB KABSD_CMAKE_VAR_PREFIX=KB INF_CMAKE_CACHE_ARGS_JSON=\"{\\\"KB_BUILD_TESTS\\\":\\\"ON\\\"}\"; cd src/cpp/shared/infra; pixi run build-release'"
 build-debug = "bash -lc 'export KOB_CPP_ROOT=src/cpp KABSD_CPP_ROOT=src/cpp KABSD_BUILD_PREFIX=KOB KABSD_CMAKE_VAR_PREFIX=KB INF_CMAKE_CACHE_ARGS_JSON=\"{\\\"KB_BUILD_TESTS\\\":\\\"ON\\\"}\"; cd src/cpp/shared/infra; pixi run build-debug'"
+build-webview = "pixi run build-webview-release"
+build-webview-release = "bash -lc 'export KOB_CPP_ROOT=src/cpp KABSD_CPP_ROOT=src/cpp KABSD_BUILD_PREFIX=KOB KABSD_CMAKE_VAR_PREFIX=KB INF_CMAKE_CACHE_ARGS_JSON=\"{\\\"KB_BUILD_TESTS\\\":\\\"ON\\\",\\\"KB_BUILD_WEBVIEW\\\":\\\"ON\\\"}\"; cd src/cpp/shared/infra; pixi run build-release'"
+build-webview-debug = "bash -lc 'export KOB_CPP_ROOT=src/cpp KABSD_CPP_ROOT=src/cpp KABSD_BUILD_PREFIX=KOB KABSD_CMAKE_VAR_PREFIX=KB INF_CMAKE_CACHE_ARGS_JSON=\"{\\\"KB_BUILD_TESTS\\\":\\\"ON\\\",\\\"KB_BUILD_WEBVIEW\\\":\\\"ON\\\"}\"; cd src/cpp/shared/infra; pixi run build-debug'"
 quick-test = "bash -lc 'export KOB_CPP_ROOT=src/cpp KABSD_CPP_ROOT=src/cpp KABSD_BUILD_PREFIX=KOB KABSD_CMAKE_VAR_PREFIX=KB INF_CMAKE_CACHE_ARGS_JSON=\"{\\\"KB_BUILD_TESTS\\\":\\\"ON\\\"}\" KANO_TEST_BINARY_NAME=cli_quick_smoke_test; pixi run --manifest-path src/cpp/shared/infra/pixi.toml quick-test -- \"$@\"' --"
 test = "bash -lc 'export KOB_CPP_ROOT=src/cpp KABSD_CPP_ROOT=src/cpp KABSD_BUILD_PREFIX=KOB KABSD_CMAKE_VAR_PREFIX=KB INF_CMAKE_CACHE_ARGS_JSON=\"{\\\"KB_BUILD_TESTS\\\":\\\"ON\\\"}\" KANO_TEST_BINARY_NAME=cli_repo_smoke_test; pixi run --manifest-path src/cpp/shared/infra/pixi.toml test -- \"$@\"' --"
 full-test = "bash -lc 'export KOB_CPP_ROOT=src/cpp KABSD_CPP_ROOT=src/cpp KABSD_BUILD_PREFIX=KOB KABSD_CMAKE_VAR_PREFIX=KB INF_CMAKE_CACHE_ARGS_JSON=\"{\\\"KB_BUILD_TESTS\\\":\\\"ON\\\"}\" KANO_TEST_BINARY_NAME=cli_repo_smoke_test; pixi run --manifest-path src/cpp/shared/infra/pixi.toml full-test -- \"$@\"' --"
@@ -63,7 +66,14 @@ webview-docker-up-detached = "docker compose -f docker-compose.webview.yml up -d
 webview-docker-down = "docker compose -f docker-compose.webview.yml down"
 webview-docker-logs = "docker compose -f docker-compose.webview.yml logs -f webview"
 webview-docker-open = "bash src/shell/webview/open.sh"
-webview-smoke-artifacts = "bash src/shell/webview/smoke-artifacts.sh"
+webview-host-build = "pixi run build-webview-release"
+webview-host-build-debug = "pixi run build-webview-debug"
+webview-host-serve = "bash src/shell/webview/host.sh"
+webview-host-open = "bash src/shell/webview/open.sh"
+webview-host = "pixi run webview-host-build && pixi run webview-host-serve"
+webview-host-debug = "pixi run webview-host-build-debug && pixi run webview-host-serve"
+webview = "pixi run webview-host"
+webview-smoke-artifacts = "pixi run build-webview-release && bash src/shell/webview/smoke-artifacts.sh"
 
 # =============================================================================
 # Windows-specific (win-64)

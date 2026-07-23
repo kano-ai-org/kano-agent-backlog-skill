@@ -1417,6 +1417,11 @@ int main() {
         expect(!all.isMember("error"), "all-products query should not fail");
         expect(all["products"].size() == 2, "all-products query should include both products");
         expect(all["total"].asUInt64() == 55, "all-products query should include items, ADRs, plus unique topic pseudo-items");
+        auto alphaItems = service.ListItems("product-alpha");
+        expect(!alphaItems["cached_at"].asString().empty(),
+               "product item list should expose a portable filesystem timestamp");
+        expect(alphaItems["cached_at"].asString().ends_with("Z"),
+               "product item list timestamp should use UTC ISO-8601 format");
         for (const auto& item : all["items"]) {
             expect(item.isMember("gate_status"), "all-products items should include gate_status");
             expect(item["gate_status"].isMember("ready"), "gate_status should include ready gate");
