@@ -355,13 +355,6 @@ inline constexpr std::string_view kBackboardAppJsPart1a = R"JS(
       }
     }
 
-    function saveWorkspaces() {
-      try {
-        localStorage.setItem(workspaceStorageKey, JSON.stringify(state.workspaces));
-      } catch (_e) {
-      }
-    }
-
     function upsertWorkspace(path, updates = {}) {
       const clean = String(path || '').trim();
       if (!clean) {

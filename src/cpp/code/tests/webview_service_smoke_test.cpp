@@ -54,6 +54,20 @@ std::string read_text(const std::filesystem::path& path) {
     return buffer.str();
 }
 
+std::size_t count_occurrences(const std::string& text,
+                              const std::string& needle) {
+    if (needle.empty()) {
+        return 0;
+    }
+    std::size_t count = 0;
+    std::size_t offset = 0;
+    while ((offset = text.find(needle, offset)) != std::string::npos) {
+        ++count;
+        offset += needle.size();
+    }
+    return count;
+}
+
 Json::Value parse_json_text(const std::string& text,
                             const std::string& label) {
     Json::CharReaderBuilder builder;
@@ -3075,6 +3089,8 @@ int main() {
                "embedded webview assets should document slash-search help text");
         expect(assetSource.find("function refreshActiveTab") != std::string::npos,
                "embedded webview assets should refresh only the active tab by default");
+        expect(count_occurrences(assetSource, "function saveWorkspaces()") == 1,
+               "embedded webview assets should define workspace persistence exactly once");
         expect(indexHtmlSource.find("tab-handoff") != std::string::npos &&
                    indexHtmlSource.find("page-handoff") != std::string::npos,
                "embedded webview assets should expose the Handoff Readiness tab shell");
