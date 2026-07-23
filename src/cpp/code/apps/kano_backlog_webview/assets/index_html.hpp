@@ -167,6 +167,24 @@ inline constexpr std::string_view kIndexHtmlBetweenAssets = R"HTML(
            <button id="graph-reset-scope" class="btn" type="button">Reset scope</button>
          </div>
        </div>
+       <div class="graph-toolbar-row graph-saved-query-row">
+         <label class="graph-toolbar-field graph-saved-query-field" for="graph-saved-query">
+           <span class="filter-group-title">Saved query</span>
+           <select id="graph-saved-query" class="graph-mode-select" aria-label="Saved graph queries">
+             <option value="">No saved query selected</option>
+           </select>
+         </label>
+         <label class="graph-toolbar-field graph-saved-query-name-field" for="graph-saved-query-name">
+           <span class="filter-group-title">Query name</span>
+           <input id="graph-saved-query-name" class="graph-saved-query-name" type="text" maxlength="80" autocomplete="off" aria-label="Saved graph query name" placeholder="Dependency review for ITEM" />
+         </label>
+         <div class="graph-toolbar-actions graph-saved-query-actions" role="toolbar" aria-label="Saved graph query controls">
+           <button id="graph-saved-query-save" class="btn" type="button">Save new</button>
+           <button id="graph-saved-query-update" class="btn" type="button" disabled>Update</button>
+           <button id="graph-saved-query-load" class="btn" type="button" disabled>Load</button>
+         </div>
+         <div class="muted graph-saved-query-help">Stores only browser-local, product-qualified, bounded query metadata. It never stores graph payloads or filesystem paths.</div>
+       </div>
        <div class="graph-toolbar-row graph-toolbar-row-secondary">
          <div class="graph-toolbar-actions graph-viewport-actions" role="toolbar" aria-label="Graph viewport controls">
            <button id="graph-zoom-out" class="btn graph-viewport-btn" type="button" aria-label="Zoom out">Zoom out</button>

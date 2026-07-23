@@ -3108,6 +3108,31 @@ int main() {
                     indexHtmlSource.find("graph-reset-view") != std::string::npos &&
                     indexHtmlSource.find("graph-viewport-actions") != std::string::npos,
                 "embedded webview assets should expose first-party graph viewport control IDs and toolbar classes");
+        expect(indexHtmlSource.find("graph-saved-query") != std::string::npos &&
+                    indexHtmlSource.find("graph-saved-query-name") != std::string::npos &&
+                    indexHtmlSource.find("graph-saved-query-save") != std::string::npos &&
+                    indexHtmlSource.find("graph-saved-query-update") != std::string::npos &&
+                    indexHtmlSource.find("graph-saved-query-load") != std::string::npos,
+                "embedded webview assets should expose save, list, load, and update graph query controls");
+        expect(assetSource.find("kano_backboard_saved_graph_queries_v1") != std::string::npos &&
+                    assetSource.find("function normalizeSavedGraphQuery") != std::string::npos &&
+                    assetSource.find("function captureCurrentGraphQuery") != std::string::npos &&
+                    assetSource.find("function loadSavedGraphQueries") != std::string::npos &&
+                    assetSource.find("function saveCurrentGraphQuery") != std::string::npos &&
+                    assetSource.find("function updateSavedGraphQuery") != std::string::npos &&
+                    assetSource.find("function applySavedGraphQuery") != std::string::npos,
+                "embedded webview assets should implement versioned browser-local saved graph query operations");
+        expect(assetSource.find("schema_version: 1") != std::string::npos &&
+                    assetSource.find("edge_types:") != std::string::npos &&
+                    assetSource.find("direction: 'both'") != std::string::npos &&
+                    assetSource.find("max_children_per_node:") != std::string::npos &&
+                    assetSource.find("isolation_mode:") != std::string::npos &&
+                    assetSource.find("product === 'all'") != std::string::npos,
+                "saved graph query records should be versioned, bounded, explicit, and product-qualified");
+        expect(assetSource.find("raw_graph") == std::string::npos &&
+                    assetSource.find("workspace_path") == std::string::npos &&
+                    assetSource.find("backlog_root") == std::string::npos,
+                "saved graph query metadata should not include raw graph dumps or private path fields");
         expect(assetSource.find("function loadHandoffReadiness") != std::string::npos &&
                    assetSource.find("/api/review/handoff-readiness") != std::string::npos &&
                    assetSource.find("handoff.readiness") != std::string::npos,
@@ -3366,13 +3391,19 @@ int main() {
                    webviewReadme.find("native `<details>`") != std::string::npos &&
                    webviewReadme.find("does not imply execution order") != std::string::npos,
                "webview README should document bounded hierarchy projection and DOM-readable structure semantics");
-        expect(webviewReadme.find("no global graph or saved query support") != std::string::npos &&
+        expect(webviewReadme.find("no global graph support") != std::string::npos &&
                    webviewReadme.find("cycle audit") != std::string::npos,
-               "webview README should keep cycle audit out of global and saved query scope");
+               "webview README should keep cycle audit out of global graph scope");
         expect(webviewReadme.find("Branch truncation is bounded and diagnosable") != std::string::npos &&
                     webviewReadme.find("Hierarchy, relates, topic, and product-memory views require\nexplicit modes") != std::string::npos &&
-                    webviewReadme.find("no global graph or saved query support") != std::string::npos,
+                    webviewReadme.find("no global graph support") != std::string::npos,
                 "webview README should document bounded diagnostics, explicit graph modes, and no-global-query support");
+        expect(webviewReadme.find("Saved graph queries") != std::string::npos &&
+                    webviewReadme.find("browser-local") != std::string::npos &&
+                    webviewReadme.find("safe bounded query metadata") != std::string::npos &&
+                    webviewReadme.find("private paths or raw graph dumps") != std::string::npos &&
+                    webviewReadme.find("missing root") != std::string::npos,
+                "webview README should document bounded local saved-query storage and missing-root degradation");
         expect(webviewReadme.find("root_product") != std::string::npos,
                "webview README should document root_product for qualified graph rerooting");
         expect(webviewReadme.find("explicit dependency mode") != std::string::npos &&

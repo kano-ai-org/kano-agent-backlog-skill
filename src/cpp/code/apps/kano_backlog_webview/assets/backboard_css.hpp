@@ -166,6 +166,11 @@ inline constexpr std::string_view kBackboardCssPart2 = R"CSS(
     .graph-toolbar-field { display: flex; flex-direction: column; gap: 8px; min-width: 160px; }
     .graph-mode-select, .graph-depth-input { min-width: 140px; max-width: 100%; border: 1px solid #cfd9ea; background: #fff; border-radius: 8px; padding: 6px 10px; color: #1a1f2e; }
     .graph-depth-input { width: 96px; }
+    .graph-saved-query-row { padding: 10px; border: 1px solid var(--kob-border); border-radius: 8px; background: var(--kob-surface); }
+    .graph-saved-query-field { min-width: min(300px, 100%); }
+    .graph-saved-query-name-field { min-width: min(240px, 100%); flex: 1; }
+    .graph-saved-query-name { width: 100%; min-width: 0; border: 1px solid #cfd9ea; background: #fff; border-radius: 8px; padding: 6px 10px; color: #1a1f2e; }
+    .graph-saved-query-help { flex-basis: 100%; line-height: 1.45; }
     .graph-toolbar-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
     .graph-toolbar-actions .btn[disabled] { opacity: 0.65; cursor: default; }
     .graph-viewport-actions { row-gap: 8px; }

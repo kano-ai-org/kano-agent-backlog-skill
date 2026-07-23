@@ -46,6 +46,8 @@ inline constexpr std::string_view kBackboardAppJsPart1 = R"JS(
       graphBaseItemProduct: '',
       graphMaxDepth: 2,
       graphBaseMaxDepth: 2,
+       savedGraphQueries: [],
+       selectedSavedGraphQueryId: '',
        graphIsolationMode: 'fade',
        graphMaxChildrenPerNode: 25,
        graphMaxTotalNodes: 80,
@@ -106,6 +108,7 @@ inline constexpr std::string_view kBackboardAppJsPart1 = R"JS(
       command: 'Command',
     };
     const workspaceStorageKey = 'kano_webview_workspaces_v2';
+    const savedGraphQueryStorageKey = 'kano_backboard_saved_graph_queries_v1';
 
     function tokenSetFromQuery(value, fallback) {
       if (!value) return new Set(fallback);
@@ -881,6 +884,264 @@ inline constexpr std::string_view kBackboardAppJsPart1b = R"JS(
       return preset;
     }
 
+    function safeSavedGraphMetadataToken(value, maxLength = 120) {
+      const clean = String(value || '').trim().replace(/\s+/g, ' ');
+      if (!clean || clean.length > maxLength || clean.includes('/') || clean.includes('\\')) {
+        return '';
+      }
+      return clean;
+    }
+
+    function normalizeSavedGraphTokenList(values, allowedValues = null, maxItems = 32) {
+      if (!Array.isArray(values)) {
+        return [];
+      }
+      const allowed = allowedValues ? new Set(allowedValues) : null;
+      const normalized = [];
+      for (const value of values) {
+        const token = safeSavedGraphMetadataToken(value);
+        if (!token || (allowed && !allowed.has(token)) || normalized.includes(token)) {
+          continue;
+        }
+        normalized.push(token);
+        if (normalized.length >= maxItems) {
+          break;
+        }
+      }
+      return normalized;
+    }
+
+    function graphEdgeTypesForMode(mode) {
+      const edgeTypes = {
+        dependency: ['blocks', 'blocked_by'],
+        structure: ['parent'],
+        cycles: ['blocks', 'blocked_by'],
+        related: ['relates'],
+        product_memory: ['topic-membership'],
+      };
+      return edgeTypes[normalizeGraphMode(mode)] || edgeTypes.dependency;
+    }
+
+    function normalizeSavedGraphQuery(entry) {
+      if (!entry || typeof entry !== 'object' || Number(entry.schema_version) !== 1) {
+        return null;
+      }
+      const root = entry.root && typeof entry.root === 'object' ? entry.root : {};
+      const itemId = safeSavedGraphMetadataToken(root.item_id);
+      const product = safeSavedGraphMetadataToken(root.product);
+      const id = safeSavedGraphMetadataToken(entry.id);
+      const name = safeSavedGraphMetadataToken(entry.name, 80);
+      if (!id || !name || !itemId || !product || product === 'all') {
+        return null;
+      }
+      const filters = entry.filters && typeof entry.filters === 'object' ? entry.filters : {};
+      const products = normalizeSavedGraphTokenList(filters.products, null, 16);
+      if (!products.includes(product)) {
+        products.unshift(product);
+      }
+      const direction = ['both', 'upstream', 'downstream'].includes(filters.direction)
+        ? filters.direction
+        : 'both';
+      const caps = entry.caps && typeof entry.caps === 'object' ? entry.caps : {};
+      const display = entry.display && typeof entry.display === 'object' ? entry.display : {};
+      return {
+        schema_version: 1,
+        id,
+        name,
+        mode: normalizeGraphMode(entry.mode),
+        root: {
+          item_id: itemId,
+          product,
+        },
+        filters: {
+          products: products.slice(0, 16),
+          states: normalizeSavedGraphTokenList(filters.states, itemStates, itemStates.length),
+          types: normalizeSavedGraphTokenList(filters.types, itemTypes, itemTypes.length),
+          edge_types: normalizeSavedGraphTokenList(filters.edge_types, null, 16),
+          direction,
+        },
+        depth: boundedPositiveInt(entry.depth, defaultGraphCaps.maxDepth, graphDepthBounds.max),
+        caps: {
+          max_children_per_node: boundedPositiveInt(
+            caps.max_children_per_node, defaultGraphCaps.maxChildrenPerNode, 1000),
+          max_total_nodes: boundedPositiveInt(caps.max_total_nodes, defaultGraphCaps.maxTotalNodes, 1000),
+          max_total_edges: boundedPositiveInt(caps.max_total_edges, defaultGraphCaps.maxTotalEdges, 1000),
+        },
+        display: {
+          isolation_mode: normalizeGraphIsolationMode(display.isolation_mode),
+        },
+        updated_at: safeSavedGraphMetadataToken(entry.updated_at, 40) || nowIso(),
+      };
+    }
+
+    function captureCurrentGraphQuery(name, id = '') {
+      const product = safeSavedGraphMetadataToken(state.graphItemProduct);
+      const itemId = safeSavedGraphMetadataToken(state.graphItemId);
+      const label = safeSavedGraphMetadataToken(name, 80);
+      if (!product || !itemId || !label) {
+        return null;
+      }
+      const queryId = safeSavedGraphMetadataToken(id) ||
+        `saved-graph-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+      return normalizeSavedGraphQuery({
+        schema_version: 1,
+        id: queryId,
+        name: label,
+        mode: state.graphMode,
+        root: {
+          item_id: itemId,
+          product,
+        },
+        filters: {
+          products: [product],
+          states: [...state.selectedStates],
+          types: [...state.selectedTypes],
+          edge_types: graphEdgeTypesForMode(state.graphMode),
+          direction: 'both',
+        },
+        depth: state.graphMaxDepth,
+        caps: {
+          max_children_per_node: state.graphMaxChildrenPerNode,
+          max_total_nodes: state.graphMaxTotalNodes,
+          max_total_edges: state.graphMaxTotalEdges,
+        },
+        display: {
+          isolation_mode: state.graphIsolationMode,
+        },
+        updated_at: nowIso(),
+      });
+    }
+
+    function persistSavedGraphQueries() {
+      try {
+        localStorage.setItem(savedGraphQueryStorageKey, JSON.stringify(state.savedGraphQueries));
+        return true;
+      } catch (_error) {
+        return false;
+      }
+    }
+
+    function loadSavedGraphQueries() {
+      try {
+        const raw = localStorage.getItem(savedGraphQueryStorageKey);
+        const parsed = raw ? JSON.parse(raw) : [];
+        if (!Array.isArray(parsed)) {
+          return [];
+        }
+        const deduped = new Map();
+        for (const entry of parsed) {
+          const query = normalizeSavedGraphQuery(entry);
+          if (query) {
+            deduped.set(query.id, query);
+          }
+        }
+        return [...deduped.values()]
+          .sort((a, b) => b.updated_at.localeCompare(a.updated_at) || a.name.localeCompare(b.name))
+          .slice(0, 50);
+      } catch (_error) {
+        return [];
+      }
+    }
+
+    function selectedSavedGraphQuery() {
+      return state.savedGraphQueries.find((query) => query.id === state.selectedSavedGraphQueryId) || null;
+    }
+
+    function renderSavedGraphQueries() {
+      const select = document.getElementById('graph-saved-query');
+      const nameInput = document.getElementById('graph-saved-query-name');
+      const loadButton = document.getElementById('graph-saved-query-load');
+      const updateButton = document.getElementById('graph-saved-query-update');
+      const saveButton = document.getElementById('graph-saved-query-save');
+      if (!select || !nameInput || !loadButton || !updateButton || !saveButton) {
+        return;
+      }
+      select.innerHTML = [
+        '<option value="">No saved query selected</option>',
+        ...state.savedGraphQueries.map((query) =>
+          `<option value="${escAttr(query.id)}">${esc(query.name)} — ${esc(query.root.item_id)} / ${esc(query.root.product)}</option>`
+        ),
+      ].join('');
+      select.value = state.selectedSavedGraphQueryId;
+      const selected = selectedSavedGraphQuery();
+      loadButton.disabled = !selected;
+      updateButton.disabled = !selected;
+      saveButton.disabled = !state.graphItemId || !state.graphItemProduct ||
+        !safeSavedGraphMetadataToken(nameInput.value, 80);
+    }
+
+    function saveCurrentGraphQuery() {
+      const nameInput = document.getElementById('graph-saved-query-name');
+      const query = captureCurrentGraphQuery(nameInput?.value || '');
+      if (!query) {
+        setStatus('Saved graph queries require a name and a product-qualified item root', 'error');
+        renderSavedGraphQueries();
+        return;
+      }
+      state.savedGraphQueries = [query, ...state.savedGraphQueries].slice(0, 50);
+      state.selectedSavedGraphQueryId = query.id;
+      const persisted = persistSavedGraphQueries();
+      renderSavedGraphQueries();
+      setStatus(persisted ? `Saved graph query ${query.name}` : 'Unable to persist saved graph query', persisted ? '' : 'error');
+    }
+
+    function updateSavedGraphQuery() {
+      const selected = selectedSavedGraphQuery();
+      const nameInput = document.getElementById('graph-saved-query-name');
+      if (!selected) {
+        setStatus('Select a saved graph query to update', 'error');
+        return;
+      }
+      const query = captureCurrentGraphQuery(nameInput?.value || selected.name, selected.id);
+      if (!query) {
+        setStatus('Saved graph queries require a name and a product-qualified item root', 'error');
+        renderSavedGraphQueries();
+        return;
+      }
+      state.savedGraphQueries = [
+        query,
+        ...state.savedGraphQueries.filter((candidate) => candidate.id !== selected.id),
+      ].slice(0, 50);
+      const persisted = persistSavedGraphQueries();
+      renderSavedGraphQueries();
+      setStatus(persisted ? `Updated saved graph query ${query.name}` : 'Unable to persist saved graph query', persisted ? '' : 'error');
+    }
+
+    function applySavedGraphQuery(query = selectedSavedGraphQuery()) {
+      const normalized = normalizeSavedGraphQuery(query);
+      if (!normalized) {
+        setStatus('Saved graph query is invalid or missing a product-qualified root', 'error');
+        return;
+      }
+      state.selectedSavedGraphQueryId = normalized.id;
+      state.graphMode = normalized.mode;
+      state.graphItemId = normalized.root.item_id;
+      state.graphItemProduct = normalized.root.product;
+      state.graphBaseItemId = normalized.root.item_id;
+      state.graphBaseItemProduct = normalized.root.product;
+      state.graphMaxDepth = normalized.depth;
+      state.graphBaseMaxDepth = normalized.depth;
+      state.graphMaxChildrenPerNode = normalized.caps.max_children_per_node;
+      state.graphMaxTotalNodes = normalized.caps.max_total_nodes;
+      state.graphMaxTotalEdges = normalized.caps.max_total_edges;
+      state.graphIsolationMode = normalized.display.isolation_mode;
+      const nameInput = document.getElementById('graph-saved-query-name');
+      if (nameInput) {
+        nameInput.value = normalized.name;
+      }
+      syncGraphModeControls();
+      updateFocusGraphPageChrome();
+      updateUrlState();
+      markGraphTabStale('saved graph query loaded');
+      renderSavedGraphQueries();
+      if (state.activeTab === 'graph') {
+        scheduleRefresh(0);
+      } else {
+        updateAllPageRefreshStates();
+      }
+      setStatus(`Loaded saved graph query ${normalized.name}; missing roots degrade to graph diagnostics`);
+    }
+
 )JS";
 
 inline constexpr std::string_view kBackboardAppJsPart1bb = R"JS(
@@ -982,6 +1243,7 @@ inline constexpr std::string_view kBackboardAppJsPart1bb = R"JS(
         backLink.textContent = state.graphItemId ? 'Back to Item Review' : 'Back to Review Inbox';
       }
       syncGraphIsolationControls();
+      renderSavedGraphQueries();
     }
 
     function renderFocusGraphScaffold() {
@@ -3954,6 +4216,32 @@ inline constexpr std::string_view kBackboardAppJsPart6 = R"JS(
     document.getElementById('graph-reset-scope').addEventListener('click', async () => {
       resetGraphScope();
     });
+
+    document.getElementById('graph-saved-query').addEventListener('change', (event) => {
+      state.selectedSavedGraphQueryId = String(event.target.value || '');
+      const selected = selectedSavedGraphQuery();
+      const nameInput = document.getElementById('graph-saved-query-name');
+      if (nameInput) {
+        nameInput.value = selected?.name || '';
+      }
+      renderSavedGraphQueries();
+    });
+
+    document.getElementById('graph-saved-query-name').addEventListener('input', () => {
+      renderSavedGraphQueries();
+    });
+
+    document.getElementById('graph-saved-query-save').addEventListener('click', () => {
+      saveCurrentGraphQuery();
+    });
+
+    document.getElementById('graph-saved-query-update').addEventListener('click', () => {
+      updateSavedGraphQuery();
+    });
+
+    document.getElementById('graph-saved-query-load').addEventListener('click', () => {
+      applySavedGraphQuery();
+    });
 )JS";
 
 inline constexpr std::string_view kBackboardAppJsPart7 = R"JS(
@@ -4084,6 +4372,8 @@ inline constexpr std::string_view kBackboardAppJsPart7 = R"JS(
     (async () => {
       setActiveTab(state.activeTab);
       syncGraphModeControls();
+      state.savedGraphQueries = loadSavedGraphQueries();
+      renderSavedGraphQueries();
       state.workspaces = loadSavedWorkspaces();
       renderWorkspaceList();
       await loadWorkspaceInfo();

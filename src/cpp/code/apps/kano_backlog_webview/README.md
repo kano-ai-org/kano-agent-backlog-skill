@@ -79,6 +79,21 @@ arrow-key pan) without changing the bounded query itself. Reset view only
 changes the client-side pan/zoom state; it does not change root scope, depth,
 isolation mode, URL query state, or fetched graph data.
 
+### Saved graph queries
+
+The Focus Graph toolbar can save, list, load, and update browser-local queries.
+Each record is versioned safe bounded query metadata: a product-qualified item
+root, explicit graph mode, product/state/type/edge-type/direction fields, depth,
+node/edge/child caps, and the isolation display option. Backboard keeps at most
+50 normalized records and rejects malformed, path-like, unqualified, or
+over-limit fields.
+
+Saved records never include private paths or raw graph dumps, and they do not
+write canonical backlog data. Loading restores the bounded root, mode, caps,
+depth, and display option, then uses the normal item-rooted API. A missing root
+therefore degrades to the existing empty/error diagnostics instead of widening
+scope or fetching a global graph.
+
 Dependency mode is dependency-only by default: its bounded item-rooted response
 may include a native `blocker_chain` object with `root_item`,
 `edge_direction_note`, `upstream_blockers`, `downstream_blocked_items`,
@@ -120,7 +135,7 @@ without claiming hidden group counts. The exact empty state is `No dependency cy
 Cycles mode has no `blocker_chain`.
 
 This cycle audit remains bounded, item-rooted, and local: Backboard has no
-global graph or saved query support. It does not enumerate simple loops or claim
+global graph support. It does not enumerate simple loops or claim
 cycles outside the visible bounded dependency graph.
 
 Branch truncation is bounded and diagnosable: parallel and truncated branch
@@ -129,8 +144,8 @@ counts, and the returned query caps remain visible rather than being inferred.
 Jump actions only re-root the existing bounded graph query; they do not request
 a global graph. Hierarchy, relates, topic, and product-memory views require
 explicit modes (`structure`, `related`, or `product_memory`) rather than being
-mixed into dependency mode. Backboard has no global graph or saved query support.
-It has no saved queries, global graph, or framework scope.
+mixed into dependency mode. Backboard has no global graph support or framework
+scope.
 
 `kob-ui.js` is intentionally small and first-party. It owns partial fetch/swap,
 delegated partial links, filter debounce support, URL query-state helpers, and
