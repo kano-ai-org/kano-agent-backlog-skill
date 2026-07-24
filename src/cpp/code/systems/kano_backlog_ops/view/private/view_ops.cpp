@@ -45,9 +45,15 @@ std::string group_for_state(ItemState state) {
 }
 
 std::string title_for_group(const std::string& group) {
-    if (group == "New") return "New Work";
-    if (group == "Done") return "Done Work";
-    return "InProgress Work";
+    if (group == "New") return "Backlog Work";
+    if (group == "Done") return "Closed Work";
+    return "Active Work";
+}
+
+std::string heading_for_group(const std::string& group) {
+    if (group == "New") return "Backlog";
+    if (group == "Done") return "Closed";
+    return "Active";
 }
 
 std::string filename_for_group(const std::string& group) {
@@ -106,7 +112,7 @@ std::string render_dashboard(
     ss << "# " << title << "\n\n";
     ss << "Source: items\n";
     ss << "Agent: " << agent << "\n\n";
-    ss << "## " << group << "\n\n";
+    ss << "## " << heading_for_group(group) << "\n\n";
 
     bool wrote_any_type = false;
     for (const auto& [type, items] : grouped_items) {
@@ -121,6 +127,7 @@ std::string render_dashboard(
             }
             std::string description = item.id + " " + item.title;
             std::vector<std::string> indicators;
+            indicators.push_back("State: " + to_string(item.state));
             if (!item.links.blocked_by.empty()) {
                 std::stringstream blocked;
                 blocked << "🔴 Blocked by: ";
