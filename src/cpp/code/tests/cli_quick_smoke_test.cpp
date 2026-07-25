@@ -422,6 +422,25 @@ int main(int argc, char** argv) {
         expect(read_text(schema_check_output).find("Total: 1 items checked, 0 with issues") != std::string::npos,
             "product schema check should inspect the requested product without an explicit backlog root");
 
+        const auto global_schema_check_output = temp_root / "global-schema-check-product.txt";
+        expect_command_capture_success(
+            run_command_capture(binary, {
+                "-p", temp_root.string(), "-P", "quick-smoke-product",
+                "schema", "check"
+            }, global_schema_check_output),
+            global_schema_check_output,
+            "native schema check should accept leading global options");
+        const auto admin_schema_check_output = temp_root / "admin-schema-check-product.txt";
+        expect_command_capture_success(
+            run_command_capture(binary, {
+                "-p", temp_root.string(), "-P", "quick-smoke-product",
+                "admin", "schema", "check"
+            }, admin_schema_check_output),
+            admin_schema_check_output,
+            "admin schema compatibility route should accept leading global options");
+        expect(read_text(admin_schema_check_output) == read_text(global_schema_check_output),
+            "admin schema compatibility route should preserve native schema check semantics");
+
         const auto schema_fix_output = temp_root / "schema-fix-product.txt";
         expect_command_capture_success(
             run_command_capture(binary, {"schema", "fix", "--product", "quick-smoke-product", "--agent", "tester"}, schema_fix_output),
@@ -474,6 +493,44 @@ int main(int argc, char** argv) {
             "product link validation should resolve cross-product refs without an explicit backlog root");
         expect(validate_links_text.find("Evidence sentence") == std::string::npos,
             "product link validation should not treat decision prose as a whole reference");
+
+        const auto global_validate_uids_output = temp_root / "global-validate-uids-product.txt";
+        expect_command_capture_success(
+            run_command_capture(binary, {
+                "-p", temp_root.string(), "-P", "quick-smoke-product",
+                "validate", "uids"
+            }, global_validate_uids_output),
+            global_validate_uids_output,
+            "native UID validation should accept leading global options");
+        const auto admin_validate_uids_output = temp_root / "admin-validate-uids-product.txt";
+        expect_command_capture_success(
+            run_command_capture(binary, {
+                "-p", temp_root.string(), "-P", "quick-smoke-product",
+                "admin", "validate", "uids"
+            }, admin_validate_uids_output),
+            admin_validate_uids_output,
+            "admin validate UID compatibility route should accept leading global options");
+        expect(read_text(admin_validate_uids_output) == read_text(global_validate_uids_output),
+            "admin validate UID compatibility route should preserve native UID validation semantics");
+
+        const auto global_validate_links_output = temp_root / "global-validate-links-product.txt";
+        expect_command_capture_success(
+            run_command_capture(binary, {
+                "-p", temp_root.string(), "-P", "quick-smoke-product",
+                "validate", "links"
+            }, global_validate_links_output),
+            global_validate_links_output,
+            "native link validation should accept leading global options");
+        const auto admin_validate_links_output = temp_root / "admin-validate-links-product.txt";
+        expect_command_capture_success(
+            run_command_capture(binary, {
+                "-p", temp_root.string(), "-P", "quick-smoke-product",
+                "admin", "validate", "links"
+            }, admin_validate_links_output),
+            admin_validate_links_output,
+            "admin validate links compatibility route should accept leading global options");
+        expect(read_text(admin_validate_links_output) == read_text(global_validate_links_output),
+            "admin validate links compatibility route should preserve native link validation semantics");
 
         write_text(link_fixture_path, valid_link_fixture + "\n# Risks / Dependencies\n\nMissing canonical dependency QS-BUG-9999.\n");
         const auto validate_missing_link_output = temp_root / "validate-links-missing.txt";

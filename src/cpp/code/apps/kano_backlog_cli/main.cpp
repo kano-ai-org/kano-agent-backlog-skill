@@ -8506,23 +8506,54 @@ std::optional<int> try_run_config_smoke_fast_path(int argc, char** argv) {
     return std::nullopt;
 }
 
+std::optional<int> FindLegacyAdminGroupIndex(int InArgc, char* InArgv[]) {
+    if (InArgc < 3 || InArgv == nullptr) {
+        return std::nullopt;
+    }
+
+    const std::unordered_set<std::string> legacyAdminGroups{
+        "index", "demo", "validate", "links", "adr", "schema", "meta"
+    };
+    const std::unordered_set<std::string> globalOptionsWithValues{
+        "-p", "--path", "-P", "--product", "-s", "--sandbox"
+    };
+
+    for (int index = 1; index < InArgc; ++index) {
+        const std::string argument = InArgv[index];
+        if (globalOptionsWithValues.contains(argument)) {
+            if (index + 1 >= InArgc) {
+                return std::nullopt;
+            }
+            ++index;
+            continue;
+        }
+        if (argument.rfind("--path=", 0) == 0 ||
+            argument.rfind("--product=", 0) == 0 ||
+            argument.rfind("--sandbox=", 0) == 0) {
+            continue;
+        }
+        if (argument == "admin") {
+            if (index + 1 < InArgc && legacyAdminGroups.contains(InArgv[index + 1])) {
+                return index;
+            }
+            return std::nullopt;
+        }
+        return std::nullopt;
+    }
+    return std::nullopt;
+}
+
 } // namespace
 
 int main(int InArgc, char* InArgv[]) {
     kano::backlog_core::ConfigureNoninteractiveErrorHandling();
 
     std::vector<std::string> rewritten_args;
-    if (InArgc >= 3 && std::string(InArgv[1]) == "admin") {
-        const std::string child = InArgv[2];
-        const std::unordered_set<std::string> legacy_admin_groups{
-            "index", "demo", "validate", "links", "adr", "schema", "meta"
-        };
-        if (legacy_admin_groups.count(child) > 0) {
-            rewritten_args.reserve(static_cast<size_t>(InArgc - 1));
-            rewritten_args.push_back(InArgv[0]);
-            rewritten_args.push_back(child);
-            for (int i = 3; i < InArgc; ++i) {
-                rewritten_args.push_back(InArgv[i]);
+    if (const auto adminGroupIndex = FindLegacyAdminGroupIndex(InArgc, InArgv)) {
+        rewritten_args.reserve(static_cast<size_t>(InArgc - 1));
+        for (int index = 0; index < InArgc; ++index) {
+            if (index != *adminGroupIndex) {
+                rewritten_args.push_back(InArgv[index]);
             }
         }
     }
