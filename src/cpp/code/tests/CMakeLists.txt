@@ -79,6 +79,19 @@ set_tests_properties("${KB_TEST_TOPIC_OPS}" PROPERTIES
     ENVIRONMENT "CI=true;KANO_BACKLOG_NONINTERACTIVE=1;KANO_TEST_NONINTERACTIVE=1;GIT_TERMINAL_PROMPT=0"
 )
 
+add_executable(list_compaction_smoke_test
+    list_compaction_smoke_test.cpp
+)
+target_compile_features(list_compaction_smoke_test PRIVATE cxx_std_23)
+target_compile_definitions(list_compaction_smoke_test PRIVATE KANO_REPO_ROOT="${KB_REPO_ROOT}")
+target_link_libraries(list_compaction_smoke_test PRIVATE kano::backlog_ops)
+set(KB_TEST_LIST_COMPACTION "[bdd][featured][feature:list-compaction][scenario:KOB-BDD-LIST-COMPACTION-001] Large item lists compact old Done work and retain reversible retrieval")
+add_test(NAME "${KB_TEST_LIST_COMPACTION}" COMMAND list_compaction_smoke_test)
+set_tests_properties("${KB_TEST_LIST_COMPACTION}" PROPERTIES
+    TIMEOUT 30
+    ENVIRONMENT "CI=true;KANO_BACKLOG_NONINTERACTIVE=1;KANO_TEST_NONINTERACTIVE=1;GIT_TERMINAL_PROMPT=0"
+)
+
 add_executable(cli_repo_smoke_test
     cli_repo_smoke_test.cpp
 )
@@ -98,7 +111,8 @@ add_executable(cli_quick_smoke_test
 )
 target_compile_features(cli_quick_smoke_test PRIVATE cxx_std_23)
 target_compile_definitions(cli_quick_smoke_test PRIVATE KANO_REPO_ROOT="${KB_REPO_ROOT}")
-target_link_libraries(cli_quick_smoke_test PRIVATE kano::backlog_core)
+target_link_libraries(cli_quick_smoke_test PRIVATE kano::backlog_core ${_jsoncpp_target})
+target_include_directories(cli_quick_smoke_test PRIVATE ${_jsoncpp_include_dir})
 set(KB_TEST_CLI_QUICK "[bdd][featured][feature:cli-workflow][scenario:KOB-BDD-CLI-QUICK-001] KOB CLI quick smoke covers bounded core commands")
 add_test(NAME "${KB_TEST_CLI_QUICK}" COMMAND cli_quick_smoke_test)
 set_tests_properties("${KB_TEST_CLI_QUICK}" PROPERTIES

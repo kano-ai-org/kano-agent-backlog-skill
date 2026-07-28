@@ -8,6 +8,8 @@
 #include <string>
 #include <vector>
 
+#include <json/json.h>
+
 #include "kano/backlog_core/process/noninteractive_errors.hpp"
 
 namespace {
@@ -74,6 +76,36 @@ std::string read_text(const std::filesystem::path& path) {
     return buffer.str();
 }
 
+Json::Value read_json(const std::filesystem::path& path) {
+    const auto text = read_text(path);
+    Json::CharReaderBuilder builder;
+    Json::Value root;
+    std::string errors;
+    std::istringstream input(text);
+    if (!Json::parseFromStream(builder, input, &root, &errors)) {
+        throw std::runtime_error("failed to parse JSON " + path.string() + ": " + errors);
+    }
+    return root;
+}
+
+const Json::Value* find_json_object(
+    const Json::Value& root,
+    const std::string& array_key,
+    const std::string& field,
+    const std::string& value
+) {
+    const auto& array = root[array_key];
+    if (!array.isArray()) {
+        return nullptr;
+    }
+    for (const auto& entry : array) {
+        if (entry.isObject() && entry[field].asString() == value) {
+            return &entry;
+        }
+    }
+    return nullptr;
+}
+
 std::string replace_frontmatter_uid(std::string content, const std::string& uid) {
     const auto frontmatter_end = content.find("\n---", 3);
     auto line_start = content.find("\nuid:");
@@ -82,6 +114,24 @@ std::string replace_frontmatter_uid(std::string content, const std::string& uid)
     }
     const auto line_end = content.find('\n', line_start);
     content.replace(line_start, line_end - line_start, "uid: " + uid);
+    return content;
+}
+
+std::string replace_frontmatter_scalar(
+    std::string content,
+    const std::string& key,
+    const std::string& value
+) {
+    const auto frontmatter_end = content.find("\n---", 3);
+    const auto marker = "\n" + key + ":";
+    auto line_start = content.find(marker);
+    if (line_start == std::string::npos || frontmatter_end == std::string::npos ||
+        line_start >= frontmatter_end) {
+        throw std::runtime_error("failed to locate frontmatter scalar: " + key);
+    }
+    ++line_start;
+    const auto line_end = content.find('\n', line_start);
+    content.replace(line_start, line_end - line_start, key + ": " + value);
     return content;
 }
 
@@ -124,6 +174,74 @@ void write_text(const std::filesystem::path& path, const std::string& text) {
         throw std::runtime_error("failed to write " + path.string());
     }
     out << text;
+}
+
+std::string yaml_string_list(const std::vector<std::string>& values, int indent) {
+    std::ostringstream out;
+    if (values.empty()) {
+        out << std::string(static_cast<std::size_t>(indent), ' ') << "[]\n";
+        return out.str();
+    }
+    for (const auto& value : values) {
+        out << std::string(static_cast<std::size_t>(indent), ' ') << "- " << value << "\n";
+    }
+    return out.str();
+}
+
+std::string yaml_double_quoted_value(const std::string& value) {
+    std::ostringstream escaped;
+    for (const auto ch : value) {
+        switch (ch) {
+            case '\\': escaped << "\\\\"; break;
+            case '"': escaped << "\\\""; break;
+            case '\n': escaped << "\\n"; break;
+            case '\r': escaped << "\\r"; break;
+            default: escaped << ch; break;
+        }
+    }
+    return escaped.str();
+}
+
+std::string list_fixture_item_markdown(
+    const std::string& id,
+    const std::string& uid,
+    const std::string& title,
+    const std::string& state,
+    const std::string& priority,
+    const std::string& updated,
+    const std::vector<std::string>& blocks = {},
+    const std::vector<std::string>& blocked_by = {}
+) {
+    std::ostringstream out;
+    out << "---\n";
+    out << "id: " << id << "\n";
+    out << "uid: " << uid << "\n";
+    out << "type: Task\n";
+    out << "title: \"" << yaml_double_quoted_value(title) << "\"\n";
+    out << "state: " << state << "\n";
+    out << "priority: " << priority << "\n";
+    out << "parent: ~\n";
+    out << "duplicate_of: ~\n";
+    out << "owner: ~\n";
+    out << "area: general\n";
+    out << "iteration: backlog\n";
+    out << "created: " << updated << "\n";
+    out << "updated: " << updated << "\n";
+    out << "external:\n  {}\n";
+    out << "links:\n";
+    out << "  relates:\n" << yaml_string_list({}, 4);
+    out << "  blocks:\n" << yaml_string_list(blocks, 4);
+    out << "  blocked_by:\n" << yaml_string_list(blocked_by, 4);
+    out << "decisions:\n  []\n";
+    out << "tags:\n  []\n";
+    out << "---\n\n";
+    out << "# Context\n\nList compaction fixture.\n\n";
+    out << "# Goal\n\nExercise reversible list projection.\n\n";
+    out << "# Approach\n\nUse deterministic canonical metadata.\n\n";
+    out << "# Acceptance Criteria\n\n- Item is readable.\n\n";
+    out << "# Risks / Dependencies\n\nNone.\n\n";
+    out << "# Worklog\n\n";
+    return out.str();
 }
 
 std::vector<std::string> with_duplicate_admission(std::vector<std::string> args, const std::string& query) {
@@ -281,6 +399,15 @@ int main(int argc, char** argv) {
         expect(quick_product_list_text.find("QS-TSK-0001") != std::string::npos &&
                quick_product_list_text.find("SP-TSK-0001") == std::string::npos,
             "quick product item list should exclude second-product rows from the shared index");
+        const auto repeated_quick_product_list_output = temp_root / "quick-product-list-repeat.txt";
+        expect_command_capture_success(
+            run_command_capture(binary, {
+                "-P", "quick-smoke-product", "workitem", "list", "--type", "task"
+            }, repeated_quick_product_list_output),
+            repeated_quick_product_list_output,
+            "repeated default product item list failed");
+        expect(read_text(repeated_quick_product_list_output) == quick_product_list_text,
+            "default plain item list bytes and ordering must remain deterministic");
 
         const auto second_product_list_output = temp_root / "second-product-list.txt";
         expect_command_capture_success(
@@ -313,6 +440,11 @@ int main(int argc, char** argv) {
             "second product fixture should contain indexed state and title markers");
         stale_second_task_text.replace(stale_state_position, std::string("state: Proposed").size(), "state: Review");
         stale_second_task_text.replace(stale_title_position, std::string("Cross product target").size(), "Canonical cross product target");
+        stale_second_task_text = replace_frontmatter_scalar(
+            stale_second_task_text,
+            "updated",
+            "2026-07-28"
+        );
         write_text(second_task_path, stale_second_task_text);
 
         const auto canonical_list_output = temp_root / "canonical-product-list.txt";
@@ -336,6 +468,426 @@ int main(int argc, char** argv) {
             "stale-state product item list failed");
         expect(read_text(stale_state_list_output).find("No items found.") != std::string::npos,
             "product item list should not retain a stale indexed state after canonical change");
+
+        const auto second_product_items =
+            temp_root / "_kano" / "backlog" / "products" / "second-product" / "items" / "task" / "0000";
+        write_text(
+            second_product_items / "SP-TSK-0002_old-done-topic.md",
+            list_fixture_item_markdown(
+                "SP-TSK-0002",
+                "019f2000-0002-7000-8000-000000000002",
+                "Old Done topic item",
+                "Done",
+                "P2",
+                "2025-01-04"
+            )
+        );
+        write_text(
+            second_product_items / "SP-TSK-0003_old-done-group.md",
+            list_fixture_item_markdown(
+                "SP-TSK-0003",
+                "019f2000-0003-7000-8000-000000000003",
+                "Old Done group item",
+                "Done",
+                "P2",
+                "2025-01-03"
+            )
+        );
+        write_text(
+            second_product_items / "SP-TSK-0004_old-ready.md",
+            list_fixture_item_markdown(
+                "SP-TSK-0004",
+                "019f2000-0004-7000-8000-000000000004",
+                "Old Ready item",
+                "Ready",
+                "P1",
+                "2025-01-02"
+            )
+        );
+        write_text(
+            second_product_items / "SP-TSK-0005_old-done-dependency.md",
+            list_fixture_item_markdown(
+                "SP-TSK-0005",
+                "019f2000-0005-7000-8000-000000000005",
+                "Old Done dependency item",
+                "Done",
+                "P2",
+                "2025-01-01",
+                {"SP-TSK-0004"}
+            )
+        );
+        const std::string quoted_multiline_title = "Quoted \"title\"\nsecond line";
+        write_text(
+            second_product_items / "SP-TSK-0006_quoted-multiline-title.md",
+            list_fixture_item_markdown(
+                "SP-TSK-0006",
+                "019f2000-0006-7000-8000-000000000006",
+                quoted_multiline_title,
+                "Ready",
+                "P1",
+                "2026-07-28"
+            )
+        );
+        const auto write_priority_variant = [&](const std::string& filename,
+                                                const std::string& id,
+                                                const std::string& uid,
+                                                const std::string& priority_yaml) {
+            auto markdown = list_fixture_item_markdown(
+                id,
+                uid,
+                "Priority variant " + id,
+                "Done",
+                "P2",
+                "2025-01-01"
+            );
+            write_text(
+                second_product_items / filename,
+                replace_frontmatter_scalar(markdown, "priority", priority_yaml)
+            );
+        };
+        write_priority_variant(
+            "SP-TSK-0010_absent-priority.md",
+            "SP-TSK-0010",
+            "019f2000-0010-7000-8000-000000000010",
+            "~"
+        );
+        write_priority_variant(
+            "SP-TSK-0014_upper-priority.md",
+            "SP-TSK-0014",
+            "019f2000-0014-7000-8000-000000000014",
+            "P1"
+        );
+        write_priority_variant(
+            "SP-TSK-0015_lower-priority.md",
+            "SP-TSK-0015",
+            "019f2000-0015-7000-8000-000000000015",
+            "p1"
+        );
+
+        const auto compaction_topic_path =
+            temp_root / "_kano" / "backlog" / "topics" / "large-list" / "manifest.json";
+        const auto second_task_uid = frontmatter_uid(read_text(second_task_path));
+        write_text(
+            compaction_topic_path,
+            "{\n"
+            "  \"topic\": \"large-list\",\n"
+            "  \"agent\": \"tester\",\n"
+            "  \"created_at\": \"2026-07-28T00:00:00Z\",\n"
+            "  \"updated_at\": \"2026-07-28T00:00:00Z\",\n"
+            "  \"status\": \"open\",\n"
+            "  \"closed_at\": null,\n"
+            "  \"seed_items\": [\"" + second_task_uid +
+                "\", \"019f2000-0002-7000-8000-000000000002\"],\n"
+            "  \"pinned_docs\": [],\n"
+            "  \"snippet_refs\": [],\n"
+            "  \"related_topics\": []\n"
+            "}\n"
+        );
+        write_text(
+            temp_root / "_kano" / "backlog" / "topics" / "release-list" / "manifest.json",
+            "{\n"
+            "  \"topic\": \"release-list\",\n"
+            "  \"agent\": \"tester\",\n"
+            "  \"created_at\": \"2026-07-28T00:00:00Z\",\n"
+            "  \"updated_at\": \"2026-07-28T00:00:00Z\",\n"
+            "  \"status\": \"open\",\n"
+            "  \"closed_at\": null,\n"
+            "  \"seed_items\": [\"" + second_task_uid + "\"],\n"
+            "  \"pinned_docs\": [],\n"
+            "  \"snippet_refs\": [],\n"
+            "  \"related_topics\": []\n"
+            "}\n"
+        );
+
+        const auto compact_list_output = temp_root / "compact-product-list.json";
+        expect_command_capture_success(
+            run_command_capture(binary, {
+                "-P", "second-product", "workitem", "list", "--compact", "--format", "json"
+            }, compact_list_output),
+            compact_list_output,
+            "compact product item list failed");
+        const auto compact_list_text = read_text(compact_list_output);
+        const auto compact_list_json = read_json(compact_list_output);
+        expect(compact_list_json["schema"].asString() == "kob.workitem.list.compact.v1",
+            "compact list should emit a versioned JSON contract");
+        expect(compact_list_json["product"].asString() == "second-product" &&
+                   compact_list_json["authority"].asString() == "navigation_only" &&
+                   !compact_list_json["mutates_backlog"].asBool() &&
+                   compact_list_json["retrieval_consistency"].asString() ==
+                       "current_canonical_state",
+            "compact list should declare canonical product and read-only navigation authority");
+        expect(compact_list_json["retrieval"]["operation"].asString() == "workitem.list" &&
+                   compact_list_json["retrieval"]["product"].asString() == "second-product" &&
+                   compact_list_text.find("kob workitem list") == std::string::npos,
+            "compact list should expose structured retrieval without raw shell commands");
+        expect(find_json_object(compact_list_json, "items", "item_id", "SP-TSK-0001") != nullptr &&
+                   find_json_object(compact_list_json, "items", "item_id", "SP-TSK-0004") != nullptr,
+            "compact list should keep Review and Ready items visible");
+        const auto* multi_topic_item =
+            find_json_object(compact_list_json, "items", "item_id", "SP-TSK-0001");
+        expect(multi_topic_item != nullptr &&
+                   (*multi_topic_item)["topics"].size() == 2 &&
+                   (*multi_topic_item)["topics"][0].asString() == "large-list" &&
+                   (*multi_topic_item)["topics"][1].asString() == "release-list",
+            "compact list should preserve complete multi-topic membership and grouping");
+        bool found_multi_topic_group = false;
+        for (const auto& group : compact_list_json["groups"]) {
+            if (group["group_id"].asString().find(
+                    "topics:2:large-list+release-list/"
+                ) != std::string::npos) {
+                found_multi_topic_group = true;
+                expect(group["topics"].size() == 2,
+                    "multi-topic compact group should retain both topic values");
+            }
+        }
+        expect(found_multi_topic_group,
+            "compact list should encode the complete topic set in group identity");
+        const auto* dependency_item =
+            find_json_object(compact_list_json, "items", "item_id", "SP-TSK-0005");
+        expect(dependency_item != nullptr &&
+                   (*dependency_item)["dependencies"]["blocks"].size() == 1 &&
+                   (*dependency_item)["dependencies"]["blocks"][0].asString() == "SP-TSK-0004",
+            "compact list should keep dependency-bearing Done items and their edges visible");
+        const auto* quoted_item =
+            find_json_object(compact_list_json, "items", "item_id", "SP-TSK-0006");
+        expect(quoted_item != nullptr &&
+                   (*quoted_item)["title"].asString() == quoted_multiline_title,
+            "compact JSON should round-trip quoted and newline-containing titles");
+        expect(find_json_object(compact_list_json, "items", "item_id", "SP-TSK-0002") == nullptr &&
+                   find_json_object(compact_list_json, "items", "item_id", "SP-TSK-0003") == nullptr,
+            "compact list should omit old Done items from the shown item payload");
+        const std::string compact_group_id =
+            "state:done/type:task/priority:1:P2/topics:0/updated:before-2026-06-28";
+        const auto* compact_group = find_json_object(
+            compact_list_json, "groups", "group_id", compact_group_id
+        );
+        expect(compact_group != nullptr &&
+                   (*compact_group)["priority"].asString() == "P2",
+            "compact list should publish a stable omitted group ID and exact priority");
+        const auto priority_group_suffix = "/topics:0/updated:before-2026-06-28";
+        const auto* absent_priority_group = find_json_object(
+            compact_list_json,
+            "groups",
+            "group_id",
+            "state:done/type:task/priority:0" + std::string(priority_group_suffix)
+        );
+        const auto* upper_priority_group = find_json_object(
+            compact_list_json,
+            "groups",
+            "group_id",
+            "state:done/type:task/priority:1:P1" + std::string(priority_group_suffix)
+        );
+        const auto* lower_priority_group = find_json_object(
+            compact_list_json,
+            "groups",
+            "group_id",
+            "state:done/type:task/priority:1:p1" + std::string(priority_group_suffix)
+        );
+        expect(absent_priority_group != nullptr &&
+                   (*absent_priority_group)["priority"].isNull() &&
+                   upper_priority_group != nullptr &&
+                   (*upper_priority_group)["priority"].asString() == "P1" &&
+                   lower_priority_group != nullptr &&
+                   (*lower_priority_group)["priority"].asString() == "p1",
+            "compact JSON must preserve injective absent, empty, and case-sensitive priorities");
+        expect(compact_list_json["recency"]["cutoff_source"].asString() ==
+                   "latest_updated_window" &&
+                   compact_list_json["recency"]["recent_days"].asInt() == 30 &&
+                   compact_list_json["recency"]["replay_cutoff"].isNull(),
+            "default compact JSON should describe its current-anchor recency window");
+
+        const auto exact_compact_output = temp_root / "compact-exact-item.json";
+        expect_command_capture_success(
+            run_command_capture(binary, {
+                "-P", "second-product", "workitem", "list", "--compact",
+                "--item", "SP-TSK-0002", "--format", "json"
+            }, exact_compact_output),
+            exact_compact_output,
+            "compact exact item retrieval failed");
+        const auto exact_compact_json = read_json(exact_compact_output);
+        expect(find_json_object(
+                   exact_compact_json, "items", "item_id", "SP-TSK-0002"
+               ) != nullptr &&
+                   exact_compact_json["selection"]["item"].asString() == "SP-TSK-0002",
+            "exact item retrieval should recover an omitted item");
+
+        const auto state_compact_output = temp_root / "compact-done-state.json";
+        expect_command_capture_success(
+            run_command_capture(binary, {
+                "-P", "second-product", "workitem", "list", "--compact",
+                "--state", "Done", "--format", "json"
+            }, state_compact_output),
+            state_compact_output,
+            "compact state retrieval failed");
+        const auto state_compact_json = read_json(state_compact_output);
+        expect(find_json_object(state_compact_json, "items", "item_id", "SP-TSK-0002") != nullptr &&
+                   find_json_object(state_compact_json, "items", "item_id", "SP-TSK-0003") != nullptr &&
+                   find_json_object(state_compact_json, "items", "item_id", "SP-TSK-0005") != nullptr,
+            "state retrieval should recover every matching omitted and visible Done item");
+
+        const auto topic_compact_output = temp_root / "compact-topic.json";
+        expect_command_capture_success(
+            run_command_capture(binary, {
+                "-P", "second-product", "workitem", "list", "--compact",
+                "--topic", "large-list", "--format", "json"
+            }, topic_compact_output),
+            topic_compact_output,
+            "compact topic retrieval failed");
+        const auto topic_compact_json = read_json(topic_compact_output);
+        expect(find_json_object(topic_compact_json, "items", "item_id", "SP-TSK-0001") != nullptr &&
+                   find_json_object(topic_compact_json, "items", "item_id", "SP-TSK-0002") != nullptr &&
+                   topic_compact_json["selection"]["topic"].asString() == "large-list",
+            "topic retrieval should recover visible and omitted topic members");
+
+        const auto group_compact_output = temp_root / "compact-group.json";
+        expect_command_capture_success(
+            run_command_capture(binary, {
+                "-P", "second-product", "workitem", "list", "--compact",
+                "--group", compact_group_id, "--format", "json"
+            }, group_compact_output),
+            group_compact_output,
+            "compact group retrieval failed");
+        const auto group_compact_json = read_json(group_compact_output);
+        expect(find_json_object(group_compact_json, "items", "item_id", "SP-TSK-0003") != nullptr &&
+                   find_json_object(group_compact_json, "items", "item_id", "SP-TSK-0005") != nullptr,
+            "group retrieval should recover omitted and dependency-visible group members");
+        expect(group_compact_json["recency"]["cutoff_source"].asString() ==
+                   "group_selector" &&
+                   group_compact_json["recency"]["recent_days"].isNull() &&
+                   group_compact_json["recency"]["replay_cutoff"].asString() ==
+                       "2026-06-28",
+            "group retrieval JSON should identify and preserve its replay cutoff");
+
+        const auto canonical_json_output = temp_root / "canonical-product-list.json";
+        expect_command_capture_success(
+            run_command_capture(binary, {
+                "-P", "second-product", "workitem", "list", "--format", "json"
+            }, canonical_json_output),
+            canonical_json_output,
+            "canonical JSON item list failed");
+        const auto canonical_json = read_json(canonical_json_output);
+        const auto* canonical_quoted_item =
+            find_json_object(canonical_json, "items", "item_id", "SP-TSK-0006");
+        expect(canonical_json["schema"].asString() == "kob.workitem.list.v1" &&
+                   find_json_object(canonical_json, "items", "item_id", "SP-TSK-0002") != nullptr &&
+                   find_json_object(canonical_json, "items", "item_id", "SP-TSK-0003") != nullptr &&
+                   canonical_quoted_item != nullptr &&
+                   (*canonical_quoted_item)["title"].asString() == quoted_multiline_title,
+            "canonical JSON list should remain complete and un-compacted");
+
+        const auto default_invalid_state_output = temp_root / "default-invalid-state-list.txt";
+        expect_command_capture_success(
+            run_command_capture(binary, {
+                "-P", "second-product", "workitem", "list", "--state", "NotAState"
+            }, default_invalid_state_output),
+            default_invalid_state_output,
+            "legacy default plain invalid-state behavior changed");
+        expect(read_text(default_invalid_state_output).find("SP-TSK-0001") != std::string::npos,
+            "default plain list should retain its existing silent invalid-filter behavior");
+
+        const auto plain_item_invalid_state_output =
+            temp_root / "plain-item-invalid-state-list.txt";
+        expect_command_capture_success(
+            run_command_capture(binary, {
+                "-P", "second-product", "workitem", "list",
+                "--item", "SP-TSK-0002", "--state", "NotAState"
+            }, plain_item_invalid_state_output),
+            plain_item_invalid_state_output,
+            "plain exact-item invalid-state behavior changed");
+        expect(read_text(plain_item_invalid_state_output).find("SP-TSK-0002") != std::string::npos,
+            "plain exact-item retrieval should silently ignore an invalid legacy state filter");
+
+        const auto plain_topic_invalid_type_output =
+            temp_root / "plain-topic-invalid-type-list.txt";
+        expect_command_capture_success(
+            run_command_capture(binary, {
+                "-P", "second-product", "workitem", "list",
+                "--topic", "large-list", "--type", "NotAType"
+            }, plain_topic_invalid_type_output),
+            plain_topic_invalid_type_output,
+            "plain topic invalid-type behavior changed");
+        expect(read_text(plain_topic_invalid_type_output).find("SP-TSK-0002") != std::string::npos,
+            "plain topic retrieval should silently ignore an invalid legacy type filter");
+
+        const auto compact_invalid_state_output = temp_root / "compact-invalid-state-list.txt";
+        expect(run_command_capture(binary, {
+            "-P", "second-product", "workitem", "list", "--compact",
+            "--state", "NotAState", "--format", "json"
+        }, compact_invalid_state_output) != 0,
+            "compact invalid state should fail closed");
+        expect(read_text(compact_invalid_state_output).find("Invalid item state: NotAState") != std::string::npos,
+            "compact invalid state should report the rejected selector");
+
+        const auto json_invalid_type_output = temp_root / "json-invalid-type-list.txt";
+        expect(run_command_capture(binary, {
+            "-P", "second-product", "workitem", "list",
+            "--type", "NotAType", "--format", "json"
+        }, json_invalid_type_output) != 0,
+            "JSON invalid type should fail closed");
+        expect(read_text(json_invalid_type_output).find("Invalid item type: NotAType") != std::string::npos,
+            "JSON invalid type should report the rejected selector");
+
+        write_text(
+            second_product_items / "SP-TSK-0099_ambiguous-one.md",
+            list_fixture_item_markdown(
+                "SP-TSK-0099",
+                "019f2000-0099-7000-8000-000000000001",
+                "Ambiguous display ID one",
+                "Ready",
+                "P1",
+                "2026-07-28"
+            )
+        );
+        write_text(
+            second_product_items / "SP-TSK-0099_ambiguous-two.md",
+            list_fixture_item_markdown(
+                "SP-TSK-0099",
+                "019f2000-0099-7000-8000-000000000002",
+                "Ambiguous display ID two",
+                "Done",
+                "P1",
+                "2026-07-28"
+            )
+        );
+        const auto ambiguous_item_output = temp_root / "compact-ambiguous-item.txt";
+        expect(run_command_capture(binary, {
+            "-P", "second-product", "workitem", "list", "--compact",
+            "--item", "SP-TSK-0099", "--state", "Ready", "--format", "json"
+        }, ambiguous_item_output) != 0,
+            "ambiguous compact display ID should fail closed before state filtering");
+        expect(read_text(ambiguous_item_output).find(
+                   "Ambiguous item reference: SP-TSK-0099; use UID"
+               ) != std::string::npos,
+            "ambiguous compact display ID should require UID retrieval");
+
+        const auto exact_uid_output = temp_root / "compact-exact-uid.json";
+        expect_command_capture_success(
+            run_command_capture(binary, {
+                "-P", "second-product", "workitem", "list", "--compact",
+                "--item", "019f2000-0099-7000-8000-000000000001", "--format", "json"
+            }, exact_uid_output),
+            exact_uid_output,
+            "exact UID retrieval failed after display-ID ambiguity");
+        const auto exact_uid_text = read_text(exact_uid_output);
+        expect(exact_uid_text.find("Ambiguous display ID one") != std::string::npos &&
+                   exact_uid_text.find("Ambiguous display ID two") == std::string::npos,
+            "exact UID retrieval should return one unambiguous item");
+
+        for (const auto& fixture_name : {
+                 "SP-TSK-0002_old-done-topic.md",
+                 "SP-TSK-0003_old-done-group.md",
+                 "SP-TSK-0004_old-ready.md",
+                 "SP-TSK-0005_old-done-dependency.md",
+                 "SP-TSK-0006_quoted-multiline-title.md",
+                 "SP-TSK-0010_absent-priority.md",
+                 "SP-TSK-0014_upper-priority.md",
+                 "SP-TSK-0015_lower-priority.md",
+                 "SP-TSK-0099_ambiguous-one.md",
+                 "SP-TSK-0099_ambiguous-two.md"
+             }) {
+            std::filesystem::remove(second_product_items / fixture_name);
+        }
+
         write_text(unrepairable_uid_path, "not frontmatter\n");
         const auto uid_unrepairable_output = temp_root / "validate-uids-unrepairable.txt";
         expect(run_command_capture(binary, {"validate", "uids", "--product", "quick-smoke-product", "--fix"}, uid_unrepairable_output) != 0,

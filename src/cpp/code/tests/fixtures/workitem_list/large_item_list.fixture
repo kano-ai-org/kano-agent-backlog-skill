@@ -1,0 +1,16 @@
+# id|uid|type|title|state|priority|updated|parent|relates|blocks|blocked_by|topics
+LST-TSK-0001|019f1000-0001-7000-8000-000000000001|Task|Ready operator decision|Ready|P1|2026-07-28|LST-USR-0001||||operator-routing
+LST-TSK-0002|019f1000-0002-7000-8000-000000000002|Task|Review release evidence|Review|P1|2026-07-27|LST-USR-0001||||alpha,operator-routing
+LST-BUG-0001|019f1000-0003-7000-8000-000000000003|Bug|Blocked runtime defect|Blocked|P0|2026-07-26|||LST-TSK-0001|LST-TSK-0999|incident
+LST-TSK-0005|019f1000-0005-7000-8000-000000000005|Task|Recent completed task|Done|P2|2026-07-20|LST-USR-0001||||
+LST-TSK-0004|019f1000-0004-7000-8000-000000000004|Task|Long running implementation|InProgress|P2|2026-05-01|LST-USR-0001||||
+LST-TSK-0006|019f1000-0006-7000-8000-000000000006|Task|Old completed task one|Done|P2|2026-04-01|LST-USR-0001||||
+LST-TSK-0007|019f1000-0007-7000-8000-000000000007|Task|Old completed task two|Done|P2|2026-03-01|LST-USR-0001||||
+LST-TSK-0008|019f1000-0008-7000-8000-000000000008|Task|Old completed dependency|Done|P2|2026-02-01|LST-USR-0001||LST-TSK-0004||
+LST-TSK-0013|019f1000-0013-7000-8000-000000000013|Task|Invalid suffix completed task|Done|P2|2026-01-15junk|LST-USR-0001||||
+LST-TSK-0009|019f1000-0009-7000-8000-000000000009|Task|Old alpha completed task|Done|P2|2026-01-01|LST-USR-0001||||alpha
+LST-BUG-0011|019f1000-0011-7000-8000-000000000011|Bug|Old completed bug|Done|P1|2025-12-01|||||
+LST-TSK-0012|019f1000-0012-7000-8000-000000000012|Task|Old proposed task|Proposed|P3|2025-11-01|||||
+LST-TSK-0014|019f1000-0014-7000-8000-000000000014|Task|Literal none topic task|Done|P2|2025-10-01|||||none
+LST-TSK-0015|019f1000-0015-7000-8000-000000000015|Task|Literal title case None topic task|Done|P2|2025-09-01|||||None
+LST-TSK-0010|019f1000-0010-7000-8000-000000000010|Task|Unknown date completed task|Done|P2||LST-USR-0001||||

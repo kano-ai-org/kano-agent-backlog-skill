@@ -3115,6 +3115,182 @@ Json::Value string_array_json(const std::vector<std::string>& values) {
     return array;
 }
 
+Json::Value optional_string_json(const std::optional<std::string>& value) {
+    return value ? Json::Value(*value) : Json::Value(Json::nullValue);
+}
+
+Json::Value list_item_projection_json(const ListItemProjection& item) {
+    Json::Value value(Json::objectValue);
+    value["item_id"] = item.id;
+    value["uid"] = item.uid;
+    value["title"] = item.title;
+    value["type"] = to_string(item.type);
+    value["state"] = to_string(item.state);
+    value["priority"] = optional_string_json(item.priority);
+    value["updated"] = item.updated;
+    value["duplicate_of"] = optional_string_json(item.duplicate_of);
+    value["tags"] = string_array_json(item.tags);
+    value["topics"] = string_array_json(item.topics);
+    value["canonical_position"] = static_cast<Json::UInt64>(item.canonical_position + 1);
+
+    Json::Value hierarchy(Json::objectValue);
+    hierarchy["parent"] = optional_string_json(item.parent);
+    value["hierarchy"] = hierarchy;
+
+    Json::Value dependencies(Json::objectValue);
+    dependencies["blocks"] = string_array_json(item.links.blocks);
+    dependencies["blocked_by"] = string_array_json(item.links.blocked_by);
+    value["dependencies"] = dependencies;
+    value["relates"] = string_array_json(item.links.relates);
+    return value;
+}
+
+Json::Value list_selection_json(const CompactListOptions& options) {
+    Json::Value selection(Json::objectValue);
+    selection["type"] = options.type
+        ? Json::Value(to_string(*options.type))
+        : Json::Value(Json::nullValue);
+    selection["state"] = options.state
+        ? Json::Value(to_string(*options.state))
+        : Json::Value(Json::nullValue);
+    selection["item"] = optional_string_json(options.exact_item);
+    selection["topic"] = optional_string_json(options.topic);
+    selection["group"] = optional_string_json(options.group);
+    return selection;
+}
+
+Json::Value canonical_list_json(
+    const std::vector<ListItemProjection>& selected_items,
+    std::size_t canonical_total,
+    const CompactListOptions& selection,
+    const std::string& product
+) {
+    Json::Value payload(Json::objectValue);
+    payload["schema"] = "kob.workitem.list.v1";
+    payload["product"] = product;
+    payload["mode"] = "canonical";
+    payload["compact"] = false;
+    payload["authority"] = "canonical_read_projection";
+    payload["mutates_backlog"] = false;
+    payload["retrieval_consistency"] = "current_canonical_state";
+    payload["canonical_total"] = static_cast<Json::UInt64>(canonical_total);
+    payload["count"] = static_cast<Json::UInt64>(selected_items.size());
+    payload["selection"] = list_selection_json(selection);
+    payload["ordering"] = string_array_json({"updated_desc", "item_id_asc"});
+    payload["items"] = Json::Value(Json::arrayValue);
+    for (const auto& item : selected_items) {
+        payload["items"].append(list_item_projection_json(item));
+    }
+    return payload;
+}
+
+Json::Value compact_list_json(
+    const CompactListResult& result,
+    const CompactListOptions& selection,
+    const std::string& product
+) {
+    Json::Value payload(Json::objectValue);
+    payload["schema"] = "kob.workitem.list.compact.v1";
+    payload["product"] = product;
+    payload["mode"] = "compact";
+    payload["compact"] = true;
+    payload["authority"] = "navigation_only";
+    payload["mutates_backlog"] = false;
+    payload["retrieval_consistency"] = "current_canonical_state";
+    payload["canonical_total"] = static_cast<Json::UInt64>(result.canonical_total);
+    payload["selection_total"] = static_cast<Json::UInt64>(result.selection_total);
+    payload["shown_count"] = static_cast<Json::UInt64>(result.shown_count);
+    payload["omitted_count"] = static_cast<Json::UInt64>(result.omitted_count);
+    payload["expanded_retrieval"] = result.expanded_retrieval;
+    payload["selection"] = list_selection_json(selection);
+    payload["ordering"] = string_array_json({"updated_desc", "item_id_asc"});
+
+    Json::Value recency(Json::objectValue);
+    recency["anchor"] = result.latest_updated.empty()
+        ? Json::Value(Json::nullValue)
+        : Json::Value(result.latest_updated);
+    recency["cutoff"] = result.cutoff_date.empty()
+        ? Json::Value(Json::nullValue)
+        : Json::Value(result.cutoff_date);
+    recency["cutoff_source"] = result.cutoff_source;
+    recency["recent_days"] = result.recent_days
+        ? Json::Value(*result.recent_days)
+        : Json::Value(Json::nullValue);
+    recency["replay_cutoff"] = result.cutoff_source == "group_selector"
+        ? Json::Value(result.cutoff_date)
+        : Json::Value(Json::nullValue);
+    recency["unknown_dates_are_shown"] = true;
+    payload["recency"] = recency;
+
+    Json::Value safety(Json::objectValue);
+    safety["protected_states"] = string_array_json({"Ready", "Review", "Blocked"});
+    safety["dependency_items_always_shown"] = true;
+    safety["canonical_data_mutated"] = false;
+    payload["safety"] = safety;
+
+    Json::Value retrieval(Json::objectValue);
+    retrieval["operation"] = "workitem.list";
+    retrieval["product"] = product;
+    retrieval["consistency"] = "current_canonical_state";
+    retrieval["selectors"] = Json::Value(Json::arrayValue);
+    for (const auto& [kind, value_type] : {
+             std::pair<std::string, std::string>{"item", "display_id_or_uid"},
+             {"state", "item_state"},
+             {"topic", "exact_topic_name"},
+             {"group", "compact_group_id"}
+         }) {
+        Json::Value selector(Json::objectValue);
+        selector["kind"] = kind;
+        selector["value_type"] = value_type;
+        selector["expands_matches"] = true;
+        retrieval["selectors"].append(selector);
+    }
+    payload["retrieval"] = retrieval;
+
+    payload["groups"] = Json::Value(Json::arrayValue);
+    for (const auto& group : result.groups) {
+        Json::Value value(Json::objectValue);
+        value["group_id"] = group.id;
+        value["state"] = to_string(group.state);
+        value["type"] = to_string(group.type);
+        value["priority"] = optional_string_json(group.priority);
+        value["topics"] = string_array_json(group.topics);
+        value["recency"] = group.recency;
+        value["total_count"] = static_cast<Json::UInt64>(group.total_count);
+        value["shown_count"] = static_cast<Json::UInt64>(group.shown_count);
+        value["omitted_count"] = static_cast<Json::UInt64>(group.omitted_count);
+
+        Json::Value updated_selector(Json::objectValue);
+        if (group.recency == "older") {
+            updated_selector["operator"] = "before";
+            updated_selector["value"] = result.cutoff_date;
+        } else if (group.recency == "recent") {
+            updated_selector["operator"] = "on_or_after";
+            updated_selector["value"] = result.cutoff_date;
+        } else {
+            updated_selector["operator"] = "unknown";
+            updated_selector["value"] = Json::Value(Json::nullValue);
+        }
+        value["updated_selector"] = updated_selector;
+
+        Json::Value group_retrieval(Json::objectValue);
+        group_retrieval["operation"] = "workitem.list";
+        group_retrieval["product"] = product;
+        group_retrieval["compact"] = true;
+        group_retrieval["consistency"] = "current_canonical_state";
+        group_retrieval["selector"]["kind"] = "group";
+        group_retrieval["selector"]["value"] = group.id;
+        value["retrieval"] = group_retrieval;
+        payload["groups"].append(value);
+    }
+
+    payload["items"] = Json::Value(Json::arrayValue);
+    for (const auto& item : result.items) {
+        payload["items"].append(list_item_projection_json(item));
+    }
+    return payload;
+}
+
 Json::Value item_frontmatter_json(const BacklogItem& item, const std::optional<std::string>& parent_uid = std::nullopt) {
     Json::Value front(Json::objectValue);
     front["uid"] = item.uid;
@@ -9737,27 +9913,160 @@ int main(int InArgc, char* InArgv[]) {
             struct ListCommandState {
                 std::string filter_type_str;
                 std::string filter_state_str;
+                std::string exact_item;
+                std::string topic;
+                std::string group;
+                std::string format = "plain";
+                bool compact = false;
             };
             auto state = std::make_shared<ListCommandState>();
             listCmd->add_option("--type", state->filter_type_str, "Filter by type (initiative, epic, feature, userstory, task, subtask, bug, issue)");
             listCmd->add_option("--state", state->filter_state_str, "Filter by state");
+            listCmd->add_option("--item", state->exact_item, "Retrieve one exact display ID or UID");
+            listCmd->add_option("--topic", state->topic, "Retrieve items referenced by a topic manifest");
+            listCmd->add_option("--group", state->group, "Retrieve one compact group ID (requires --compact)");
+            listCmd->add_option("--format", state->format, "Output format: plain|json");
+            listCmd->add_flag("--compact", state->compact, "Opt in to reversible compaction of old Done items");
             listCmd->callback([&, state]() {
                 auto ctx = resolve_ctx();
-                BacklogIndex index(ctx.backlog_root / ".cache" / "index" / "backlog.db");
 
-                ViewFilter filter;
-                filter.product_root = ctx.product_root;
+                const auto format_norm = lower_copy(trim_copy(state->format));
+                if (format_norm != "plain" && format_norm != "json") {
+                    throw std::runtime_error("format must be plain or json");
+                }
+                if (!state->group.empty() && !state->compact) {
+                    throw std::runtime_error("--group requires --compact");
+                }
+
+                CompactListOptions selection;
+                bool invalid_type = false;
+                bool invalid_state = false;
                 if (!state->filter_type_str.empty()) {
                     auto t = parse_item_type(state->filter_type_str);
-                    if (t) filter.type = *t;
+                    if (t) selection.type = *t;
+                    else invalid_type = true;
                 }
                 if (!state->filter_state_str.empty()) {
                     auto s = parse_item_state(state->filter_state_str);
-                    if (s) filter.state = *s;
+                    if (s) selection.state = *s;
+                    else invalid_state = true;
+                }
+                if (!state->exact_item.empty()) {
+                    selection.exact_item = state->exact_item;
+                }
+                if (!state->topic.empty()) {
+                    selection.topic = state->topic;
+                }
+                if (!state->group.empty()) {
+                    selection.group = state->group;
                 }
 
-                auto items = ViewOps::list_items(index, filter);
-                std::cout << ViewOps::render_table(items);
+                const bool canonical_plain_fast_path =
+                    !state->compact &&
+                    format_norm == "plain" &&
+                    state->exact_item.empty() &&
+                    state->topic.empty();
+                if (canonical_plain_fast_path) {
+                    BacklogIndex index(ctx.backlog_root / ".cache" / "index" / "backlog.db");
+                    ViewFilter filter;
+                    filter.product_root = ctx.product_root;
+                    filter.type = selection.type;
+                    filter.state = selection.state;
+                    const auto items = ViewOps::list_items(index, filter);
+                    std::cout << ViewOps::render_table(items);
+                    return;
+                }
+                const bool strict_filter_validation =
+                    state->compact || format_norm == "json";
+                if (strict_filter_validation && invalid_type) {
+                    throw std::runtime_error("Invalid item type: " + state->filter_type_str);
+                }
+                if (strict_filter_validation && invalid_state) {
+                    throw std::runtime_error("Invalid item state: " + state->filter_state_str);
+                }
+
+                const auto canonical_items =
+                    ViewOps::list_item_projections(ctx.product_root, ctx.backlog_root);
+                if (selection.exact_item) {
+                    const auto exact_match_count = static_cast<std::size_t>(std::count_if(
+                        canonical_items.begin(),
+                        canonical_items.end(),
+                        [&](const auto& item) {
+                            return item.id == *selection.exact_item ||
+                                   item.uid == *selection.exact_item;
+                        }
+                    ));
+                    if (exact_match_count == 0) {
+                        throw std::runtime_error("Item not found: " + *selection.exact_item);
+                    }
+                    if (exact_match_count > 1) {
+                        throw std::runtime_error(
+                            "Ambiguous item reference: " + *selection.exact_item + "; use UID"
+                        );
+                    }
+                }
+                if (state->compact) {
+                    const auto result = ViewOps::compact_items(canonical_items, selection);
+                    if (selection.group && result.selection_total == 0) {
+                        throw std::runtime_error("Compact group not found: " + *selection.group);
+                    }
+                    if (format_norm == "json") {
+                        std::cout << json_to_string(
+                            compact_list_json(result, selection, ctx.product_name),
+                            true
+                        ) << "\n";
+                    } else {
+                        std::cout << ViewOps::render_compact_table(result);
+                    }
+                    return;
+                }
+
+                std::vector<ListItemProjection> selected_items;
+                for (const auto& item : canonical_items) {
+                    if (selection.type && item.type != *selection.type) {
+                        continue;
+                    }
+                    if (selection.state && item.state != *selection.state) {
+                        continue;
+                    }
+                    if (selection.exact_item &&
+                        item.id != *selection.exact_item &&
+                        item.uid != *selection.exact_item) {
+                        continue;
+                    }
+                    if (selection.topic &&
+                        std::find(item.topics.begin(), item.topics.end(), *selection.topic) == item.topics.end()) {
+                        continue;
+                    }
+                    selected_items.push_back(item);
+                }
+                if (format_norm == "json") {
+                    std::cout << json_to_string(
+                        canonical_list_json(
+                            selected_items,
+                            canonical_items.size(),
+                            selection,
+                            ctx.product_name
+                        ),
+                        true
+                    ) << "\n";
+                    return;
+                }
+
+                std::vector<IndexItem> rendered_items;
+                rendered_items.reserve(selected_items.size());
+                for (const auto& item : selected_items) {
+                    IndexItem indexed;
+                    indexed.id = item.id;
+                    indexed.uid = item.uid;
+                    indexed.type = item.type;
+                    indexed.title = item.title;
+                    indexed.state = item.state;
+                    indexed.duplicate_of = item.duplicate_of;
+                    indexed.updated = item.updated;
+                    rendered_items.push_back(std::move(indexed));
+                }
+                std::cout << ViewOps::render_table(rendered_items);
             });
         }
 
