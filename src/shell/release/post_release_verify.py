@@ -540,6 +540,89 @@ def install_verify(args: argparse.Namespace) -> int:
     return 0
 
 
+def aggregate_install_backends(args: argparse.Namespace) -> int:
+    output_dir = Path(args.output_dir)
+    report_path = output_dir / "install-verification-backend-summary.json"
+    manifests: list[dict[str, Any]] = []
+
+    for raw_root in args.input_root:
+        root = Path(raw_root)
+        if not root.exists():
+            continue
+        for path in sorted(root.rglob("install-verification-*.json")):
+            if path.resolve() == report_path.resolve():
+                continue
+            try:
+                payload = load_json(path)
+            except (OSError, json.JSONDecodeError) as exc:
+                manifests.append(
+                    {
+                        "path": path.as_posix(),
+                        "status": "invalid",
+                        "reason": str(exc),
+                    }
+                )
+                continue
+            if not isinstance(payload, dict):
+                manifests.append(
+                    {
+                        "path": path.as_posix(),
+                        "status": "invalid",
+                        "reason": f"expected a JSON object, got {type(payload).__name__}",
+                    }
+                )
+                continue
+            if payload.get("kind") != "kano-post-release-install-verification":
+                continue
+            cli_smoke = payload.get("cliSmokeResult")
+            if not isinstance(cli_smoke, dict):
+                cli_smoke = {}
+            manifests.append(
+                {
+                    "path": path.as_posix(),
+                    "status": str(payload.get("status") or "unknown").lower(),
+                    "platform": str(payload.get("platform") or ""),
+                    "backend": str(payload.get("cloudBackend") or "unknown"),
+                    "selectedChannel": str(payload.get("selectedChannel") or ""),
+                    "artifactUrl": str(payload.get("artifactUrl") or ""),
+                    "cliSmokeStatus": str(cli_smoke.get("status") or ""),
+                }
+            )
+
+    passing = [manifest for manifest in manifests if manifest.get("status") == "pass"]
+    status = "pass" if passing else "fail"
+    report = {
+        "schemaVersion": 1,
+        "kind": "kano-post-release-install-verification-backend-summary",
+        "status": status,
+        "passCount": len(passing),
+        "manifestCount": len(manifests),
+        "manifests": manifests,
+    }
+    write_json(report_path, report)
+    rows = [
+        ("Status", status),
+        ("Passing manifests", str(len(passing))),
+        ("Total manifests", str(len(manifests))),
+        (
+            "Passing backends",
+            ", ".join(
+                f"{item.get('backend', 'unknown')}:{item.get('platform', 'unknown')}"
+                for item in passing
+            )
+            or "none",
+        ),
+    ]
+    write_text(
+        output_dir / "install-verification-backend-summary.md",
+        "# Post-Release Install Verification Backend Summary\n\n" + markdown_table(rows),
+    )
+    print(report_path)
+    if args.fail_if_no_pass and not passing:
+        return 1
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Kano post-release verification helpers")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -577,6 +660,12 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--fail-if-no-pass", action="store_true")
     p.add_argument("--cloud-backend", default="local")
     p.set_defaults(func=install_verify)
+
+    p = sub.add_parser("aggregate-install-backends")
+    p.add_argument("--input-root", action="append", default=[], required=True)
+    p.add_argument("--output-dir", required=True)
+    p.add_argument("--fail-if-no-pass", action="store_true")
+    p.set_defaults(func=aggregate_install_backends)
     return parser
 
 

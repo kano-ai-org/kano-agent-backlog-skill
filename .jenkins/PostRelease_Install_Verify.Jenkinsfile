@@ -29,40 +29,40 @@ pipeline {
                 checkout scm
             }
         }
-        stage('Dispatch GitHub Actions backend') {
-            when { expression { return params.USE_GITHUB_ACTIONS_CLOUD } }
+        stage('Prepare verification workspace') {
+            steps {
+                dir("${env.VERIFY_ROOT}") {
+                    deleteDir()
+                }
+            }
+        }
+        stage('Run and collect GitHub Actions backend') {
             steps {
                 sh '''#!/usr/bin/env bash
 set -euo pipefail
-mkdir -p "$VERIFY_ROOT/cloud"
-if ! command -v gh >/dev/null 2>&1; then
-  echo "gh is unavailable; cloud backend cannot be dispatched." | tee "$VERIFY_ROOT/cloud/backend-warning.txt"
-  exit 0
-fi
-set +e
-gh workflow run post-release-install-verify.yml \
+bash src/shell/release/09-dispatch-post-release-install-cloud.sh \
   --repo "$GITHUB_REPOSITORY" \
-  -f release_tag="$RELEASE_TAG" \
-  -f release_version="$RELEASE_VERSION" \
-  -f platform="$PLATFORM" \
-  -f execute_install="$EXECUTE_INSTALL" \
-  -f enable_homebrew="$ENABLE_HOMEBREW" \
-  -f enable_winget="$ENABLE_WINGET" \
-  -f enable_apt="$ENABLE_APT" \
-  -f enable_msi="$ENABLE_MSI" \
-  -f allow_tar_fallback="$ALLOW_TAR_FALLBACK"
-rc=$?
-set -e
-if [ "$rc" -ne 0 ]; then
-  echo "GitHub Actions dispatch failed with exit code $rc; local backend may run if allowed." | tee "$VERIFY_ROOT/cloud/backend-warning.txt"
-else
-  echo "GitHub Actions post-release install verification dispatched for $PLATFORM." | tee "$VERIFY_ROOT/cloud/backend-dispatched.txt"
-fi
+  --tag "$RELEASE_TAG" \
+  --version "$RELEASE_VERSION" \
+  --platform "$PLATFORM" \
+  --output-dir "$VERIFY_ROOT" \
+  --use-cloud "$USE_GITHUB_ACTIONS_CLOUD" \
+  --execute-install "$EXECUTE_INSTALL" \
+  --enable-homebrew "$ENABLE_HOMEBREW" \
+  --enable-winget "$ENABLE_WINGET" \
+  --enable-apt "$ENABLE_APT" \
+  --enable-msi "$ENABLE_MSI" \
+  --allow-tar-fallback "$ALLOW_TAR_FALLBACK"
 '''
             }
         }
         stage('Local backend verification') {
-            when { expression { return params.ALLOW_LOCAL_BACKEND } }
+            when {
+                expression {
+                    return params.ALLOW_LOCAL_BACKEND &&
+                        fileExists("${env.VERIFY_ROOT}/cloud/fallback-required.txt")
+                }
+            }
             steps {
                 sh '''#!/usr/bin/env bash
 set -euo pipefail
@@ -81,7 +81,6 @@ args=(
 [ "$ENABLE_MSI" = "true" ] && args+=(--enable-msi) || args+=(--no-enable-msi)
 [ "$ALLOW_TAR_FALLBACK" = "true" ] && args+=(--allow-tar-fallback) || args+=(--no-allow-tar-fallback)
 [ "$EXECUTE_INSTALL" = "true" ] && args+=(--execute-install)
-[ "$FAIL_IF_NO_PASS" = "true" ] && args+=(--fail-if-no-pass)
 bash src/shell/release/08-post-release-install-verify.sh "${args[@]}"
 '''
             }
@@ -95,6 +94,20 @@ bash src/shell/release/07-recheck-release-assets-msi.sh \
   --repo "$GITHUB_REPOSITORY" \
   --tag "$RELEASE_TAG" \
   --output-dir "$VERIFY_ROOT/release-assets"
+'''
+            }
+        }
+        stage('Require passing backend evidence') {
+            steps {
+                sh '''#!/usr/bin/env bash
+set -euo pipefail
+args=(
+  --input-root "$VERIFY_ROOT/cloud"
+  --input-root "$VERIFY_ROOT/local"
+  --output-dir "$VERIFY_ROOT"
+)
+[ "$FAIL_IF_NO_PASS" = "true" ] && args+=(--fail-if-no-pass)
+bash src/shell/release/10-aggregate-post-release-install-backends.sh "${args[@]}"
 '''
             }
         }
