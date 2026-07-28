@@ -64,6 +64,13 @@ struct GraphQueryCaps {
   size_t maxTotalEdges = 1000;
 };
 
+enum class GraphExpansionKind {
+  Inbound,
+  Outbound,
+  Children,
+  Related,
+};
+
 class BacklogWebviewService {
  public:
   explicit BacklogWebviewService(std::filesystem::path productsRoot);
@@ -116,6 +123,11 @@ class BacklogWebviewService {
                                    GraphQueryCaps caps = {},
                                    std::optional<std::string> mode = std::nullopt,
                                    const std::string& rootProduct = "");
+  Json::Value ExpandGraphNeighborhood(const ItemQueryOptions& options,
+                                      const std::string& itemId,
+                                      const std::string& rootProduct,
+                                      GraphExpansionKind expansion,
+                                      GraphQueryCaps caps = {});
   Json::Value BuildWorkOrderTimeline(const ItemQueryOptions& options,
                                      const std::string& itemId = "",
                                      const std::string& topic = "");

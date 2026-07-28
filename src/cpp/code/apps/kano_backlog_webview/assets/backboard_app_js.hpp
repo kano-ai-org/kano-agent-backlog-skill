@@ -52,7 +52,16 @@ inline constexpr std::string_view kBackboardAppJsPart1 = R"JS(
        graphMaxChildrenPerNode: 25,
        graphMaxTotalNodes: 80,
        graphMaxTotalEdges: 120,
-       graphPayload: null,
+        graphPayload: null,
+        graphBasePayload: null,
+        graphBaseQueryString: '',
+        graphExpansionPayloads: new Map(),
+        graphExpansionStatuses: new Map(),
+        graphExpansionRequests: new Map(),
+        graphExpansionOrder: [],
+        graphExpansionGeneration: 0,
+        graphExpansionRequestSeq: 0,
+        graphExpansionNotice: '',
        graphViewport: {
          scale: 1,
          x: 0,
@@ -73,7 +82,8 @@ inline constexpr std::string_view kBackboardAppJsPart1 = R"JS(
     const itemStates = ['Proposed', 'Ready', 'InProgress', 'Blocked', 'Review', 'Done', 'Dropped'];
     const itemTypes = ['Theme', 'Initiative', 'Epic', 'Feature', 'UserStory', 'Task', 'Bug', 'Issue', 'ADR', 'Topic', 'Workset'];
     const refreshableTabs = ['review', 'handoff', 'tree', 'roadmap', 'decision-radar', 'kanban', 'context', 'graph', 'runs'];
-    const graphModeOrder = ['dependency', 'structure', 'cycles', 'related', 'product_memory'];
+     const graphModeOrder = ['dependency', 'structure', 'cycles', 'related', 'product_memory'];
+     const graphExpansionKindOrder = ['inbound', 'outbound', 'children', 'related'];
     const defaultGraphCaps = Object.freeze({
       maxDepth: 2,
       maxChildrenPerNode: 25,
@@ -474,6 +484,7 @@ inline constexpr std::string_view kBackboardAppJsPart1a = R"JS(
         return;
       }
       const ws = result?.data?.workspace_root || clean;
+      clearGraphExpansionScope('workspace changed');
       state.workspace = ws;
       touchWorkspace(ws);
       showWorkspaceCurrent(ws);
@@ -1113,6 +1124,7 @@ inline constexpr std::string_view kBackboardAppJsPart1b = R"JS(
         setStatus('Saved graph query is invalid or missing a product-qualified root', 'error');
         return;
       }
+      clearGraphExpansionScope('saved graph query changed the graph scope');
       state.selectedSavedGraphQueryId = normalized.id;
       state.graphMode = normalized.mode;
       state.graphItemId = normalized.root.item_id;
@@ -1208,6 +1220,325 @@ inline constexpr std::string_view kBackboardAppJsPart1bb = R"JS(
       return params.toString();
     }
 
+    function normalizeGraphExpansionKind(value) {
+      const kind = String(value || '').trim().toLowerCase();
+      return graphExpansionKindOrder.includes(kind) ? kind : '';
+    }
+
+    function graphExpansionKindLabel(kind) {
+      return { inbound: 'inbound', outbound: 'outbound', children: 'children', related: 'related' }
+        [normalizeGraphExpansionKind(kind)] || 'graph';
+    }
+
+    function graphExpansionKey(product, itemId, kind) {
+      return `${String(product || '').trim()}:${String(itemId || '').trim()}|${normalizeGraphExpansionKind(kind)}`;
+    }
+
+    function clearGraphExpansionScope(reason = '') {
+      state.graphExpansionGeneration += 1;
+      state.graphExpansionRequests.forEach((request) => request?.controller?.abort?.());
+      state.graphExpansionRequests.clear();
+      state.graphExpansionPayloads.clear();
+      state.graphExpansionStatuses.clear();
+      state.graphExpansionOrder = [];
+      state.graphExpansionNotice = '';
+      state.graphBasePayload = null;
+      state.graphBaseQueryString = '';
+      if (reason) {
+        const target = document.getElementById('graph-expansion-status');
+        if (target) target.textContent = `Expansion overlays cleared: ${reason}.`;
+      }
+    }
+
+    function setGraphExpansionNotice(message, announce = false) {
+      state.graphExpansionNotice = String(message || '');
+      const target = document.getElementById('graph-expansion-status');
+      if (target) target.textContent = state.graphExpansionNotice;
+      if (announce && state.graphExpansionNotice) setStatus(state.graphExpansionNotice);
+    }
+
+    function graphCanonicalNodeKey(node) {
+      if (!node || typeof node !== 'object') return '';
+      const canonicalKey = String(node.canonical_node_key || '').trim();
+      const product = String(node.product || '').trim();
+      const itemId = String(node.item_id || '').trim();
+      const id = String(node.id || '').trim();
+      if (canonicalKey) return canonicalKey;
+      if (itemId.includes(':')) return itemId;
+      if (id.includes(':')) return id;
+      if (product && itemId) return `${product}:${itemId}`;
+      if (product && id) return `${product}:${id}`;
+      return '';
+    }
+
+    function graphNodeEndpointId(node) {
+      return String(node?.id || node?.item_id || '').trim();
+    }
+
+    function rememberGraphEndpointAlias(aliases, key, endpointId) {
+      if (!key || !endpointId) return;
+      if (!aliases.has(key)) {
+        aliases.set(key, endpointId);
+        return;
+      }
+      if (aliases.get(key) !== endpointId) aliases.set(key, '');
+    }
+
+    function rememberGraphNodeAliases(aliases, sourceNode, winnerNode) {
+      const product = String(sourceNode?.product || '').trim();
+      const winnerId = graphNodeEndpointId(winnerNode);
+      [sourceNode?.id, sourceNode?.item_id]
+        .map((value) => String(value || '').trim())
+        .filter(Boolean)
+        .forEach((id) => {
+          rememberGraphEndpointAlias(aliases, `${product}\u0000${id}`, winnerId);
+          rememberGraphEndpointAlias(aliases, `\u0000${id}`, winnerId);
+        });
+    }
+
+    function graphEdgeEndpoint(edge, side, aliases) {
+      const raw = String(edge?.[side] || '').trim();
+      const product = String(edge?.[`${side}_product`] || edge?.[`${side}Product`] || '').trim();
+      return aliases.get(`${product}\u0000${raw}`) || aliases.get(`\u0000${raw}`) || raw;
+    }
+
+    function graphComposedEdgeKey(edge) {
+      const from = String(edge?.from || '');
+      const to = String(edge?.to || '');
+      const kind = String(edge?.kind || '');
+      if (kind === 'relates') {
+        const pair = [from, to].sort((left, right) => left.localeCompare(right));
+        return `${pair[0]}<->${pair[1]}|${kind}`;
+      }
+      return `${from}->${to}|${kind}`;
+    }
+
+    function graphExpansionPayloadIsEmpty(payload, itemId, product) {
+      const edges = Array.isArray(payload?.edges) ? payload.edges : [];
+      if (edges.length) return false;
+      const nodes = Array.isArray(payload?.nodes) ? payload.nodes : [];
+      const anchor = payload?.anchor || payload?.anchor_root || payload?.root || {};
+      const anchorKey = graphCanonicalNodeKey({
+        product: anchor.product || product,
+        item_id: anchor.item_id || anchor.id || itemId,
+      });
+      return !nodes.length || nodes.every((node) => graphCanonicalNodeKey(node) === anchorKey);
+    }
+
+    function composeGraphPayload(baseData = state.graphBasePayload || {}) {
+      const baseNodes = Array.isArray(baseData?.nodes) ? baseData.nodes : [];
+      const baseEdges = Array.isArray(baseData?.edges) ? baseData.edges : [];
+      const nodeCap = boundedPositiveInt(baseData?.max_total_nodes || baseData?.node_limit, state.graphMaxTotalNodes, 1000);
+      const edgeCap = boundedPositiveInt(baseData?.max_total_edges || baseData?.edge_limit, state.graphMaxTotalEdges, 1000);
+      const nodes = [];
+      const edges = [];
+      const nodesByCanonicalKey = new Map();
+      const endpointAliases = new Map();
+      const admittedEndpointIds = new Set();
+      const edgeKeys = new Set();
+      const overlayStats = new Map();
+
+      baseNodes.forEach((node) => {
+        const canonicalKey = graphCanonicalNodeKey(node);
+        if (!canonicalKey || nodesByCanonicalKey.has(canonicalKey)) {
+          const winner = nodesByCanonicalKey.get(canonicalKey);
+          if (winner) rememberGraphNodeAliases(endpointAliases, node, winner);
+          return;
+        }
+        const winner = { ...node, _graph_overlay_key: '', _graph_overlay_kind: '' };
+        nodesByCanonicalKey.set(canonicalKey, winner);
+        nodes.push(winner);
+        const endpointId = graphNodeEndpointId(winner);
+        if (endpointId) admittedEndpointIds.add(endpointId);
+        rememberGraphNodeAliases(endpointAliases, node, winner);
+      });
+
+      state.graphExpansionOrder.forEach((key) => {
+        const payload = state.graphExpansionPayloads.get(key);
+        if (!payload) return;
+        const kind = normalizeGraphExpansionKind(payload._graph_expansion_kind);
+        const stats = {
+          sourceNodeCount: Array.isArray(payload.nodes) ? payload.nodes.length : 0,
+          sourceEdgeCount: Array.isArray(payload.edges) ? payload.edges.length : 0,
+          admittedNodeCount: 0,
+          admittedEdgeCount: 0,
+          deduplicatedNodeCount: 0,
+          deduplicatedEdgeCount: 0,
+          clientDroppedNodeCount: 0,
+          clientDroppedEdgeCount: 0,
+        };
+        overlayStats.set(key, stats);
+        [...(Array.isArray(payload.nodes) ? payload.nodes : [])]
+          .sort((left, right) => graphCanonicalNodeKey(left).localeCompare(graphCanonicalNodeKey(right)))
+          .forEach((node) => {
+            const canonicalKey = graphCanonicalNodeKey(node);
+            const existing = nodesByCanonicalKey.get(canonicalKey);
+            if (!canonicalKey || existing) {
+              stats.deduplicatedNodeCount += 1;
+              if (existing) rememberGraphNodeAliases(endpointAliases, node, existing);
+              return;
+            }
+            if (nodes.length >= nodeCap) {
+              stats.clientDroppedNodeCount += 1;
+              return;
+            }
+            const winner = { ...node, _graph_overlay_key: key, _graph_overlay_kind: kind };
+            nodesByCanonicalKey.set(canonicalKey, winner);
+            nodes.push(winner);
+            const endpointId = graphNodeEndpointId(winner);
+            if (endpointId) admittedEndpointIds.add(endpointId);
+            rememberGraphNodeAliases(endpointAliases, node, winner);
+            stats.admittedNodeCount += 1;
+          });
+      });
+
+      baseEdges.forEach((edge) => {
+        const normalized = {
+          ...edge,
+          from: graphEdgeEndpoint(edge, 'from', endpointAliases),
+          to: graphEdgeEndpoint(edge, 'to', endpointAliases),
+          _graph_overlay_key: '',
+          _graph_overlay_kind: '',
+        };
+        const edgeKey = graphComposedEdgeKey(normalized);
+        if (edgeKeys.has(edgeKey)) return;
+        edgeKeys.add(edgeKey);
+        edges.push(normalized);
+      });
+
+      state.graphExpansionOrder.forEach((key) => {
+        const payload = state.graphExpansionPayloads.get(key);
+        if (!payload) return;
+        const kind = normalizeGraphExpansionKind(payload._graph_expansion_kind);
+        const stats = overlayStats.get(key);
+        [...(Array.isArray(payload.edges) ? payload.edges : [])]
+          .map((edge) => ({
+            ...edge,
+            from: graphEdgeEndpoint(edge, 'from', endpointAliases),
+            to: graphEdgeEndpoint(edge, 'to', endpointAliases),
+          }))
+          .sort((left, right) => graphComposedEdgeKey(left).localeCompare(graphComposedEdgeKey(right)))
+          .forEach((edge) => {
+            const edgeKey = graphComposedEdgeKey(edge);
+            if (edgeKeys.has(edgeKey)) {
+              stats.deduplicatedEdgeCount += 1;
+              return;
+            }
+            if (!admittedEndpointIds.has(String(edge.from || '')) ||
+                !admittedEndpointIds.has(String(edge.to || '')) || edges.length >= edgeCap) {
+              stats.clientDroppedEdgeCount += 1;
+              return;
+            }
+            edgeKeys.add(edgeKey);
+            edges.push({ ...edge, _graph_overlay_key: key, _graph_overlay_kind: kind });
+            stats.admittedEdgeCount += 1;
+          });
+      });
+
+      return { nodes, edges, overlayStats, nodeCap, edgeCap };
+    }
+
+    function syncGraphExpansionControlState(key) {
+      const status = state.graphExpansionStatuses.get(key) || {};
+      document.querySelectorAll('[data-graph-expansion-key]').forEach((button) => {
+        if (button.getAttribute('data-graph-expansion-key') !== key) return;
+        const loading = status.state === 'loading';
+        button.disabled = loading;
+        button.setAttribute('aria-busy', loading ? 'true' : 'false');
+      });
+      document.querySelectorAll('[data-graph-expansion-status-key]').forEach((target) => {
+        if (target.getAttribute('data-graph-expansion-status-key') !== key) return;
+        target.textContent = status.message || '';
+        target.hidden = !status.message;
+        target.classList.toggle('status-error', status.state === 'error');
+      });
+    }
+
+    function focusGraphExpansionControl(key) {
+      const button = [...document.querySelectorAll('[data-graph-expansion-key]')]
+        .find((candidate) => candidate.getAttribute('data-graph-expansion-key') === key);
+      button?.focus?.({ preventScroll: true });
+    }
+
+    async function expandGraphNode(itemId, product, expansionKind) {
+      const kind = normalizeGraphExpansionKind(expansionKind);
+      const cleanItemId = String(itemId || '').trim();
+      const cleanProduct = String(product || '').trim();
+      if (!kind || !cleanItemId || !cleanProduct || !state.graphBaseQueryString || !state.graphBasePayload) {
+        setGraphExpansionNotice('Expansion is unavailable until a product-qualified base graph loads.', true);
+        return;
+      }
+      const key = graphExpansionKey(cleanProduct, cleanItemId, kind);
+      if (!state.graphExpansionOrder.includes(key)) state.graphExpansionOrder.push(key);
+      state.graphExpansionRequests.get(key)?.controller?.abort?.();
+      const controller = new AbortController();
+      const requestSeq = ++state.graphExpansionRequestSeq;
+      const generation = state.graphExpansionGeneration;
+      state.graphExpansionRequests.set(key, { controller, requestSeq, generation });
+      state.graphExpansionStatuses.set(key, {
+        state: 'loading', requestSeq, generation,
+        message: `Loading ${graphExpansionKindLabel(kind)} expansion for ${cleanItemId}...`,
+      });
+      syncGraphExpansionControlState(key);
+
+      const params = new URLSearchParams(state.graphBaseQueryString);
+      const query = String(state.q || '').trim();
+      if (query) params.set('q', query);
+      else params.delete('q');
+      const states = selectedTokens(state.selectedStates, itemStates);
+      if (states) params.set('state', states);
+      else params.delete('state');
+      const types = selectedTokens(state.selectedTypes, itemTypes);
+      if (types) params.set('type', types);
+      else params.delete('type');
+      params.set('item', cleanItemId);
+      params.set('root_product', cleanProduct);
+      params.set('expansion', kind);
+      try {
+        const result = await getJson(`/api/review/graph/expand?${params.toString()}`, {
+          signal: controller.signal,
+          stage: `graph.expand.${kind}`,
+        });
+        const activeRequest = state.graphExpansionRequests.get(key);
+        if (generation !== state.graphExpansionGeneration || activeRequest?.requestSeq !== requestSeq) {
+          return;
+        }
+        const payload = {
+          ...(result?.data || {}),
+          _graph_expansion_kind: kind,
+          _graph_expansion_item_id: cleanItemId,
+          _graph_expansion_product: cleanProduct,
+        };
+        state.graphExpansionPayloads.set(key, payload);
+        const empty = graphExpansionPayloadIsEmpty(payload, cleanItemId, cleanProduct);
+        const nodeCount = Array.isArray(payload.nodes) ? payload.nodes.length : 0;
+        const edgeCount = Array.isArray(payload.edges) ? payload.edges.length : 0;
+        const truncated = payload.truncated ? ' The server delta is truncated.' : '';
+        const message = empty
+          ? `No new ${graphExpansionKindLabel(kind)} graph elements were returned for ${cleanItemId}.${truncated}`
+          : `Loaded ${graphExpansionKindLabel(kind)} expansion for ${cleanItemId}: ${nodeCount} node(s), ${edgeCount} edge(s).${truncated}`;
+        state.graphExpansionStatuses.set(key, { state: empty ? 'empty' : 'success', requestSeq, generation, message });
+        setGraphExpansionNotice(message);
+        renderGraphView(undefined, { preserveViewport: true, focusExpansionKey: key });
+      } catch (error) {
+        const activeRequest = state.graphExpansionRequests.get(key);
+        if (generation !== state.graphExpansionGeneration || activeRequest?.requestSeq !== requestSeq) {
+          return;
+        }
+        const preserved = state.graphExpansionPayloads.has(key);
+        const message = `Unable to expand ${graphExpansionKindLabel(kind)} for ${cleanItemId}: ${error?.message || String(error)}.${preserved ? ' The last successful overlay remains visible.' : ''}`;
+        state.graphExpansionStatuses.set(key, { state: 'error', requestSeq, generation, message });
+        setGraphExpansionNotice(message, true);
+        renderGraphView(undefined, { preserveViewport: true, focusExpansionKey: key });
+      } finally {
+        const activeRequest = state.graphExpansionRequests.get(key);
+        if (generation === state.graphExpansionGeneration &&
+            activeRequest?.requestSeq === requestSeq) {
+          state.graphExpansionRequests.delete(key);
+        }
+      }
+    }
+
     function focusGraphProductScope() {
       if (state.graphItemProduct) {
         return state.graphItemProduct;
@@ -1274,6 +1605,7 @@ inline constexpr std::string_view kBackboardAppJsPart1bb = R"JS(
     }
 
     function resetGraphScope() {
+      clearGraphExpansionScope('graph root or depth reset');
       state.graphItemId = String(state.graphBaseItemId || '').trim();
       state.graphItemProduct = String(state.graphBaseItemProduct || '').trim();
       state.graphMaxDepth = boundedPositiveInt(state.graphBaseMaxDepth, defaultGraphCaps.maxDepth, graphDepthBounds.max);
@@ -1301,6 +1633,7 @@ inline constexpr std::string_view kBackboardAppJsPart1bb = R"JS(
         state.graphBaseMaxDepth = state.graphMaxDepth;
       }
       const changed = nextId !== state.graphItemId || nextProduct !== state.graphItemProduct;
+      if (changed) clearGraphExpansionScope('graph root changed');
       state.graphItemId = nextId;
       state.graphItemProduct = nextProduct;
       updateFocusGraphPageChrome();
@@ -2657,7 +2990,7 @@ inline constexpr std::string_view kBackboardAppJsPart5aa = R"JS(
       return { width, height };
     }
 
-    function clampGraphViewport(viewport = state.graphViewport) {
+    function clampGraphViewport(viewport = state.graphViewport, options = {}) {
       const fullBounds = normalizeGraphBounds(viewport.fullBounds);
       const viewportWidth = Math.max(graphViewportBounds.minViewportWidth, Number(viewport.viewportWidth) || 0);
       const viewportHeight = Math.max(graphViewportBounds.minViewportHeight, Number(viewport.viewportHeight) || 0);
@@ -2676,19 +3009,19 @@ inline constexpr std::string_view kBackboardAppJsPart5aa = R"JS(
       const centeredX = ((viewportWidth - scaledWidth) / 2) - (fullBounds.x * scale);
       const centeredY = ((viewportHeight - scaledHeight) / 2) - (fullBounds.y * scale);
 
+      const minX = viewportWidth - ((fullBounds.x + fullBounds.width) * scale) - graphViewportBounds.panPadding;
+      const maxX = graphViewportBounds.panPadding - (fullBounds.x * scale);
       if (scaledWidth + graphViewportBounds.panPadding * 2 <= viewportWidth) {
-        x = centeredX;
+        x = options.preservePosition ? Math.max(maxX, Math.min(minX, x)) : centeredX;
       } else {
-        const minX = viewportWidth - ((fullBounds.x + fullBounds.width) * scale) - graphViewportBounds.panPadding;
-        const maxX = graphViewportBounds.panPadding - (fullBounds.x * scale);
         x = Math.max(minX, Math.min(maxX, x));
       }
 
+      const minY = viewportHeight - ((fullBounds.y + fullBounds.height) * scale) - graphViewportBounds.panPadding;
+      const maxY = graphViewportBounds.panPadding - (fullBounds.y * scale);
       if (scaledHeight + graphViewportBounds.panPadding * 2 <= viewportHeight) {
-        y = centeredY;
+        y = options.preservePosition ? Math.max(maxY, Math.min(minY, y)) : centeredY;
       } else {
-        const minY = viewportHeight - ((fullBounds.y + fullBounds.height) * scale) - graphViewportBounds.panPadding;
-        const maxY = graphViewportBounds.panPadding - (fullBounds.y * scale);
         y = Math.max(minY, Math.min(maxY, y));
       }
 
@@ -2719,7 +3052,7 @@ inline constexpr std::string_view kBackboardAppJsPart5aa = R"JS(
       }
     }
 
-    function applyGraphViewport() {
+    function applyGraphViewport(options = {}) {
       const elements = graphCanvasElements();
       if (!elements.canvas || !elements.viewportLayer) {
         return;
@@ -2727,7 +3060,7 @@ inline constexpr std::string_view kBackboardAppJsPart5aa = R"JS(
       if (!measureGraphViewport()) {
         return;
       }
-      const clamped = clampGraphViewport();
+      const clamped = clampGraphViewport(state.graphViewport, options);
       state.graphViewport.scale = clamped.scale;
       state.graphViewport.x = clamped.x;
       state.graphViewport.y = clamped.y;
@@ -3048,13 +3381,27 @@ inline constexpr std::string_view kBackboardAppJsPart5aaab = R"JS(
       updateGraphViewportButtons();
     }
 
-    function initializeGraphViewport(layout = {}) {
+    function initializeGraphViewport(layout = {}, options = {}) {
+      const previousViewport = {
+        scale: state.graphViewport.scale,
+        x: state.graphViewport.x,
+        y: state.graphViewport.y,
+        defaultMode: state.graphViewport.defaultMode,
+      };
       state.graphViewport.fullBounds = normalizeGraphBounds(layout.fullBounds);
       state.graphViewport.focusBounds = normalizeGraphBounds(layout.focusBounds);
       state.graphViewport.focusNodeCount = Number(layout.focusNodeCount) || 0;
       state.graphViewport.dragging = null;
       state.graphViewport.suppressClick = false;
       bindGraphViewportControls();
+      if (options.preserveViewport) {
+        state.graphViewport.scale = previousViewport.scale;
+        state.graphViewport.x = previousViewport.x;
+        state.graphViewport.y = previousViewport.y;
+        state.graphViewport.defaultMode = previousViewport.defaultMode;
+        applyGraphViewport({ preservePosition: true });
+        return;
+      }
       const defaultMode = state.graphViewport.focusNodeCount > 0 && state.graphViewport.focusBounds
         ? 'focus'
         : 'all';
@@ -3146,8 +3493,9 @@ inline constexpr std::string_view kBackboardAppJsPart5aaab = R"JS(
         const c2x = x2 - Math.max(40, Math.abs(x2 - x1) / 3);
         const labelY = (y1 + y2) / 2 - 5 - (index % 3) * 12;
         const fadedClass = visibility === 'faded' ? ' is-faded' : '';
+        const overlayClass = edge._graph_overlay_key ? ' is-overlay' : '';
         const reason = isolation.edgeReason.get(edgeKey) || '';
-        return `<path class="graph-edge ${escAttr(graphEdgeClass(edge.kind))}${fadedClass}" data-edge-visibility="${escAttr(visibility)}" data-edge-reason="${escAttr(reason)}" d="M ${x1} ${y1} C ${c1x} ${y1}, ${c2x} ${y2}, ${x2} ${y2}" marker-end="url(#graph-arrow)" />` +
+        return `<path class="graph-edge ${escAttr(graphEdgeClass(edge.kind))}${fadedClass}${overlayClass}" data-edge-visibility="${escAttr(visibility)}" data-edge-reason="${escAttr(reason)}" data-graph-overlay-kind="${escAttr(edge._graph_overlay_kind || '')}" d="M ${x1} ${y1} C ${c1x} ${y1}, ${c2x} ${y2}, ${x2} ${y2}" marker-end="url(#graph-arrow)" />` +
           `<text class="graph-edge-label${fadedClass}" x="${midX}" y="${labelY}" text-anchor="middle">${esc(edge.kind || '')}</text>`;
       }).join('');
 
@@ -3165,12 +3513,13 @@ inline constexpr std::string_view kBackboardAppJsPart5aaab = R"JS(
         if (visibility === 'faded') classes.push('is-faded');
         if (reason === 'focus-root' || reason === 'within-depth') classes.push('is-included-neighborhood');
         if (isFocusRoot) classes.push('is-focus-root');
+        if (node._graph_overlay_key) classes.push('is-overlay');
         if (rerootable) classes.push('is-rerootable');
-        return `<g class="${escAttr(classes.join(' '))}" transform="translate(${pos.x}, ${pos.y})" data-graph-node-id="${escAttr(rerootId)}" data-graph-node-product="${escAttr(rerootProduct)}" data-node-visibility="${escAttr(visibility)}" data-node-reason="${escAttr(reason)}" data-focus-root="${isFocusRoot ? 'true' : 'false'}"${rerootable ? ' tabindex="0" role="button"' : ''}>` +
+        return `<g class="${escAttr(classes.join(' '))}" transform="translate(${pos.x}, ${pos.y})" data-graph-node-id="${escAttr(rerootId)}" data-graph-node-product="${escAttr(rerootProduct)}" data-node-visibility="${escAttr(visibility)}" data-node-reason="${escAttr(reason)}" data-focus-root="${isFocusRoot ? 'true' : 'false'}" data-graph-overlay-kind="${escAttr(node._graph_overlay_kind || '')}"${rerootable ? ' tabindex="0" role="button"' : ''}>` +
           `<rect width="${pos.w}" height="${pos.h}"></rect>` +
           `<text class="graph-label" x="10" y="20">${esc(shortGraphLabel(node.item_id || node.id, 24))}</text>` +
           `<text class="graph-meta" x="10" y="38">${esc(shortGraphLabel(node.label || '', 30))}</text>` +
-          `<title>${esc(`${node.id || ''} ${meta} / ${graphIsolationReasonLabel(reason)}${rerootable ? ' / click to re-root' : ''}`)}</title>` +
+          `<title>${esc(`${node.id || ''} ${meta} / ${graphIsolationReasonLabel(reason)}${node._graph_overlay_kind ? ` / ${node._graph_overlay_kind} expansion overlay` : ' / base graph'}${rerootable ? ' / click to re-root' : ''}`)}</title>` +
         `</g>`;
       }).join('');
 
@@ -3580,36 +3929,122 @@ inline constexpr std::string_view kBackboardAppJsPart5ad = R"JS(
       });
     }
 
-    function renderGraphView(data = {}) {
-      state.graphPayload = data;
-      const currentPreset = syncGraphModeControls(data);
+    function isResolvedGraphItemNode(node) {
+      const kind = String(node?.kind || '').trim().toLowerCase();
+      const nodeId = String(node?.id || '').trim().toLowerCase();
+      return Boolean(node && !node.missing && kind !== 'missing' && kind !== 'topic' &&
+        !nodeId.startsWith('topic:') && String(node.item_id || node.id || '').trim() &&
+        String(node.product || '').trim());
+    }
+
+    function renderGraphExpansionControls(node) {
+      if (!isResolvedGraphItemNode(node)) return '';
+      const itemId = String(node.item_id || node.id || '').trim();
+      const product = String(node.product || '').trim();
+      const buttons = graphExpansionKindOrder.map((kind) => {
+        const key = graphExpansionKey(product, itemId, kind);
+        const status = state.graphExpansionStatuses.get(key) || {};
+        const loading = status.state === 'loading';
+        return `<button type="button" class="btn graph-expansion-btn" data-graph-expansion-key="${escAttr(key)}" data-graph-expansion-item="${escAttr(itemId)}" data-graph-expansion-product="${escAttr(product)}" data-graph-expansion-kind="${escAttr(kind)}" aria-label="Expand ${escAttr(graphExpansionKindLabel(kind))} graph links for ${escAttr(itemId)} in ${escAttr(product)}" aria-busy="${loading ? 'true' : 'false'}"${loading ? ' disabled' : ''}>Expand ${esc(graphExpansionKindLabel(kind))}</button>`;
+      }).join('');
+      const statuses = graphExpansionKindOrder.map((kind) => {
+        const key = graphExpansionKey(product, itemId, kind);
+        const status = state.graphExpansionStatuses.get(key) || {};
+        const errorClass = status.state === 'error' ? ' status-error' : '';
+        return `<span class="graph-expansion-status${errorClass}" data-graph-expansion-status-key="${escAttr(key)}"${status.message ? '' : ' hidden'}>${esc(status.message || '')}</span>`;
+      }).join('');
+      return `<div class="graph-expansion-controls"><div class="detail-label">One-hop expansion overlay</div><div class="graph-expansion-actions" role="group" aria-label="Expand graph around ${escAttr(itemId)}">${buttons}</div><div class="graph-expansion-statuses" aria-live="polite" aria-atomic="false">${statuses}</div></div>`;
+    }
+
+    function bindGraphExpansionControls() {
+      const container = document.getElementById('graph-list');
+      if (!container) return;
+      container.querySelectorAll('[data-graph-expansion-key]').forEach((button) => {
+        if (button.__kobGraphExpansionBound) return;
+        button.__kobGraphExpansionBound = true;
+        button.addEventListener('click', async (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          await expandGraphNode(
+            button.getAttribute('data-graph-expansion-item') || '',
+            button.getAttribute('data-graph-expansion-product') || '',
+            button.getAttribute('data-graph-expansion-kind') || ''
+          );
+        });
+      });
+    }
+
+    function renderGraphExpansionDiagnostics(composition) {
+      const entries = state.graphExpansionOrder.map((key, index) => {
+        const payload = state.graphExpansionPayloads.get(key) || {};
+        const status = state.graphExpansionStatuses.get(key) || {};
+        const stats = composition.overlayStats.get(key) || {
+          sourceNodeCount: 0, sourceEdgeCount: 0,
+          admittedNodeCount: 0, admittedEdgeCount: 0,
+          deduplicatedNodeCount: 0, deduplicatedEdgeCount: 0,
+          clientDroppedNodeCount: 0, clientDroppedEdgeCount: 0,
+        };
+        const kind = normalizeGraphExpansionKind(payload._graph_expansion_kind) ||
+          normalizeGraphExpansionKind(key.split('|').pop());
+        const missingNodes = Array.isArray(payload.missing_nodes) ? payload.missing_nodes : [];
+        const serverDiagnostics = Array.isArray(payload.diagnostics) ? payload.diagnostics : [];
+        const hiddenNodes = Number(payload.hidden_node_count || 0);
+        const hiddenEdges = Number(payload.hidden_edge_count || 0);
+        const truncation = payload.truncated
+          ? `<span class="pill blocked">server truncated: ${hiddenNodes} node(s), ${hiddenEdges} edge(s)</span>`
+          : '<span class="pill">server not truncated</span>';
+        const statusClass = status.state === 'error' ? ' status-error' : '';
+        const missingMarkup = missingNodes.length
+          ? `<div class="graph-expansion-missing"><strong>Missing expansion refs</strong>${missingNodes.slice(0, 20).map((node) => `<div class="muted"><code>${esc(node.id || node.ref || 'unknown ref')}</code> / ${esc(node.kind || 'unknown kind')} / ${esc(node.source || 'unknown source')}</div>`).join('')}</div>`
+          : '';
+        return `<article class="card graph-expansion-diagnostic" data-graph-expansion-diagnostic="${escAttr(key)}">` +
+          `<div class="detail-title-row"><strong>Overlay ${index + 1}: ${esc(graphExpansionKindLabel(kind))}</strong><span class="pill">${esc(status.state || 'waiting')}</span></div>` +
+          `<div class="muted"><code>${esc(key)}</code></div>` +
+          `<div class="graph-diagnostic-pills"><span class="pill">source ${stats.sourceNodeCount} node(s) / ${stats.sourceEdgeCount} edge(s)</span><span class="pill passed">admitted ${stats.admittedNodeCount} node(s) / ${stats.admittedEdgeCount} edge(s)</span><span class="pill">deduplicated ${stats.deduplicatedNodeCount} node(s) / ${stats.deduplicatedEdgeCount} edge(s)</span><span class="pill ${stats.clientDroppedNodeCount || stats.clientDroppedEdgeCount ? 'blocked' : ''}">client-dropped ${stats.clientDroppedNodeCount} node(s) / ${stats.clientDroppedEdgeCount} edge(s)</span>${truncation}<span class="pill ${missingNodes.length ? 'missing' : ''}">missing ${missingNodes.length}</span></div>` +
+          `<div class="muted${statusClass}">${esc(status.message || 'Waiting for expansion response.')}</div>` +
+          (serverDiagnostics.length
+            ? `<div class="graph-expansion-server-diagnostics">${serverDiagnostics.slice(0, 20).map((diagnostic) => `<div><strong>${esc(diagnostic.code || 'Expansion diagnostic')}</strong>: ${esc(diagnostic.message || '')}</div>`).join('')}</div>`
+            : '') + missingMarkup + `</article>`;
+      }).join('');
+      const idle = entries ? '' : '<div class="muted">No expansion overlays are active. Use a resolved item node detail card to add one-hop context.</div>';
+      const notice = state.graphExpansionNotice || 'Expansion overlays are ephemeral and are not included in URLs, saved queries, or workspace storage.';
+      return `<section class="graph-expansion-diagnostics" aria-labelledby="graph-expansion-title"><div class="graph-expansion-header"><h4 id="graph-expansion-title">Expansion overlays</h4><div class="muted">Base mode summaries are not recomputed. Base nodes and edges retain priority; overlays compose in first-click order within the effective node and edge caps.</div></div><div id="graph-expansion-status" class="muted" role="status" aria-live="polite" aria-atomic="true">${esc(notice)}</div>${idle}${entries ? `<div class="graph-expansion-diagnostic-list">${entries}</div>` : ''}</section>`;
+    }
+
+    function renderGraphView(data = null, options = {}) {
+      const baseData = data && typeof data === 'object' ? data : (state.graphBasePayload || {});
+      const composition = composeGraphPayload(baseData);
+      const nodes = composition.nodes;
+      const edges = composition.edges;
+      state.graphPayload = { ...baseData, nodes, edges };
+      const currentPreset = syncGraphModeControls(baseData);
       syncGraphIsolationControls();
-      const nodes = data.nodes || [];
-      const edges = data.edges || [];
-      const missing = data.missing_nodes || [];
-      const hiddenNodes = Number(data.hidden_node_count || 0);
-      const hiddenEdges = Number(data.hidden_edge_count || 0);
+      const baseNodes = Array.isArray(baseData.nodes) ? baseData.nodes : [];
+      const baseEdges = Array.isArray(baseData.edges) ? baseData.edges : [];
+      const missing = baseData.missing_nodes || [];
+      const hiddenNodes = Number(baseData.hidden_node_count || 0);
+      const hiddenEdges = Number(baseData.hidden_edge_count || 0);
       const graphRender = renderGraphSvg(nodes, edges);
       const isolation = graphRender.isolation;
       const displayedNodeCount = nodes.length - isolation.hiddenNodeCount;
       const displayedEdgeCount = edges.length - isolation.hiddenEdgeCount;
       const caps = [
-        `depth ${data.max_depth ?? 'n/a'}`,
-        `children ${data.max_children_per_node ?? 'n/a'}`,
-        `nodes ${data.max_total_nodes ?? data.node_limit ?? 'n/a'}`,
-        `edges ${data.max_total_edges ?? data.edge_limit ?? 'n/a'}`,
+        `depth ${baseData.max_depth ?? 'n/a'}`,
+        `children ${baseData.max_children_per_node ?? 'n/a'}`,
+        `nodes ${baseData.max_total_nodes ?? baseData.node_limit ?? 'n/a'}`,
+        `edges ${baseData.max_total_edges ?? baseData.edge_limit ?? 'n/a'}`,
       ].join(' / ');
-      const truncated = data.truncated ? `, truncated (${hiddenNodes} hidden node(s), ${hiddenEdges} hidden edge(s))` : '';
+      const truncated = baseData.truncated ? `, truncated (${hiddenNodes} hidden node(s), ${hiddenEdges} hidden edge(s))` : '';
       const modeLabel = currentPreset?.label || 'Dependencies';
       const isolationCounts = isolation.mode === 'hide'
         ? `${isolation.hiddenNodeCount} hidden node(s), ${isolation.hiddenEdgeCount} hidden edge(s)`
         : `${isolation.fadedNodeCount} faded node(s), ${isolation.fadedEdgeCount} faded edge(s)`;
       const focusLabel = isolation.focusNodeId || state.graphItemId || 'n/a';
-      const cycleAudit = data.mode === 'cycles' ? renderCycleAudit(data.cycle_audit) : '';
-      const hierarchySummary = data.mode === 'structure' ? renderHierarchySummary(data.hierarchy_summary) : '';
+      const cycleAudit = baseData.mode === 'cycles' ? renderCycleAudit(baseData.cycle_audit) : '';
+      const hierarchySummary = baseData.mode === 'structure' ? renderHierarchySummary(baseData.hierarchy_summary) : '';
       updateFocusGraphPageChrome();
       document.getElementById('graph-summary').textContent =
-        `${modeLabel}: ${nodes.length} node(s), ${edges.length} edge(s), ${missing.length} missing node(s)${truncated} | focus ${focusLabel} | neighborhood depth ${isolation.maxDepth} | isolation ${graphIsolationModeLabel(isolation.mode)} | ${isolationCounts} | caps ${caps}`;
+        `${modeLabel}: base ${baseNodes.length} node(s), ${baseEdges.length} edge(s), ${missing.length} missing node(s)${truncated} | composed ${nodes.length} node(s), ${edges.length} edge(s) | focus ${focusLabel} | neighborhood depth ${isolation.maxDepth} | isolation ${graphIsolationModeLabel(isolation.mode)} | ${isolationCounts} | caps ${caps}`;
 
       const diagnostics = [
         `<div class="card"><strong>Isolation scope</strong><div class="muted">Focus root ${esc(focusLabel)} / ${esc(graphIsolationModeLabel(isolation.mode))} / depth ${esc(String(isolation.maxDepth))}</div><div class="graph-diagnostic-pills"><span class="pill">canvas nodes ${displayedNodeCount}</span><span class="pill">canvas edges ${displayedEdgeCount}</span><span class="pill">included nodes ${isolation.visibleNodeCount}</span></div></div>`,
@@ -3617,24 +4052,25 @@ inline constexpr std::string_view kBackboardAppJsPart5ad = R"JS(
         ...(isolation.rootMissing
           ? [`<div class="card"><strong>Focused root missing</strong><div class="muted">${esc(state.graphItemId || 'requested root')} was not returned in the bounded graph response, so all returned nodes stay visible with a root-missing diagnostic.</div></div>`]
           : []),
-        ...((data.diagnostics || []).slice(0, 20).map((diagnostic) =>
+        ...((baseData.diagnostics || []).slice(0, 20).map((diagnostic) =>
           `<div class="card"><strong>${esc(diagnostic.code || 'Graph diagnostic')}</strong><div class="muted">${esc(diagnostic.target || 'graph')}</div><div>${esc(diagnostic.message || '')}</div></div>`
         )),
         ...missing.slice(0, 20).map((node) =>
           `<div class="card"><strong>Missing</strong> <code>${esc(node.id || node.ref || '')}</code><div class="muted">${esc(node.kind || '')} from ${esc(node.source || '')}</div></div>`
         ),
-        ...((data.invalid_refs || []).slice(0, 20).map((ref) =>
+        ...((baseData.invalid_refs || []).slice(0, 20).map((ref) =>
           `<div class="card"><strong>Invalid ref</strong> <code>${esc(ref.ref || '')}</code><div class="muted">${esc(ref.kind || '')} from ${esc(ref.source || '')}</div></div>`
         )),
-        ...(data.mode === 'cycles' ? [] : (data.dependency_cycles || []).slice(0, 10).map((cycle) =>
+        ...(baseData.mode === 'cycles' ? [] : (baseData.dependency_cycles || []).slice(0, 10).map((cycle) =>
           `<div class="card"><strong>Dependency cycle</strong><div class="muted">${esc((cycle || []).join(' -> '))}</div></div>`
         )),
       ].join('');
 
       document.getElementById('graph-list').innerHTML = [
-        data.mode === 'dependency' ? renderBlockerChain(data.blocker_chain) : '',
+        baseData.mode === 'dependency' ? renderBlockerChain(baseData.blocker_chain) : '',
         cycleAudit,
         hierarchySummary,
+        renderGraphExpansionDiagnostics(composition),
         graphRender.markup,
         diagnostics ? `<div class="graph-diagnostics">${diagnostics}</div>` : '',
         `<h4>Edge details</h4>`,
@@ -3642,7 +4078,8 @@ inline constexpr std::string_view kBackboardAppJsPart5ad = R"JS(
           const edgeKey = `${String(edge.from || '')}->${String(edge.to || '')}#${index}`;
           const visibility = isolation.edgeVisibility.get(edgeKey) || 'visible';
           const reason = isolation.edgeReason.get(edgeKey) || '';
-          return `<div class="card"><code>${esc(edge.from || '')}</code> -> <code>${esc(edge.to || '')}</code><div class="muted">${esc(edge.kind || '')} / ${esc(edge.semantic || '')} / ${esc(visibility)}${reason ? ` / ${esc(graphIsolationReasonLabel(reason))}` : ''}</div></div>`;
+          const overlay = edge._graph_overlay_kind ? `<span class="pill">${esc(edge._graph_overlay_kind)} expansion overlay</span>` : '<span class="pill">base graph</span>';
+          return `<div class="card"><div class="detail-title-row"><code>${esc(edge.from || '')}</code> -> <code>${esc(edge.to || '')}</code>${overlay}</div><div class="muted">${esc(edge.kind || '')} / ${esc(edge.semantic || '')} / ${esc(visibility)}${reason ? ` / ${esc(graphIsolationReasonLabel(reason))}` : ''}</div></div>`;
         })),
         `<h4>Node details</h4>`,
         ...(nodes.slice(0, 120).map((node) => {
@@ -3650,26 +4087,33 @@ inline constexpr std::string_view kBackboardAppJsPart5ad = R"JS(
           const visibility = isolation.nodeVisibility.get(nodeId) || 'visible';
           const reason = isolation.nodeReason.get(nodeId) || 'within-depth';
           const rerootId = String(node.item_id || node.id || '');
-          return `<div class="card"><code>${esc(node.id || '')}</code><div>${esc(node.label || '')}</div><div class="muted">${esc(node.kind || '')} ${esc(node.state || '')} / ${esc(visibility)} / ${esc(graphIsolationReasonLabel(reason))}${rerootId ? ` / re-root ${esc(rerootId)}` : ''}</div></div>`;
+          const overlay = node._graph_overlay_kind ? `<span class="pill">${esc(node._graph_overlay_kind)} expansion overlay</span>` : '<span class="pill">base graph</span>';
+          return `<div class="card graph-node-detail${node._graph_overlay_kind ? ' is-overlay' : ''}"><div class="detail-title-row"><code>${esc(node.id || '')}</code>${overlay}</div><div>${esc(node.label || '')}</div><div class="muted">${esc(node.kind || '')} ${esc(node.state || '')} / ${esc(visibility)} / ${esc(graphIsolationReasonLabel(reason))}${rerootId ? ` / re-root ${esc(rerootId)}` : ''}</div>${renderGraphExpansionControls(node)}</div>`;
         })),
       ].join('');
       bindBlockerChainJumpActions();
       bindGraphNodeRerooting();
-      initializeGraphViewport(graphRender.layout || {});
+      bindGraphExpansionControls();
+      initializeGraphViewport(graphRender.layout || {}, { preserveViewport: !!options.preserveViewport });
+      if (options.focusExpansionKey) focusGraphExpansionControl(options.focusExpansionKey);
     }
 
     async function loadGraph(signal, refresh) {
+      clearGraphExpansionScope('base graph refresh');
       if (!state.graphItemId) {
         renderFocusGraphScaffold();
         return;
       }
 
-      const result = await getJson(`/api/review/graph?${graphQueryString()}`, {
+      const baseQueryString = graphQueryString();
+      const result = await getJson(`/api/review/graph?${baseQueryString}`, {
         signal,
         refresh,
         stage: 'graph.dependencies',
       });
-      renderGraphView(result?.data || {});
+      state.graphBasePayload = result?.data || {};
+      state.graphBaseQueryString = baseQueryString;
+      renderGraphView(state.graphBasePayload);
     }
 
 )JS";
@@ -3985,6 +4429,7 @@ inline constexpr std::string_view kBackboardAppJsPart6 = R"JS(
       if (value === '__selected__') {
         return;
       }
+      clearGraphExpansionScope('product selection changed');
       state.selectedProducts = new Set([value || 'all']);
       renderProductFilters();
       state.treeOpen.clear();
@@ -3994,6 +4439,7 @@ inline constexpr std::string_view kBackboardAppJsPart6 = R"JS(
     });
 
     document.getElementById('search').addEventListener('input', async (e) => {
+      clearGraphExpansionScope('search filter changed');
       state.q = e.target.value.trim();
       state.treeTouched = false;
       state.treeOpen.clear();
@@ -4119,6 +4565,7 @@ inline constexpr std::string_view kBackboardAppJsPart6 = R"JS(
         }
         state.selectedProducts = next.size ? next : new Set(['all']);
       }
+      clearGraphExpansionScope('product filter changed');
       renderProductFilters();
       state.treeOpen.clear();
       state.treeTouched = false;
@@ -4132,6 +4579,7 @@ inline constexpr std::string_view kBackboardAppJsPart6 = R"JS(
         return;
       }
       const value = checkbox.getAttribute('data-filter-state');
+      clearGraphExpansionScope('state filter changed');
       if (checkbox.checked) {
         state.selectedStates.add(value);
       } else {
@@ -4149,6 +4597,7 @@ inline constexpr std::string_view kBackboardAppJsPart6 = R"JS(
         return;
       }
       const value = checkbox.getAttribute('data-filter-type');
+      clearGraphExpansionScope('type filter changed');
       if (checkbox.checked) {
         state.selectedTypes.add(value);
       } else {
@@ -4161,6 +4610,7 @@ inline constexpr std::string_view kBackboardAppJsPart6 = R"JS(
     });
 
     document.getElementById('limit').addEventListener('change', async (event) => {
+      clearGraphExpansionScope('result limit changed');
       const parsed = Number.parseInt(event.target.value, 10);
       state.limit = Number.isFinite(parsed) ? Math.max(1, Math.min(parsed, 1000)) : 200;
       event.target.value = String(state.limit);
@@ -4170,6 +4620,7 @@ inline constexpr std::string_view kBackboardAppJsPart6 = R"JS(
 
     document.getElementById('graph-mode').addEventListener('change', async (event) => {
       const nextMode = normalizeGraphMode(event.target.value);
+      if (nextMode !== state.graphMode) clearGraphExpansionScope('graph mode changed');
       state.graphMode = nextMode;
       const preset = syncGraphModeControls();
       updateUrlState();
@@ -4184,6 +4635,7 @@ inline constexpr std::string_view kBackboardAppJsPart6 = R"JS(
 
     document.getElementById('graph-max-depth').addEventListener('change', async (event) => {
       const nextDepth = boundedPositiveInt(event.target.value, state.graphMaxDepth, graphDepthBounds.max);
+      if (nextDepth !== state.graphMaxDepth) clearGraphExpansionScope('graph depth changed');
       state.graphMaxDepth = Math.max(graphDepthBounds.min, nextDepth);
       event.target.value = String(state.graphMaxDepth);
       updateFocusGraphPageChrome();
@@ -4202,7 +4654,7 @@ inline constexpr std::string_view kBackboardAppJsPart6 = R"JS(
       updateFocusGraphPageChrome();
       updateUrlState();
       if (state.activeTab === 'graph' && state.graphPayload && state.graphItemId) {
-        renderGraphView(state.graphPayload);
+        renderGraphView(undefined, { preserveViewport: true });
         setStatus(`Graph isolation set to ${graphIsolationModeLabel(state.graphIsolationMode)}`);
         return;
       }
@@ -4247,6 +4699,7 @@ inline constexpr std::string_view kBackboardAppJsPart6 = R"JS(
 inline constexpr std::string_view kBackboardAppJsPart7 = R"JS(
 
     document.getElementById('refresh').addEventListener('click', async () => {
+      clearGraphExpansionScope('manual full refresh');
       const products = selectedProductValues();
       const refreshScope = products.length === 1 ? products[0] : 'all';
       if (state.refreshAbort) {

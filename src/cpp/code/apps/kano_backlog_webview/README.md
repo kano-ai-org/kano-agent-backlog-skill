@@ -30,6 +30,7 @@ Design contracts:
   - `GET /api/review/handoff-readiness?product=all|<name>[&products=a,b][&q=...][&state=...][&type=...]`
   - `GET /api/review/context-recovery?area=...&product=all|<name>[&products=a,b][&q=...][&state=...][&type=...]`
   - `GET /api/review/graph?product=all|<name>[&products=a,b][&item=<id>][&root_product=<name>][&mode=dependency|structure|cycles|related|product_memory][&graph_isolation=fade|hide][&max_depth=2][&max_children_per_node=25][&max_total_nodes=80|&node_limit=80][&max_total_edges=120|&edge_limit=120]`
+  - `GET /api/review/graph/expand?product=all|<name>[&products=a,b]&item=<id>[&root_product=<name>]&expansion=inbound|outbound|children|related[&q=...][&state=...][&type=...][&max_children_per_node=25][&max_total_nodes=80][&max_total_edges=120]`
   - `GET /api/review/feature-evolution?product=<name>&feature_id=<id>`
   - `GET /api/review/roadmap?product=all|<name>[&products=a,b]`
   - `GET /api/review/decision-radar?product=all|<name>[&products=a,b]`
@@ -78,6 +79,73 @@ button zoom controls, and focused keyboard shortcuts (`+`/`=`, `-`, `0`, and
 arrow-key pan) without changing the bounded query itself. Reset view only
 changes the client-side pan/zoom state; it does not change root scope, depth,
 isolation mode, URL query state, or fetched graph data.
+
+### One-hop graph expansion overlays
+
+`GET /api/review/graph/expand` returns a read-only delta with schema
+`kob.backboard.graph_expansion.v1`. The required `expansion` parameter accepts
+exactly four kinds. `inbound` finds blockers and emits blocker-to-anchor edges.
+`outbound` finds blocked items and emits anchor-to-blocked edges. `children`
+reverse-scans recorded parent refs and emits parent-to-child edges. `related`
+treats `relates` as non-directional for discovery, so a one-sided declaration
+from either endpoint can place the recorded relation in the delta. Every kind
+is fixed at depth one. The route does not accept `max_depth`.
+
+Requests select scope with `product` or comma-separated `products`, identify
+the anchor with `item`, and can disambiguate it with `root_product`. Optional
+`q`, comma-separated `state`, and comma-separated `type` values filter both the
+anchor and neighbors. `max_children_per_node`, `max_total_nodes`, and
+`max_total_edges` bound the delta, and each cap is limited to 1,000. The
+response echoes the selected products, active query fields, and
+`effective_caps`, alongside the resolved `root`, `nodes`, `edges`,
+`missing_nodes`, `invalid_refs`, `diagnostics`, count fields, and truncation
+flags.
+
+A missing or unknown `expansion` value is a request error and returns HTTP 400
+with `graph_expand.expansion_required` or `graph_expand.expansion_invalid`.
+Root resolution failures are diagnostic deltas, not transport errors. A
+missing `item`, unknown root, ambiguous bare ID, filtered root, or qualified
+root outside the selected product scope returns HTTP 200 with an empty delta
+and a precise `graph_expand_root_*` diagnostic. Filtered or out-of-scope
+neighbors are also omitted with diagnostics rather than widening the request.
+
+Expansion performs a deterministic scan of at most 20,000 primary records in
+the selected product scope. If the bound is reached, `scan_truncated` and
+`truncated` are true and `graph_expand_scan_truncated` states that completeness
+is not claimed. Roots or refs not observed before that stop use bounded-scan
+diagnostics instead of being claimed missing.
+
+Server cap application reserves the anchor first, then admits one-hop nodes in
+canonical key order within the child and total-node caps. Edges are ordered by
+`from`, `to`, `kind`, and `source`, deduplicated, and admitted only when both
+endpoints are visible. Missing valid refs and invalid refs remain explicit;
+`hidden_node_count` and `hidden_edge_count` report cap losses, and no dangling
+edge is returned. Equivalent requests serialize identically, so repeating the
+same expansion is idempotent.
+
+In Backboard, expansion is an overlay on the already loaded base graph. The
+normal base graph still does not inherit list filters. For each expansion, the
+client starts from that stored all-product scope and its graph caps, explicitly
+synchronizes the current `q`, selected `state`, and selected `type` filters,
+then changes `item`, `root_product`, and `expansion` without reloading the base
+graph. Isolation mode and viewport pan/zoom are preserved. Generation and
+request sequence guards ignore stale responses, while a failed repeat leaves
+the last successful overlay visible.
+
+Composition admits all base nodes and edges first, then overlays in first-click
+order. Overlay nodes are sorted and deduplicated by canonical product and item
+key. Edges are sorted and deduplicated by normalized endpoints and kind, with
+`relates` treated as a non-directional pair. Client node and edge caps still
+apply, and edges with dropped endpoints are rejected. The overlay diagnostics
+report source, admitted, deduplicated, client-dropped, missing, and server
+truncation counts.
+
+Overlay state exists only in memory for the current base graph. It is excluded
+from URL state, saved graph queries, workspace records, `localStorage`, and
+`sessionStorage`, and is cleared when the base graph scope or workspace
+changes. Blocker chain, cycle audit, hierarchy summary, and graph mode claims
+remain base-only derived summaries. They are not recomputed from overlay nodes
+or edges.
 
 ### Saved graph queries
 
