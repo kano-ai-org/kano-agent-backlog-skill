@@ -51,6 +51,9 @@ struct ItemQueryOptions {
   std::vector<std::string> products;
   std::vector<std::string> states;
   std::vector<std::string> types;
+  std::vector<std::string> assignees;
+  std::vector<std::string> reviewers;
+  std::vector<std::string> assignmentCases;
   std::string text;
   size_t limit = 200;
   size_t offset = 0;

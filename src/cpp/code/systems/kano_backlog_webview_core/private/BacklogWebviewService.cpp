@@ -325,12 +325,65 @@ std::string RenderGateStrip(const Json::Value& gateStatus) {
          RenderGateBadge("Done", gateStatus["done"]) + "</div>";
 }
 
+std::string RenderAssignmentValueSummary(const std::string& label,
+                                         const Json::Value& value,
+                                         const Json::Value& source,
+                                         bool inherited,
+                                         const std::string& missingValue) {
+  const auto alias = value.isNull() ? "" : value.asString();
+  if (alias.empty()) {
+    return "<span class=\"pill missing assignment-value\" aria-label=\"" +
+           HtmlEscape(label + ": " + missingValue) + "\">" +
+           HtmlEscape(missingValue) + "</span>";
+  }
+  std::string html =
+      "<span class=\"assignment-value\"><span class=\"assignment-alias\">" +
+      HtmlEscape(alias) + "</span>";
+  if (inherited) {
+    const auto sourceText = source.isNull() ? "Source unknown" : source.asString();
+    const auto inheritanceLabel =
+        "Inherited from product default; source: " + sourceText;
+    html += "<span class=\"pill assignment-source\" title=\"" +
+            HtmlEscape(inheritanceLabel) + "\" aria-label=\"" +
+            HtmlEscape(inheritanceLabel) +
+            "\">Inherited from product default</span>";
+  }
+  html += "</span>";
+  return html;
+}
+
+std::string RenderAssignmentColumnsSummary(const Json::Value& item,
+                                           bool compact = false) {
+  const auto& assignment = item["assignment"];
+  const auto reviewerMissing =
+      text::ToLower(item.get("type", "").asString()) == "bug"
+          ? "Bug reviewer Missing"
+          : "Not assigned";
+  const auto tag = compact ? "span" : "div";
+  const auto classes = compact
+                           ? "assignment-columns assignment-columns-compact"
+                           : "assignment-columns";
+  return "<" + std::string(tag) + " class=\"" + classes +
+         "\" role=\"group\" aria-label=\"Assignment\"><" + tag +
+         " class=\"assignment-column\"><span class=\"detail-label\">Assignee</span>" +
+         RenderAssignmentValueSummary(
+             "Assignee", assignment["assignee"], assignment["owner_source"],
+             assignment.get("assignee_inherited", false).asBool(), "Unassigned") +
+         "</" + tag + "><" + tag +
+         " class=\"assignment-column\"><span class=\"detail-label\">Reviewer</span>" +
+         RenderAssignmentValueSummary(
+             "Reviewer", assignment["reviewer"], assignment["reviewer_source"],
+             assignment.get("reviewer_inherited", false).asBool(),
+             reviewerMissing) +
+         "</" + tag + "></" + tag + ">";
+}
+
 std::string RenderItemCardSummary(const Json::Value& item) {
   return "<div><code>" + HtmlEscape(item.get("id", "").asString()) +
          "</code></div><div>" + RenderItemLink(item) + "</div>" +
-         RenderGateStrip(item["gate_status"]) +
-         "<div class=\"muted\">" + HtmlEscape(ItemMetaText(item)) +
-         "</div>";
+          RenderGateStrip(item["gate_status"]) +
+          "<div class=\"muted\">" + HtmlEscape(ItemMetaText(item)) +
+          "</div>" + RenderAssignmentColumnsSummary(item);
 }
 
 std::string RenderItemCardPartial(const Json::Value& item) {
@@ -352,12 +405,14 @@ std::string RenderTreeNodePartial(const Json::Value& node, int depth) {
       RenderTreeNavigationSummary(node) + "</span>";
   const auto& children = node["children"];
   if (children.empty()) {
-    return "<li><span class=\"leaf-spacer\"></span>" + label + "</li>";
+    return "<li><span class=\"leaf-spacer\"></span>" + label +
+           RenderAssignmentColumnsSummary(node, true) + "</li>";
   }
 
   std::string html = "<li><details data-node-key=\"" + HtmlEscape(nodeKey) +
                      "\" " + (depth <= 1 ? "open" : "") + "><summary>" +
-                     label + "</summary><ul>";
+                      label + RenderAssignmentColumnsSummary(node, true) +
+                      "</summary><ul>";
   for (const auto& child : children) {
     html += RenderTreeNodePartial(child, depth + 1);
   }
@@ -2135,6 +2190,91 @@ bool IsEmptyLikeString(const std::string& value) {
          lowered == "none" || lowered == "{}" || lowered == "[]";
 }
 
+std::string AssignmentExternalValue(const ItemRecord& item,
+                                    const std::string& key) {
+  const auto entry = item.external.find(key);
+  return entry == item.external.end() ? "" : entry->second;
+}
+
+bool IsInheritedProductAssignmentSource(const std::string& source) {
+  return StartsWith(Trim(source), "inherited:product.");
+}
+
+bool MatchesAssignmentAlias(const std::vector<std::string>& aliases,
+                            const std::string& value) {
+  if (IsEmptyLikeString(value)) {
+    return false;
+  }
+  const auto normalizedValue = text::ToLower(Trim(value));
+  return std::any_of(aliases.begin(), aliases.end(),
+                     [&](const std::string& alias) {
+                       return !IsEmptyLikeString(alias) &&
+                              text::ToLower(Trim(alias)) == normalizedValue;
+                     });
+}
+
+bool HasAssignmentFilters(const ItemQueryOptions& options) {
+  return !options.assignees.empty() || !options.reviewers.empty() ||
+         !options.assignmentCases.empty();
+}
+
+std::string RenderAssignmentFilteredEmptyState(
+    const ItemQueryOptions& options, const std::string& fallbackText) {
+  if (!HasAssignmentFilters(options)) {
+    return "<div class=\"muted\">" + HtmlEscape(fallbackText) + "</div>";
+  }
+  return "<div class=\"assignment-empty-state\" role=\"status\"><strong>"
+         "No items match the assignment filters.</strong><div class=\"muted\">"
+         "Clear the assignee, reviewer, and assignment-case filters to restore "
+         "the broader result set.</div><button class=\"btn\" type=\"button\" "
+         "data-clear-assignment-filters>Clear assignment filters</button></div>";
+}
+
+bool MatchesAssignmentCase(const ItemRecord& item,
+                           const std::string& assignmentCase) {
+  const auto normalizedCase = text::ToLower(Trim(assignmentCase));
+  const auto reviewer = AssignmentExternalValue(item, "reviewer");
+  if (normalizedCase == "missing_assignee") {
+    return IsEmptyLikeString(item.owner);
+  }
+  if (normalizedCase == "missing_bug_reviewer") {
+    return text::ToLower(Trim(item.type)) == "bug" &&
+           IsEmptyLikeString(reviewer);
+  }
+  if (normalizedCase == "assigned_to_koa") {
+    return MatchesAssignmentAlias({"koa"}, item.owner);
+  }
+  if (normalizedCase == "needs_review_by_koa") {
+    return MatchesAssignmentAlias({"koa", "reviewer-koa"}, reviewer);
+  }
+  return false;
+}
+
+bool MatchesAssignmentFilters(const ItemQueryOptions& options,
+                              const ItemRecord& item) {
+  if (!HasAssignmentFilters(options)) {
+    return true;
+  }
+  if (item.sourceKind != "Item") {
+    return false;
+  }
+  if (!options.assignees.empty() &&
+      !MatchesAssignmentAlias(options.assignees, item.owner)) {
+    return false;
+  }
+  const auto reviewer = AssignmentExternalValue(item, "reviewer");
+  if (!options.reviewers.empty() &&
+      !MatchesAssignmentAlias(options.reviewers, reviewer)) {
+    return false;
+  }
+  return options.assignmentCases.empty() ||
+         std::any_of(options.assignmentCases.begin(),
+                     options.assignmentCases.end(),
+                     [&](const std::string& assignmentCase) {
+                       return MatchesAssignmentCase(item, assignmentCase);
+                     });
+}
+
 bool JsonHasMeaningfulContent(const Json::Value& value) {
   if (value.isNull()) {
     return false;
@@ -2167,6 +2307,28 @@ std::string RenderDetailFact(const std::string& label,
          HtmlEscape(label) +
          "</span><div class=\"detail-value\">" + HtmlEscape(value) +
          "</div></div>";
+}
+
+std::string RenderAssignmentDetailFact(const std::string& label,
+                                       const std::string& value,
+                                       const std::string& source,
+                                       const std::string& missingValue) {
+  if (IsEmptyLikeString(value)) {
+    return RenderDetailFact(label, missingValue);
+  }
+  if (!IsInheritedProductAssignmentSource(source)) {
+    return RenderDetailFact(label, value);
+  }
+  const auto inheritanceLabel =
+      "Inherited from product default; source: " + source;
+  return "<div class=\"detail-fact\"><span class=\"detail-label\">" +
+         HtmlEscape(label) +
+         "</span><div class=\"detail-value assignment-value\"><span class=\"assignment-alias\">" +
+         HtmlEscape(value) +
+         "</span><span class=\"pill assignment-source\" title=\"" +
+         HtmlEscape(inheritanceLabel) + "\" aria-label=\"" +
+         HtmlEscape(inheritanceLabel) +
+         "\">Inherited from product default</span></div></div>";
 }
 
 std::string RenderMarkdownRegion(const std::string& markdown) {
@@ -4788,6 +4950,26 @@ Json::Value BacklogWebviewService::ItemToJson(const ItemRecord& item,
   for (const auto& [key, entry] : item.external) {
     value["external"][key] = entry;
   }
+  const auto reviewer = AssignmentExternalValue(item, "reviewer");
+  const auto ownerSource = AssignmentExternalValue(item, "owner_source");
+  const auto reviewerSource = AssignmentExternalValue(item, "reviewer_source");
+  value["assignment"] = Json::objectValue;
+  value["assignment"]["assignee"] =
+      IsEmptyLikeString(item.owner) ? Json::Value(Json::nullValue)
+                                    : Json::Value(item.owner);
+  value["assignment"]["reviewer"] =
+      IsEmptyLikeString(reviewer) ? Json::Value(Json::nullValue)
+                                  : Json::Value(reviewer);
+  value["assignment"]["owner_source"] =
+      IsEmptyLikeString(ownerSource) ? Json::Value(Json::nullValue)
+                                     : Json::Value(ownerSource);
+  value["assignment"]["reviewer_source"] =
+      IsEmptyLikeString(reviewerSource) ? Json::Value(Json::nullValue)
+                                        : Json::Value(reviewerSource);
+  value["assignment"]["assignee_inherited"] =
+      IsInheritedProductAssignmentSource(ownerSource);
+  value["assignment"]["reviewer_inherited"] =
+      IsInheritedProductAssignmentSource(reviewerSource);
   value["links"]["relates"] = Json::arrayValue;
   value["links"]["blocks"] = Json::arrayValue;
   value["links"]["blocked_by"] = Json::arrayValue;
@@ -5073,6 +5255,9 @@ Json::Value BacklogWebviewService::QueryItems(const ItemQueryOptions& options) {
         continue;
       }
       if (!ContainsToken(options.states, item.state)) {
+        continue;
+      }
+      if (!MatchesAssignmentFilters(options, item)) {
         continue;
       }
       if (item.sourceKind == "Topic" || item.sourceKind == "Workset") {
@@ -5479,6 +5664,7 @@ Json::Value BacklogWebviewService::BuildTree(const ItemQueryOptions& options) {
     node["state"] = item["state"].asString();
     node["parent"] = item["parent"].asString();
     node["topic"] = item["topic"];
+    node["assignment"] = item["assignment"];
     node["children"] = Json::arrayValue;
     const auto navIt = navigationByKey.find(key);
     if (navIt != navigationByKey.end() && NavigationHasContent(navIt->second)) {
@@ -9464,7 +9650,8 @@ std::string BacklogWebviewService::RenderTreePartial(
     return RenderErrorPartial(tree["error"].asString());
   }
   if (tree["roots"].empty()) {
-    return "<div class=\"muted\">No items for the current filters.</div>";
+    return RenderAssignmentFilteredEmptyState(
+        options, "No items for the current filters.");
   }
 
   std::string html = "<ul>";
@@ -9483,7 +9670,14 @@ std::string BacklogWebviewService::RenderKanbanPartial(
   }
 
   const std::vector<std::string> lanes = {"Backlog", "Doing", "Blocked",
-                                          "Review", "Done"};
+                                           "Review", "Done"};
+  const bool hasItems = std::any_of(
+      lanes.begin(), lanes.end(), [&](const std::string& lane) {
+        return !kanban["lanes"][lane].empty();
+      });
+  if (!hasItems && HasAssignmentFilters(options)) {
+    return RenderAssignmentFilteredEmptyState(options, "No items");
+  }
   std::string html;
   for (const auto& lane : lanes) {
     html += "<div class=\"lane\"><strong>" + HtmlEscape(lane) +
@@ -9512,6 +9706,14 @@ std::string BacklogWebviewService::RenderReviewPartial(
   const std::vector<std::string> lanes = {
       "Needs Review", "Done Candidate", "False Done Suspect", "Evidence Gap",
       "Blocked/Dirty", "Stale/Drift", "Ready Frontier"};
+  const bool hasBundles = std::any_of(
+      lanes.begin(), lanes.end(), [&](const std::string& lane) {
+        return !inbox["lanes"][lane].empty();
+      });
+  if (!hasBundles && HasAssignmentFilters(options)) {
+    return RenderAssignmentFilteredEmptyState(
+        options, "No review queues for the current filters.");
+  }
   std::string html;
   for (const auto& lane : lanes) {
     const auto& bundles = inbox["lanes"][lane];
@@ -9712,7 +9914,43 @@ std::string BacklogWebviewService::RenderFiltersPartial(
                            options.types.empty() ||
                                ContainsToken(options.types, type));
   }
-  html += "</div></div>";
+  html +=
+      "</div></div><div class=\"filter-group assignment-filter\"><div "
+      "class=\"filter-group-title\">Assignment</div><div "
+      "class=\"assignment-filter-fields\"><label "
+      "class=\"assignment-filter-field\" for=\"assignee-filter\"><span>"
+      "Assignee</span><input id=\"assignee-filter\" name=\"assignee\" "
+      "type=\"text\" autocomplete=\"off\" value=\"" +
+      HtmlEscape(JoinStrings(options.assignees, ",")) +
+      "\" aria-describedby=\"assignment-filter-help\" /></label><label "
+      "class=\"assignment-filter-field\" for=\"reviewer-filter\"><span>"
+      "Reviewer</span><input id=\"reviewer-filter\" name=\"reviewer\" "
+      "type=\"text\" autocomplete=\"off\" value=\"" +
+      HtmlEscape(JoinStrings(options.reviewers, ",")) +
+      "\" aria-describedby=\"assignment-filter-help\" /></label></div>"
+      "<div id=\"assignment-filter-help\" class=\"muted\">Aliases are "
+      "repo-visible, exact, and comma-separated.</div><fieldset "
+      "id=\"assignment-case-filters\" class=\"assignment-case-filters\">"
+      "<legend class=\"filter-group-title\">Assignment cases</legend><div "
+      "class=\"filters\">";
+  const std::vector<std::pair<std::string, std::string>> assignmentCases = {
+      {"missing_assignee", "Missing assignee"},
+      {"missing_bug_reviewer", "Missing Bug reviewer"},
+      {"assigned_to_koa", "Assigned to KOA"},
+      {"needs_review_by_koa", "Needs review by KOA"}};
+  for (const auto& [value, label] : assignmentCases) {
+    html += "<label class=\"assignment-case\"><input type=\"checkbox\" "
+            "name=\"assignment_case\" value=\"" +
+            HtmlEscape(value) + "\" " +
+            (ContainsToken(options.assignmentCases, value) ? "checked" : "") +
+            " /> " + HtmlEscape(label) + "</label>";
+  }
+  html +=
+      "</div></fieldset><div class=\"assignment-filter-actions\"><button "
+      "id=\"clear-assignment-filters\" class=\"btn\" type=\"button\" "
+      "data-clear-assignment-filters " +
+      std::string(HasAssignmentFilters(options) ? "" : "disabled") +
+      ">Clear assignment filters</button></div></div>";
   return html;
 }
 
@@ -9724,6 +9962,11 @@ std::string BacklogWebviewService::RenderItemPartial(const std::string& product,
   }
 
   const auto& item = detail["item"];
+  const auto& assignment = item["assignment"];
+  const auto assignee = assignment.get("assignee", "").asString();
+  const auto reviewer = assignment.get("reviewer", "").asString();
+  const auto ownerSource = assignment.get("owner_source", "").asString();
+  const auto reviewerSource = assignment.get("reviewer_source", "").asString();
   const auto reviewSections = ExtractReviewSections(item.get("content", "").asString());
   ItemQueryOptions navigationOptions;
   const auto itemProduct = item.get("product", "").asString();
@@ -9765,6 +10008,12 @@ std::string BacklogWebviewService::RenderItemPartial(const std::string& product,
           RenderDetailFact("Updated", item.get("updated", "").asString().empty()
                                           ? "Unknown"
                                           : item.get("updated", "").asString()) +
+          RenderAssignmentDetailFact("Assignee", assignee, ownerSource,
+                                     "Unassigned") +
+          RenderAssignmentDetailFact(
+              "Reviewer", reviewer, reviewerSource,
+              item.get("type", "").asString() == "Bug" ? "Missing"
+                                                          : "Not assigned") +
           "</div></section>";
 
   if (!productMapNavigation.isMember("error")) {
@@ -9823,7 +10072,6 @@ std::string BacklogWebviewService::RenderItemPartial(const std::string& product,
   html += "</section>";
 
   std::vector<std::pair<std::string, std::string>> metadataRows = {
-      {"Owner", item.get("owner", "").asString()},
       {"Area", item.get("area", "").asString()},
       {"Iteration", item.get("iteration", "").asString()},
       {"Parent", item.get("parent", "").asString()},
@@ -9834,6 +10082,10 @@ std::string BacklogWebviewService::RenderItemPartial(const std::string& product,
 
   std::vector<std::pair<std::string, std::string>> externalRows;
   for (const auto& key : item["external"].getMemberNames()) {
+    if (key == "reviewer" || key == "owner_source" ||
+        key == "reviewer_source") {
+      continue;
+    }
     const auto value = item["external"][key].asString();
     if (!IsEmptyLikeString(value)) {
       externalRows.emplace_back(key, value);
@@ -9998,6 +10250,10 @@ void RegisterBacklogWebviewRoutes(
     options.text = request->getParameter("q");
     options.states = SplitCsv(request->getParameter("state"));
     options.types = SplitCsv(request->getParameter("type"));
+    options.assignees = SplitCsv(request->getParameter("assignee"));
+    options.reviewers = SplitCsv(request->getParameter("reviewer"));
+    options.assignmentCases =
+        SplitCsv(request->getParameter("assignment_case"));
     for (auto& type : options.types) {
       type = NormalizeItemTypeName(type);
     }

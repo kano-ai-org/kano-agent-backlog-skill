@@ -12,6 +12,9 @@ inline constexpr std::string_view kBackboardAppJsPart1 = R"JS(
       selectedProducts: new Set(['all']),
       selectedStates: new Set(['Proposed', 'Ready', 'InProgress', 'Blocked', 'Review', 'Done', 'Dropped']),
       selectedTypes: new Set(['Theme', 'Initiative', 'Epic', 'Feature', 'UserStory', 'Task', 'Bug', 'Issue', 'ADR', 'Topic', 'Workset']),
+      assignee: '',
+      reviewer: '',
+      selectedAssignmentCases: new Set(),
       q: '',
       limit: 200,
       workspace: '',
@@ -71,7 +74,8 @@ inline constexpr std::string_view kBackboardAppJsPart1 = R"JS(
     const lanes = ['Backlog', 'Doing', 'Blocked', 'Review', 'Done'];
     const reviewQueueOrder = ['Needs Review', 'Done Candidate', 'False Done Suspect', 'Evidence Gap', 'Blocked/Dirty', 'Stale/Drift', 'Ready Frontier'];
     const itemStates = ['Proposed', 'Ready', 'InProgress', 'Blocked', 'Review', 'Done', 'Dropped'];
-    const itemTypes = ['Theme', 'Initiative', 'Epic', 'Feature', 'UserStory', 'Task', 'Bug', 'Issue', 'ADR', 'Topic', 'Workset'];
+     const itemTypes = ['Theme', 'Initiative', 'Epic', 'Feature', 'UserStory', 'Task', 'Bug', 'Issue', 'ADR', 'Topic', 'Workset'];
+     const assignmentCases = ['missing_assignee', 'missing_bug_reviewer', 'assigned_to_koa', 'needs_review_by_koa'];
     const refreshableTabs = ['review', 'handoff', 'tree', 'roadmap', 'decision-radar', 'kanban', 'context', 'graph', 'runs'];
     const graphModeOrder = ['dependency', 'structure', 'cycles', 'related', 'product_memory'];
     const defaultGraphCaps = Object.freeze({
@@ -139,6 +143,12 @@ inline constexpr std::string_view kBackboardAppJsPart1a = R"JS(
       }
       state.selectedStates = tokenSetFromQuery(query.state, itemStates);
       state.selectedTypes = tokenSetFromQuery(query.type, itemTypes);
+      state.assignee = String(query.assignee || '').trim();
+      state.reviewer = String(query.reviewer || '').trim();
+      state.selectedAssignmentCases = new Set(
+        [...tokenSetFromQuery(query.assignment_case, [])]
+          .filter((value) => assignmentCases.includes(value))
+      );
       if (query.q) state.q = query.q;
       if (query.limit) {
         const parsed = Number.parseInt(query.limit, 10);
@@ -807,6 +817,15 @@ inline constexpr std::string_view kBackboardAppJsPart1b = R"JS(
       if (types) {
         params.set('type', types);
       }
+      if (state.assignee) {
+        params.set('assignee', state.assignee);
+      }
+      if (state.reviewer) {
+        params.set('reviewer', state.reviewer);
+      }
+      if (state.selectedAssignmentCases.size) {
+        params.set('assignment_case', [...state.selectedAssignmentCases].join(','));
+      }
       params.set('limit', String(state.limit || 200));
       return params.toString();
     }
@@ -1341,6 +1360,11 @@ inline constexpr std::string_view kBackboardAppJsPart1c = R"JS(
         q: state.q || null,
         state: selectedTokens(state.selectedStates, itemStates) || null,
         type: selectedTokens(state.selectedTypes, itemTypes) || null,
+        assignee: state.assignee || null,
+        reviewer: state.reviewer || null,
+        assignment_case: state.selectedAssignmentCases.size
+          ? [...state.selectedAssignmentCases].join(',')
+          : null,
         limit: String(state.limit || 200),
       };
       if (graphRouteActive) {
@@ -1363,6 +1387,43 @@ inline constexpr std::string_view kBackboardAppJsPart1c = R"JS(
       if (item.source_kind) parts.push(item.source_kind);
       parts.push(item.topic ? `Topic: ${item.topic}` : 'Topic: none');
       return parts.join(' / ');
+    }
+
+    function hasAssignmentFilters() {
+      return Boolean(state.assignee || state.reviewer || state.selectedAssignmentCases.size);
+    }
+
+    function renderAssignmentValue(label, value, source, inherited, missingText) {
+      const alias = String(value || '').trim();
+      const exactSource = String(source || '').trim();
+      if (!alias) {
+        return `<span class="pill missing assignment-value" aria-label="${escAttr(`${label}: ${missingText}`)}">${esc(missingText)}</span>`;
+      }
+      const inheritedText = 'Inherited from product default';
+      const sourceText = exactSource || 'Source unknown';
+      const provenance = inherited
+        ? `<span class="pill assignment-source" title="${escAttr(`${inheritedText}; source: ${sourceText}`)}" aria-label="${escAttr(`${inheritedText}; source: ${sourceText}`)}">${inheritedText}</span>`
+        : '';
+      return `<span class="assignment-value"><span class="assignment-alias">${esc(alias)}</span>${provenance}</span>`;
+    }
+
+    function renderAssignmentColumns(item, compact = false) {
+      const assignment = item?.assignment || {};
+      const isBug = String(item?.type || '').toLowerCase() === 'bug';
+      const reviewerMissing = isBug ? 'Bug reviewer Missing' : 'Not assigned';
+      const tag = compact ? 'span' : 'div';
+      const classes = compact ? 'assignment-columns assignment-columns-compact' : 'assignment-columns';
+      return `<${tag} class="${classes}" role="group" aria-label="Assignment">` +
+        `<${tag} class="assignment-column"><span class="detail-label">Assignee</span>${renderAssignmentValue('Assignee', assignment.assignee, assignment.owner_source, Boolean(assignment.assignee_inherited), 'Unassigned')}</${tag}>` +
+        `<${tag} class="assignment-column"><span class="detail-label">Reviewer</span>${renderAssignmentValue('Reviewer', assignment.reviewer, assignment.reviewer_source, Boolean(assignment.reviewer_inherited), reviewerMissing)}</${tag}>` +
+      `</${tag}>`;
+    }
+
+    function renderAssignmentEmptyState(fallbackText) {
+      if (!hasAssignmentFilters()) {
+        return `<div class="muted">${esc(fallbackText)}</div>`;
+      }
+      return '<div class="assignment-empty-state" role="status"><strong>No items match the assignment filters.</strong><div class="muted">Clear the assignee, reviewer, and assignment-case filters to restore the broader result set.</div><button class="btn" type="button" data-clear-assignment-filters>Clear assignment filters</button></div>';
     }
 
     function treeNodeKey(node) {
@@ -1657,7 +1718,7 @@ inline constexpr std::string_view kBackboardAppJsPart2 = R"JS(
     }
 
     function renderItemCardSummary(item) {
-      return `<div><code>${esc(item.id || '')}</code></div><div><a href="#" class="item-link" data-item-id="${escAttr(item.id || '')}" data-item-product="${escAttr(item.product || '')}">${esc(item.title || item.id || '')}</a></div>${renderGateStrip(item.gate_status)}<div class="muted">${esc(renderMeta(item))}</div>`;
+      return `<div><code>${esc(item.id || '')}</code></div><div><a href="#" class="item-link" data-item-id="${escAttr(item.id || '')}" data-item-product="${escAttr(item.product || '')}">${esc(item.title || item.id || '')}</a></div>${renderGateStrip(item.gate_status)}<div class="muted">${esc(renderMeta(item))}</div>${renderAssignmentColumns(item)}`;
     }
 
     function renderItemCard(item) {
@@ -1782,7 +1843,7 @@ inline constexpr std::string_view kBackboardAppJsPart3 = R"JS(
     function renderTreeNode(node, depth = 0) {
       const children = node.children || [];
       const nodeKey = treeNodeKey(node);
-      const label = `<span class="node-line"><span>${typeIcon(node.type)}</span><code>${esc(node.id)}</code><a href="#" class="item-link" data-item-id="${escAttr(node.id)}" data-item-product="${escAttr(node.product || '')}">${esc(node.title)}</a><span class="muted">(${esc(renderMeta(node))})</span>${renderTreeNavigation(node)}</span>`;
+      const label = `<span class="node-line"><span>${typeIcon(node.type)}</span><code>${esc(node.id)}</code><a href="#" class="item-link" data-item-id="${escAttr(node.id)}" data-item-product="${escAttr(node.product || '')}">${esc(node.title)}</a><span class="muted">(${esc(renderMeta(node))})</span>${renderTreeNavigation(node)}</span>${renderAssignmentColumns(node, true)}`;
       if (!children.length) {
         return `<li><span class="leaf-spacer"></span>${label}</li>`;
       }
@@ -2145,10 +2206,41 @@ inline constexpr std::string_view kBackboardAppJsPart4 = R"JS(
       ).join('');
     }
 
+    function renderAssignmentFilters() {
+      const assigneeInput = document.getElementById('assignee-filter');
+      const reviewerInput = document.getElementById('reviewer-filter');
+      if (assigneeInput && assigneeInput.value !== state.assignee) {
+        assigneeInput.value = state.assignee;
+      }
+      if (reviewerInput && reviewerInput.value !== state.reviewer) {
+        reviewerInput.value = state.reviewer;
+      }
+      document.querySelectorAll('#assignment-case-filters input[name="assignment-case"]').forEach((checkbox) => {
+        checkbox.checked = state.selectedAssignmentCases.has(checkbox.value);
+      });
+      const clearButton = document.getElementById('clear-assignment-filters');
+      if (clearButton) {
+        clearButton.disabled = !hasAssignmentFilters();
+      }
+    }
+
+    function clearAssignmentFilters() {
+      state.assignee = '';
+      state.reviewer = '';
+      state.selectedAssignmentCases.clear();
+      renderAssignmentFilters();
+      markLoadedViewsStale('assignment filters cleared');
+      updateUrlState();
+      setStatus('Assignment filters cleared; refreshing results');
+      document.getElementById('assignee-filter')?.focus({ preventScroll: true });
+      scheduleRefresh(0);
+    }
+
     function renderFilters() {
       renderProductFilters();
       renderTokenFilters('state-filters', itemStates, state.selectedStates, 'data-filter-state');
       renderTokenFilters('type-filters', itemTypes, state.selectedTypes, 'data-filter-type');
+      renderAssignmentFilters();
     }
 
     function renderProductSelectOptions() {
@@ -2213,7 +2305,7 @@ inline constexpr std::string_view kBackboardAppJsPart5 = R"JS(
       }
       document.getElementById('tree').innerHTML = roots.length
         ? `<ul>${roots.map((node) => renderTreeNode(node, 0)).join('')}</ul>`
-        : '<div class="muted">No items for the current filters.</div>';
+        : renderAssignmentEmptyState('No items for the current filters.');
       bindTreeToggles();
     }
 
@@ -2224,6 +2316,12 @@ inline constexpr std::string_view kBackboardAppJsPart5 = R"JS(
         stage: 'kanban.lanes',
       });
       const lanesData = result?.data?.lanes || {};
+      const itemCount = lanes.reduce((count, lane) => count + (lanesData[lane] || []).length, 0);
+      if (itemCount === 0 && hasAssignmentFilters()) {
+        document.getElementById('kanban').innerHTML = renderAssignmentEmptyState('No items');
+        bindSelectableCards('#kanban');
+        return;
+      }
       const html = lanes.map((lane) => {
         const cards = (lanesData[lane] || [])
           .map((item) => renderItemCard(item)).join('');
@@ -2258,7 +2356,9 @@ inline constexpr std::string_view kBackboardAppJsPart5 = R"JS(
       const listHtml = contextItems.map((item) => renderItemCard(item)).join('');
       document.getElementById('context-list').innerHTML = listHtml
         ? `<div class="context-items" role="listbox" aria-label="Context items">${listHtml}</div>`
-        : '<div class="muted">No context items</div>';
+        : (items.length === 0
+          ? renderAssignmentEmptyState('No context items')
+          : '<div class="muted">No context items</div>');
 
       bindItemLinks('#context-list');
       bindSelectableCards('#context-list');
@@ -2282,7 +2382,10 @@ inline constexpr std::string_view kBackboardAppJsPart5 = R"JS(
       });
       const lanesData = inboxResult?.data?.lanes || {};
       const laneNames = reviewQueueOrder.filter((lane) => Object.prototype.hasOwnProperty.call(lanesData, lane));
-      document.getElementById('review-inbox').innerHTML = laneNames.map((lane) => {
+      const reviewItemCount = laneNames.reduce((count, lane) => count + (lanesData[lane] || []).length, 0);
+      document.getElementById('review-inbox').innerHTML = reviewItemCount === 0 && hasAssignmentFilters()
+        ? renderAssignmentEmptyState('No review queues for the current filters.')
+        : laneNames.map((lane) => {
         const bundles = lanesData[lane] || [];
         const cards = bundles.map((bundle) => renderReviewCard(bundle, lane)).join('');
         return `<div class="review-lane"><strong>${esc(lane)}</strong><div class="muted">${bundles.length} item(s)</div><div class="review-lane-items" role="listbox" aria-label="${escAttr(`${lane} items`)}">${cards || '<div class="muted">No items</div>'}</div></div>`;
@@ -2297,7 +2400,9 @@ inline constexpr std::string_view kBackboardAppJsPart5 = R"JS(
           const result = await getJson(`/api/review/saved-views/${encodeURIComponent(viewId)}?${queryString()}`);
           const items = result?.data?.result?.items || [];
           document.getElementById('review-inbox').innerHTML =
-            `<div class="review-lane"><strong>${esc(result?.data?.view?.title || viewId)}</strong><div class="muted">${items.length} item(s)</div><div class="review-lane-items" role="listbox" aria-label="${escAttr(`${result?.data?.view?.title || viewId} items`)}">${items.map(renderItemCard).join('') || '<div class="muted">No items</div>'}</div></div>`;
+            items.length
+              ? `<div class="review-lane"><strong>${esc(result?.data?.view?.title || viewId)}</strong><div class="muted">${items.length} item(s)</div><div class="review-lane-items" role="listbox" aria-label="${escAttr(`${result?.data?.view?.title || viewId} items`)}">${items.map(renderItemCard).join('')}</div></div>`
+              : renderAssignmentEmptyState('No items in this saved view.');
           bindItemLinks('#review-inbox');
           bindSelectableCards('#review-inbox');
         });
@@ -2358,7 +2463,7 @@ inline constexpr std::string_view kBackboardAppJsPart5a = R"JS(
         `${rows.length} candidate(s), ${data.safe_candidate_count || 0} safe, ${data.blocked_count || 0} blocked, ${data.gap_count || 0} gap(s)`;
       document.getElementById('handoff-list').innerHTML = rows.length
         ? `<div class="handoff-readiness-list" role="listbox" aria-label="Handoff readiness candidates">${rows.map(renderHandoffReadinessRow).join('')}</div>`
-        : `<div class="muted">${esc(data.empty_state || 'No handoff rows.')}</div>`;
+        : renderAssignmentEmptyState(data.empty_state || 'No handoff rows.');
       bindItemLinks('#handoff-list');
       bindSelectableCards('#handoff-list');
     }
@@ -3999,6 +4104,49 @@ inline constexpr std::string_view kBackboardAppJsPart6 = R"JS(
       state.treeOpen.clear();
       markLoadedViewsStale('search changed');
       scheduleRefresh(250);
+    });
+
+    document.getElementById('assignee-filter').addEventListener('input', (event) => {
+      state.assignee = String(event.target.value || '').trim();
+      state.treeOpen.clear();
+      state.treeTouched = false;
+      renderAssignmentFilters();
+      markLoadedViewsStale('assignee filter changed');
+      scheduleRefresh(250);
+    });
+
+    document.getElementById('reviewer-filter').addEventListener('input', (event) => {
+      state.reviewer = String(event.target.value || '').trim();
+      state.treeOpen.clear();
+      state.treeTouched = false;
+      renderAssignmentFilters();
+      markLoadedViewsStale('reviewer filter changed');
+      scheduleRefresh(250);
+    });
+
+    document.getElementById('assignment-case-filters').addEventListener('change', (event) => {
+      const checkbox = event.target;
+      if (!checkbox?.matches?.('input[name="assignment-case"]') || !assignmentCases.includes(checkbox.value)) {
+        return;
+      }
+      if (checkbox.checked) {
+        state.selectedAssignmentCases.add(checkbox.value);
+      } else {
+        state.selectedAssignmentCases.delete(checkbox.value);
+      }
+      state.treeOpen.clear();
+      state.treeTouched = false;
+      renderAssignmentFilters();
+      markLoadedViewsStale('assignment case filter changed');
+      scheduleRefresh(0);
+    });
+
+    document.getElementById('clear-assignment-filters').addEventListener('click', clearAssignmentFilters);
+
+    document.addEventListener('click', (event) => {
+      if (event.target?.closest?.('[data-clear-assignment-filters]')) {
+        clearAssignmentFilters();
+      }
     });
 
     document.getElementById('workspace-add').addEventListener('click', async () => {

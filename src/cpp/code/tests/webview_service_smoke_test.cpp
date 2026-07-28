@@ -457,7 +457,12 @@ int main() {
                      "2026-06-14 10:00 [agent=codex] Work order dispatched for native migration review.\n"
                      "2026-06-14 10:10 [agent=codex] Artifact attached: [report](../artifacts/PRA-TSK-0001/report.md).\n"
                      "2026-06-14 10:20 [agent=codex] Validation: pixi run quick-test PASS.\n",
-                      "links:\n"
+                       "owner: koa\n"
+                       "external:\n"
+                       "  reviewer: reviewer-koa\n"
+                       "  owner_source: explicit\n"
+                       "  reviewer_source: explicit\n"
+                       "links:\n"
                       "  relates:\n"
                       "    - product-beta:PRB-BUG-0001\n"
                       "    - PRA-TSK-0003\n"
@@ -565,11 +570,11 @@ int main() {
                      "priority: P1\n"
                      "area: review-ui\n"
                      "iteration: null\n"
-                     "owner: ~\n"
-                     "external: {}\n"
-                     "tags: []\n"
-                     "decisions: []\n"
-                     "links:\n"
+                      "owner: ~\n"
+                      "external: {}\n"
+                      "tags: []\n"
+                      "decisions: []\n"
+                      "links:\n"
                      "  relates:\n"
                      "    - PRA-TSK-0003\n"
                      "  blocks: []\n"
@@ -884,10 +889,15 @@ int main() {
                      "Beta live bug",
                      "InProgress",
                      "",
-                     "Beta product bug body.\n\n"
-                     "## Worklog\n\n"
-                     "2026-06-14 11:30 [agent=codex] Validation: pixi run quick-test PASS.\n",
-                     "links:\n"
+                      "Beta product bug body.\n\n"
+                      "## Worklog\n\n"
+                      "2026-06-14 11:30 [agent=codex] Validation: pixi run quick-test PASS.\n",
+                      "owner: koa\n"
+                      "external:\n"
+                      "  reviewer: koa\n"
+                      "  owner_source: explicit\n"
+                      "  reviewer_source: explicit\n"
+                      "links:\n"
                      "  relates: [product-alpha:PRA-TSK-0001]\n"
                      "  blocks: []\n"
                      "  blocked_by: []\n"));
@@ -905,7 +915,12 @@ int main() {
                       "2026-06-14 11:00 [agent=codex] Artifact attached: [report](../artifacts/PRB-BUG-0002/report.md).\n"
                       "2026-06-14 11:05 [agent=codex] Commit evidence: implementation_commit=abc1234 revision abc1234.\n"
                       "2026-06-14 11:10 [agent=codex] Branch convergence: target=main implementation_commit=abc1234 reachable_from_target=true remote_publication=origin/main.\n"
-                      "2026-06-14 11:20 [agent=codex] Validation: pixi run quick-test PASS.\n"));
+                       "2026-06-14 11:20 [agent=codex] Validation: pixi run quick-test PASS.\n",
+                       "owner: koa\n"
+                       "external:\n"
+                       "  reviewer: reviewer-koa\n"
+                       "  owner_source: inherited:product.default_assignee\n"
+                       "  reviewer_source: inherited:product.default_bug_reviewer\n"));
         write_text(
             products / "product-beta" / "items" / "bug" / "0003" / "PRB-BUG-0003.md",
             item_doc("PRB-BUG-0003",
@@ -914,7 +929,10 @@ int main() {
                      "Beta done without evidence",
                      "Done",
                      "",
-                     "Closed without durable proof."));
+                      "Closed without durable proof.",
+                      "owner: build-agent\n"
+                      "external:\n"
+                      "  owner_source: explicit\n"));
         write_text(
             products / "product-beta" / "items" / "bug" / "0004" / "PRB-BUG-0004.md",
             item_doc("PRB-BUG-0004",
@@ -926,7 +944,12 @@ int main() {
                       "Review candidate with durable evidence.\n\n"
                         "## Worklog\n\n"
                         "2026-06-14 12:00 [agent=codex] Artifact attached: [report](../artifacts/PRB-BUG-0004/report.md).\n"
-                        "2026-06-14 12:10 [agent=codex] Validation: pixi run quick-test PASS.\n"));
+                         "2026-06-14 12:10 [agent=codex] Validation: pixi run quick-test PASS.\n",
+                         "owner: build-agent\n"
+                         "external:\n"
+                         "  reviewer: review-role-a\n"
+                         "  owner_source: explicit\n"
+                         "  reviewer_source: explicit\n"));
         write_text(
             products / "product-beta" / "items" / "task" / "0001" / "PRB-TSK-0001.md",
             item_doc("PRB-TSK-0001",
@@ -1495,6 +1518,33 @@ int main() {
         expect((*reviewWithEvidence)["gate_status"]["review"]["state"].asString() == "passed",
                "review item with sufficient evidence should pass review gate");
 
+        expect((*task)["assignment"]["assignee"].asString() == "koa",
+               "assignment projection should expose the canonical owner as assignee");
+        expect((*task)["assignment"]["reviewer"].asString() == "reviewer-koa",
+               "assignment projection should expose the canonical external reviewer");
+        expect((*task)["assignment"]["owner_source"].asString() == "explicit" &&
+                   (*task)["assignment"]["reviewer_source"].asString() == "explicit",
+               "assignment projection should expose canonical source markers");
+        expect(!(*task)["assignment"]["assignee_inherited"].asBool() &&
+                   !(*task)["assignment"]["reviewer_inherited"].asBool(),
+               "explicit assignment projection should not be labeled inherited");
+        expect((*doneWithEvidence)["assignment"]["assignee"].asString() == "koa" &&
+                   (*doneWithEvidence)["assignment"]["reviewer"].asString() == "reviewer-koa",
+               "inherited assignment values should project as ordinary repo-visible aliases");
+        expect((*doneWithEvidence)["assignment"]["assignee_inherited"].asBool() &&
+                   (*doneWithEvidence)["assignment"]["reviewer_inherited"].asBool(),
+               "exact inherited product source markers should project as inherited booleans");
+        expect((*doneWithoutEvidence)["assignment"]["assignee"].asString() == "build-agent",
+               "explicit assignee should project for a Bug without a reviewer");
+        expect((*doneWithoutEvidence)["assignment"]["reviewer"].isNull(),
+               "missing Bug reviewer should project as JSON null");
+        expect((*reviewPanelTask)["assignment"]["assignee"].isNull() &&
+                   (*reviewPanelTask)["assignment"]["reviewer"].isNull(),
+               "missing assignee and reviewer should project as JSON nulls");
+        expect(!(*reviewPanelTask)["assignment"]["assignee_inherited"].asBool() &&
+                   !(*reviewPanelTask)["assignment"]["reviewer_inherited"].asBool(),
+               "missing assignment values should not be labeled inherited");
+
         const auto detectorFileCountBefore = count_regular_files(products);
         const auto detectorStateBefore = read_text(products / "product-beta" / "items" / "bug" / "0001" / "PRB-BUG-0001.md");
         auto doneDetector = service.BuildDoneCandidateDetector(allOptions);
@@ -1808,6 +1858,134 @@ int main() {
         auto initiativeTextResult = service.QueryItems(initiativeText);
         expect(initiativeTextResult["total"].asUInt64() == 1, "initiative type filter should find the initiative");
         expect(initiativeTextResult["items"][0]["id"].asString() == "PRA-INIT-0001", "filtered initiative id mismatch");
+
+        webview::ItemQueryOptions assignedToKoa;
+        assignedToKoa.assignees = {"KOA"};
+        auto assignedToKoaResult = service.QueryItems(assignedToKoa);
+        expect(assignedToKoaResult["total"].asUInt64() == 3,
+               "assignee filter should use case-insensitive exact alias matching");
+        expect(find_item(assignedToKoaResult["items"], "product-alpha", "PRA-TSK-0001").has_value() &&
+                   find_item(assignedToKoaResult["items"], "product-beta", "PRB-BUG-0001").has_value() &&
+                   find_item(assignedToKoaResult["items"], "product-beta", "PRB-BUG-0002").has_value(),
+               "assigned_to_koa should include explicit and inherited exact koa assignees");
+
+        webview::ItemQueryOptions needsReviewByKoa;
+        needsReviewByKoa.reviewers = {"KOA"};
+        auto needsReviewByKoaResult = service.QueryItems(needsReviewByKoa);
+        expect(needsReviewByKoaResult["total"].asUInt64() == 1 &&
+                   needsReviewByKoaResult["items"][0]["id"].asString() == "PRB-BUG-0001",
+               "needs_review_by_koa should not substring-match reviewer-koa");
+
+        webview::ItemQueryOptions reviewerKoaAlias;
+        reviewerKoaAlias.reviewers = {"REVIEWER-KOA"};
+        auto reviewerKoaAliasResult = service.QueryItems(reviewerKoaAlias);
+        expect(reviewerKoaAliasResult["total"].asUInt64() == 2,
+               "reviewer filter should case-insensitively match the exact reviewer-koa alias");
+        expect(find_item(reviewerKoaAliasResult["items"], "product-alpha", "PRA-TSK-0001").has_value() &&
+                   find_item(reviewerKoaAliasResult["items"], "product-beta", "PRB-BUG-0002").has_value(),
+               "reviewer-koa filter should include explicit and inherited reviewer assignments");
+
+        webview::ItemQueryOptions assignedToKoaCase;
+        assignedToKoaCase.assignmentCases = {"assigned_to_koa"};
+        auto assignedToKoaCaseResult = service.QueryItems(assignedToKoaCase);
+        expect(assignedToKoaCaseResult["total"].asUInt64() == 3,
+               "assigned_to_koa assignment case should match exact explicit and inherited koa assignees");
+
+        webview::ItemQueryOptions needsReviewByKoaCase;
+        needsReviewByKoaCase.assignmentCases = {"needs_review_by_koa"};
+        auto needsReviewByKoaCaseResult = service.QueryItems(needsReviewByKoaCase);
+        expect(needsReviewByKoaCaseResult["total"].asUInt64() == 3,
+               "needs_review_by_koa assignment case should include exact koa and reviewer-koa aliases");
+        expect(find_item(needsReviewByKoaCaseResult["items"], "product-alpha", "PRA-TSK-0001").has_value() &&
+                   find_item(needsReviewByKoaCaseResult["items"], "product-beta", "PRB-BUG-0001").has_value() &&
+                   find_item(needsReviewByKoaCaseResult["items"], "product-beta", "PRB-BUG-0002").has_value(),
+               "needs_review_by_koa should include explicit and inherited KOA review roles");
+
+        webview::ItemQueryOptions assignmentAliasOr;
+        assignmentAliasOr.assignees = {"koa", "build-agent"};
+        auto assignmentAliasOrResult = service.QueryItems(assignmentAliasOr);
+        expect(assignmentAliasOrResult["total"].asUInt64() == 5,
+               "assignee vector should preserve CSV-equivalent OR semantics");
+
+        webview::ItemQueryOptions assignmentCrossDimension;
+        assignmentCrossDimension.assignees = {"BUILD-AGENT"};
+        assignmentCrossDimension.reviewers = {"REVIEW-ROLE-A"};
+        auto assignmentCrossDimensionResult = service.QueryItems(assignmentCrossDimension);
+        expect(assignmentCrossDimensionResult["total"].asUInt64() == 1 &&
+                   assignmentCrossDimensionResult["items"][0]["id"].asString() == "PRB-BUG-0004",
+               "assignee and reviewer dimensions should compose with AND semantics");
+
+        webview::ItemQueryOptions missingAssignee;
+        missingAssignee.assignmentCases = {"missing_assignee"};
+        auto missingAssigneeResult = service.QueryItems(missingAssignee);
+        expect(missingAssigneeResult["total"].asUInt64() >= 1,
+               "missing_assignee should find canonical item records without owners");
+        for (const auto& item : missingAssigneeResult["items"]) {
+            expect(item["source_kind"].asString() == "Item",
+                   "assignment cases should exclude ADR, Topic, and Workset pseudo-records");
+            expect(item["assignment"]["assignee"].isNull(),
+                   "missing_assignee results should expose null assignees");
+        }
+        expect(find_item(missingAssigneeResult["items"], "product-alpha", "PRA-TSK-0004").has_value(),
+               "missing_assignee should include the unassigned review panel fixture");
+
+        webview::ItemQueryOptions missingBugReviewer;
+        missingBugReviewer.assignmentCases = {"missing_bug_reviewer"};
+        auto missingBugReviewerResult = service.QueryItems(missingBugReviewer);
+        expect(find_item(missingBugReviewerResult["items"], "product-beta", "PRB-BUG-0003").has_value(),
+               "missing_bug_reviewer should include Bug records without a reviewer");
+        expect(!find_item(missingBugReviewerResult["items"], "product-beta", "PRB-BUG-0001").has_value() &&
+                   !find_item(missingBugReviewerResult["items"], "product-beta", "PRB-BUG-0002").has_value() &&
+                   !find_item(missingBugReviewerResult["items"], "product-beta", "PRB-BUG-0004").has_value(),
+               "missing_bug_reviewer should exclude Bugs with explicit or inherited reviewers");
+        for (const auto& item : missingBugReviewerResult["items"]) {
+            expect(item["source_kind"].asString() == "Item" &&
+                       item["type"].asString() == "Bug" && item["assignment"]["reviewer"].isNull(),
+                   "missing_bug_reviewer should return only canonical Bug records with null reviewers");
+        }
+
+        webview::ItemQueryOptions unknownAssignmentCase;
+        unknownAssignmentCase.assignmentCases = {"unknown_assignment_case"};
+        auto unknownAssignmentCaseResult = service.QueryItems(unknownAssignmentCase);
+        expect(unknownAssignmentCaseResult["total"].asUInt64() == 0 &&
+                   unknownAssignmentCaseResult["items"].empty(),
+               "unknown assignment case should match zero records instead of widening the query");
+
+        webview::ItemQueryOptions pagedAssignedToKoa = assignedToKoa;
+        pagedAssignedToKoa.limit = 1;
+        auto pagedAssignedToKoaResult = service.QueryItems(pagedAssignedToKoa);
+        expect(pagedAssignedToKoaResult["total"].asUInt64() ==
+                   assignedToKoaResult["total"].asUInt64(),
+               "assignment-filtered total should be computed before pagination");
+        expect(pagedAssignedToKoaResult["items"].size() == 1,
+               "assignment-filtered pagination should still bound the returned page");
+
+        auto assignmentTree = service.BuildTree(assignedToKoa);
+        const auto assignmentTreeSerialized = json_to_string(assignmentTree);
+        expect(assignmentTreeSerialized.find("PRA-TSK-0001") != std::string::npos &&
+                   assignmentTreeSerialized.find("PRB-BUG-0003") == std::string::npos,
+               "tree projection should propagate assignee filters");
+        bool treePreservesAssignment = false;
+        for (const auto& rootNode : assignmentTree["roots"]) {
+            if (rootNode["id"].asString() == "PRA-TSK-0001") {
+                treePreservesAssignment =
+                    rootNode["assignment"]["assignee"].asString() == "koa" &&
+                    rootNode["assignment"]["reviewer"].asString() == "reviewer-koa";
+            }
+        }
+        expect(treePreservesAssignment,
+               "tree projection should preserve assignment metadata for Product Map columns");
+        auto assignmentKanban = service.BuildKanban(assignmentCrossDimension);
+        const auto assignmentKanbanSerialized = json_to_string(assignmentKanban);
+        expect(assignmentKanbanSerialized.find("PRB-BUG-0004") != std::string::npos &&
+                   assignmentKanbanSerialized.find("PRB-BUG-0003") == std::string::npos,
+               "kanban projection should propagate cross-dimension assignment filters");
+        auto assignmentReview = service.BuildReviewInbox(needsReviewByKoaCase);
+        const auto assignmentReviewSerialized = json_to_string(assignmentReview);
+        expect(assignmentReviewSerialized.find("PRB-BUG-0001") != std::string::npos &&
+                   assignmentReviewSerialized.find("PRB-BUG-0003") == std::string::npos &&
+                   assignmentReviewSerialized.find("PRB-BUG-0004") == std::string::npos,
+               "review projection should preserve detector eligibility while excluding non-KOA reviewer roles");
 
         webview::ItemQueryOptions betaDoing;
         betaDoing.products = {"product-beta"};
@@ -2845,6 +3023,34 @@ int main() {
         expect(reviewPartial.find("aria-label=\"Ready gate") != std::string::npos,
                "review partial should expose accessible gate badge labels");
 
+        auto assignmentTreePartial = service.RenderTreePartial(assignedToKoa);
+        expect(assignmentTreePartial.find("assignment-columns") != std::string::npos &&
+                   assignmentTreePartial.find("koa") != std::string::npos &&
+                   assignmentTreePartial.find("reviewer-koa") != std::string::npos &&
+                   assignmentTreePartial.find("Inherited from product default") != std::string::npos,
+               "tree partial should render explicit and inherited assignment columns");
+        auto assignmentKanbanPartial = service.RenderKanbanPartial(assignmentCrossDimension);
+        expect(assignmentKanbanPartial.find("assignment-columns") != std::string::npos &&
+                   assignmentKanbanPartial.find("build-agent") != std::string::npos &&
+                   assignmentKanbanPartial.find("review-role-a") != std::string::npos,
+               "kanban partial should render assignment columns for filtered cards");
+        auto assignmentReviewPartial = service.RenderReviewPartial(needsReviewByKoaCase);
+        expect(assignmentReviewPartial.find("assignment-columns") != std::string::npos &&
+                   assignmentReviewPartial.find("Reviewer") != std::string::npos &&
+                   assignmentReviewPartial.find("koa") != std::string::npos,
+               "review partial should render assignment columns for eligible filtered bundles");
+
+        auto emptyAssignmentTreePartial = service.RenderTreePartial(unknownAssignmentCase);
+        auto emptyAssignmentKanbanPartial = service.RenderKanbanPartial(unknownAssignmentCase);
+        auto emptyAssignmentReviewPartial = service.RenderReviewPartial(unknownAssignmentCase);
+        for (const auto* emptyPartial : {&emptyAssignmentTreePartial,
+                                        &emptyAssignmentKanbanPartial,
+                                        &emptyAssignmentReviewPartial}) {
+            expect(emptyPartial->find("assignment-empty-state") != std::string::npos &&
+                       emptyPartial->find("data-clear-assignment-filters") != std::string::npos,
+                   "assignment-filtered partial empty states should expose a clear action");
+        }
+
         auto roadmapPartial = service.RenderRoadmapPartial(allOptions);
         expect(roadmapPartial.find("data-navigation-model=\"version-goal-ledger\"") != std::string::npos,
                "roadmap partial should expose DOM-readable Version Goal Ledger markup");
@@ -2892,6 +3098,14 @@ int main() {
         auto filterPartial = service.RenderFiltersPartial(allOptions);
         expect(filterPartial.find("product-alpha") != std::string::npos,
                "filters partial should render products");
+        auto assignmentFilterPartial = service.RenderFiltersPartial(needsReviewByKoaCase);
+        expect(assignmentFilterPartial.find("id=\"assignee-filter\"") != std::string::npos &&
+                   assignmentFilterPartial.find("id=\"reviewer-filter\"") != std::string::npos &&
+                   assignmentFilterPartial.find("id=\"assignment-case-filters\"") != std::string::npos &&
+                   assignmentFilterPartial.find("needs_review_by_koa") != std::string::npos &&
+                   assignmentFilterPartial.find("checked") != std::string::npos &&
+                   assignmentFilterPartial.find("data-clear-assignment-filters") != std::string::npos,
+               "filters partial should preserve assignment controls and selected cases");
 
         auto focusGraphItemPartial = service.RenderItemPartial("product-alpha", "PRA-TSK-0001");
         expect(focusGraphItemPartial.find("Focus Graph") != std::string::npos,
@@ -2933,6 +3147,33 @@ int main() {
                "item partial should not embed the full graph canvas in the modal detail view");
         expect(focusGraphItemPartial.find("graph-svg") == std::string::npos,
                "item partial should not embed the full graph SVG in the modal detail view");
+        expect(focusGraphItemPartial.find(">Assignee<") != std::string::npos &&
+                   focusGraphItemPartial.find("koa") != std::string::npos,
+               "item detail should render the canonical owner under the Assignee label");
+        expect(focusGraphItemPartial.find(">Reviewer<") != std::string::npos &&
+                   focusGraphItemPartial.find("reviewer-koa") != std::string::npos,
+               "item detail should render the canonical external reviewer");
+        expect(count_occurrences(focusGraphItemPartial, ">Assignee<") == 1 &&
+                   count_occurrences(focusGraphItemPartial, ">Reviewer<") == 1 &&
+                   focusGraphItemPartial.find(">reviewer<") == std::string::npos &&
+                   focusGraphItemPartial.find(">owner_source<") == std::string::npos &&
+                   focusGraphItemPartial.find(">reviewer_source<") == std::string::npos,
+               "item detail should not duplicate assignment fields in generic External rows");
+
+        auto inheritedAssignmentPartial = service.RenderItemPartial("product-beta", "PRB-BUG-0002");
+        expect(inheritedAssignmentPartial.find(">Assignee<") != std::string::npos &&
+                   inheritedAssignmentPartial.find("koa") != std::string::npos &&
+                   inheritedAssignmentPartial.find(">Reviewer<") != std::string::npos &&
+                   inheritedAssignmentPartial.find("reviewer-koa") != std::string::npos,
+               "item detail should render inherited assignee and reviewer values");
+        expect(inheritedAssignmentPartial.find("Inherited") != std::string::npos ||
+                   inheritedAssignmentPartial.find("inherited") != std::string::npos,
+               "item detail should visibly label assignments inherited from product defaults");
+        expect(inheritedAssignmentPartial.find(">External<") == std::string::npos &&
+                   inheritedAssignmentPartial.find(">reviewer<") == std::string::npos &&
+                   inheritedAssignmentPartial.find(">owner_source<") == std::string::npos &&
+                   inheritedAssignmentPartial.find(">reviewer_source<") == std::string::npos,
+               "inherited assignment metadata should not be repeated as generic External fields");
 
         auto itemPartial = service.RenderItemPartial("product-alpha", "PRA-TSK-0004");
         expect(itemPartial.find("Alpha review panel task") != std::string::npos,
@@ -2951,6 +3192,12 @@ int main() {
                "item partial should render native gate checks");
         expect(itemPartial.find(">Owner<") == std::string::npos,
                "item partial should hide empty owner metadata");
+        expect(itemPartial.find(">Assignee<") != std::string::npos &&
+                   itemPartial.find("Unassigned") != std::string::npos,
+               "item detail should show explicit missing-assignee semantics");
+        expect(itemPartial.find(">Reviewer<") != std::string::npos &&
+                   itemPartial.find("Not assigned") != std::string::npos,
+               "non-Bug item detail should show a missing reviewer without implying a Bug review gap");
         expect(itemPartial.find(">External<") == std::string::npos,
                "item partial should hide empty external metadata maps");
         expect(itemPartial.find(">Tags<") == std::string::npos,
@@ -2970,10 +3217,21 @@ int main() {
         expect(itemPartial.find("Raw markdown / full file") != std::string::npos,
                "item partial should expose the explicit raw markdown toggle");
         expect_in_order(itemPartial,
-                        {">Context<", ">Goal<", ">Acceptance Criteria<",
-                         ">Risks / Dependencies<", ">Worklog<",
-                         "Raw markdown / full file"},
-                        "review-first sections should appear before the raw markdown toggle");
+                         {">Context<", ">Goal<", ">Acceptance Criteria<",
+                          ">Risks / Dependencies<", ">Worklog<",
+                          "Raw markdown / full file"},
+                         "review-first sections should appear before the raw markdown toggle");
+
+        auto missingBugReviewerPartial = service.RenderItemPartial("product-beta", "PRB-BUG-0003");
+        expect(missingBugReviewerPartial.find(">Assignee<") != std::string::npos &&
+                   missingBugReviewerPartial.find("build-agent") != std::string::npos,
+               "Bug detail should preserve an explicit assignee when reviewer is missing");
+        expect(missingBugReviewerPartial.find(">Reviewer<") != std::string::npos &&
+                   missingBugReviewerPartial.find("Missing") != std::string::npos,
+               "Bug detail should make missing required reviewer semantics visible");
+        expect(missingBugReviewerPartial.find(">External<") == std::string::npos &&
+                   missingBugReviewerPartial.find(">owner_source<") == std::string::npos,
+               "Bug assignment source metadata should not be duplicated in generic External rows");
 
         auto featurePartial = service.RenderItemPartial("product-alpha", "PRA-FTR-0002");
         expect(featurePartial.find("Product Map navigation") != std::string::npos,
@@ -3048,8 +3306,25 @@ int main() {
         expect(indexHtmlSource.find("BackboardCss()") != std::string::npos,
                "index html asset should compose the dedicated css module");
         expect(mainSource.find("\"/graph\"") != std::string::npos &&
-                   mainSource.find("IndexHtml()") != std::string::npos,
-               "webview app main should expose /graph and serve the embedded IndexHtml shell");
+                    mainSource.find("IndexHtml()") != std::string::npos,
+                "webview app main should expose /graph and serve the embedded IndexHtml shell");
+        expect(indexHtmlSource.find("id=\"assignee-filter\"") != std::string::npos &&
+                   indexHtmlSource.find("id=\"reviewer-filter\"") != std::string::npos &&
+                   indexHtmlSource.find("id=\"assignment-case-filters\"") != std::string::npos &&
+                   indexHtmlSource.find("id=\"clear-assignment-filters\"") != std::string::npos,
+               "embedded webview shell should expose assignment filter and clear-action IDs");
+        expect(assetSource.find("params.set('assignee'") != std::string::npos &&
+                   assetSource.find("params.set('reviewer'") != std::string::npos &&
+                   assetSource.find("params.set('assignment_case'") != std::string::npos,
+               "embedded webview query builder should forward assignment query keys");
+        expect(assetSource.find("function renderAssignmentFilters") != std::string::npos &&
+                   assetSource.find("clearAssignmentFilters") != std::string::npos &&
+                   assetSource.find("assigned_to_koa") != std::string::npos &&
+                   assetSource.find("needs_review_by_koa") != std::string::npos,
+               "embedded webview assets should provide assignment rendering and clear actions");
+        expect(indexCssSource.find(".assignment-filter") != std::string::npos &&
+                   indexCssSource.find(".assignment-case") != std::string::npos,
+               "embedded webview CSS should expose assignment control and case hooks");
         expect(assetSource.find("data-selectable-item") != std::string::npos,
                "embedded webview assets should expose selectable card markup hooks");
         expect(assetSource.find("Shortcuts ?") != std::string::npos,
@@ -3341,6 +3616,17 @@ int main() {
                "pixi manifest should expose the smoke artifact command");
 
         const auto webviewReadme = read_text(webviewAppRoot / "README.md");
+        expect(webviewReadme.find("assignee=") != std::string::npos &&
+                   webviewReadme.find("reviewer=") != std::string::npos &&
+                   webviewReadme.find("assignment_case=") != std::string::npos &&
+                   webviewReadme.find("missing_assignee") != std::string::npos &&
+                   webviewReadme.find("missing_bug_reviewer") != std::string::npos &&
+                   webviewReadme.find("assigned_to_koa") != std::string::npos &&
+                   webviewReadme.find("needs_review_by_koa") != std::string::npos,
+               "webview README should document assignment query keys and supported missing cases");
+        expect(webviewReadme.find("case-insensitive") != std::string::npos &&
+                   webviewReadme.find("exact matching") != std::string::npos,
+               "webview README should document exact case-insensitive assignment alias matching");
         expect(webviewReadme.find("/api/review/done-detector") != std::string::npos,
                "webview README should list the done detector API route");
         expect(webviewReadme.find("/api/review/evidence-quality") != std::string::npos,

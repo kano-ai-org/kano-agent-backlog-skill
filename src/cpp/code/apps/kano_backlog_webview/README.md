@@ -20,7 +20,7 @@ Design contracts:
 - Read-mostly APIs:
   - `GET /healthz`
   - `GET /api/products`
-  - `GET /api/items?product=all|<name>[&products=a,b][&q=...][&state=Ready,Doing][&type=task,feature][&limit=200][&offset=0]`
+  - `GET /api/items?product=all|<name>[&products=a,b][&q=...][&state=Ready,Doing][&type=task,feature][&assignee=alias-a,alias-b][&reviewer=alias-a,alias-b][&assignment_case=missing_assignee,...][&limit=200][&offset=0]`
   - `GET /api/items/<id>?product=all|<name>[&products=a,b]`
   - `GET /api/tree?product=all|<name>[&products=a,b][&q=...][&state=...][&type=...][&limit=...]`
   - `GET /api/kanban?product=all|<name>[&products=a,b][&q=...][&state=...][&type=...][&limit=...]`
@@ -51,6 +51,50 @@ Design contracts:
   - `GET /graph?tab=graph[&product=<name>][&item=<id>][&root_product=<name>][&mode=dependency][&graph_isolation=fade|hide][&max_depth=2][&max_children_per_node=25][&max_total_nodes=80][&max_total_edges=120]`
 - UI: Backboard Review Inbox, Agent Handoff Readiness, product map, flow,
   context, dependencies, agent runs, and command preview at `/`
+
+### Assignment query contract
+
+Backboard's list, tree, flow, and review queries accept three read-only
+assignment filters:
+
+- `assignee` is a comma-separated list of repo-visible assignee aliases.
+- `reviewer` is a comma-separated list of repo-visible reviewer aliases.
+- `assignment_case` is a comma-separated list containing any of
+  `missing_assignee`, `missing_bug_reviewer`, `assigned_to_koa`, and
+  `needs_review_by_koa`.
+
+Alias matching is case-insensitive exact matching; it is not a substring or
+display-name search. Values within the assignee dimension are ORed, values
+within the reviewer dimension are ORed, and selected assignment cases are ORed.
+Active dimensions are ANDed across assignee, reviewer, and assignment-case
+filters, and they remain ANDed with the existing product, state, type, and text
+filters.
+
+Assignment filtering uses materialized-only values from the native assignment
+contract. It does not recompute defaults in the browser. `missing_assignee`
+matches an item whose materialized assignee is empty. `missing_bug_reviewer`
+matches only Bug items whose materialized reviewer is empty; an unassigned
+reviewer on a non-Bug is not a missing-Bug-reviewer match. `assigned_to_koa`
+matches the materialized `koa` assignee alias, while `needs_review_by_koa`
+matches the materialized `koa` or `reviewer-koa` reviewer alias. Pseudo-records are
+excluded from assignment matching rather than being treated as unassigned
+items.
+
+Cards and Product Map rows display the materialized assignee and reviewer.
+Inherited values are labeled `Inherited from product default`, with the exact
+native `owner_source` or `reviewer_source` retained in accessible/title text.
+Missing assignees display `Unassigned`; missing Bug reviewers display
+`Bug reviewer Missing`; other absent reviewers display `Not assigned`.
+
+The assignment controls round-trip `assignee`, `reviewer`, and
+`assignment_case` through the page URL. Clearing assignment filters removes all
+three keys without disturbing unrelated query state. These filters are not
+forwarded by the graph-only `graphQueryString`, so assignment filtering cannot
+broaden or otherwise change the bounded item-rooted graph contract.
+
+Stale-assigned policy is deferred: this read-only UI neither mutates assignment
+nor adds special stale-assigned filtering, dispatch, approval, or automatic
+reassignment behavior.
 
 The full-page Dependencies canvas is item-rooted and bounded by query caps. The
 default graph page shell keeps the mode selector/help visible, but when no

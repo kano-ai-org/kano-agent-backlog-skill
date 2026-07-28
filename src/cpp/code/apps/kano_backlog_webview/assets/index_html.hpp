@@ -80,6 +80,32 @@ inline constexpr std::string_view kIndexHtmlBetweenAssets = R"HTML(
       <div class="filter-group-title">Types</div>
       <div class="filters" id="type-filters"></div>
     </div>
+    <div class="filter-group assignment-filter">
+      <div class="filter-group-title">Assignment</div>
+      <div class="assignment-filter-fields">
+        <label class="assignment-filter-field" for="assignee-filter">
+          <span>Assignee</span>
+          <input id="assignee-filter" type="text" autocomplete="off" aria-describedby="assignment-filter-help" />
+        </label>
+        <label class="assignment-filter-field" for="reviewer-filter">
+          <span>Reviewer</span>
+          <input id="reviewer-filter" type="text" autocomplete="off" aria-describedby="assignment-filter-help" />
+        </label>
+      </div>
+      <div id="assignment-filter-help" class="muted">Aliases are repo-visible, exact, and comma-separated.</div>
+      <fieldset id="assignment-case-filters" class="assignment-case-filters">
+        <legend class="filter-group-title">Assignment cases</legend>
+        <div class="filters">
+          <label class="assignment-case"><input type="checkbox" name="assignment-case" value="missing_assignee" /> Missing assignee</label>
+          <label class="assignment-case"><input type="checkbox" name="assignment-case" value="missing_bug_reviewer" /> Missing Bug reviewer</label>
+          <label class="assignment-case"><input type="checkbox" name="assignment-case" value="assigned_to_koa" /> Assigned to KOA</label>
+          <label class="assignment-case"><input type="checkbox" name="assignment-case" value="needs_review_by_koa" /> Needs review by KOA</label>
+        </div>
+      </fieldset>
+      <div class="assignment-filter-actions">
+        <button id="clear-assignment-filters" class="btn" type="button">Clear assignment filters</button>
+      </div>
+    </div>
   </div>
 
   <div class="panel">

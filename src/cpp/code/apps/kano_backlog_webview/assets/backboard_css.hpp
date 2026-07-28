@@ -81,6 +81,19 @@ inline constexpr std::string_view kBackboardCssPart1 = R"CSS(
     .filter-group-title { font-size: 12px; font-weight: 700; color: #3c4a63; text-transform: uppercase; }
     .filters { display: flex; gap: 10px; flex-wrap: wrap; margin: 0; }
     .filters label { display: inline-flex; gap: 6px; align-items: center; font-size: 13px; }
+    .assignment-filter { min-width: 0; }
+    .assignment-filter-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; min-width: 0; }
+    .assignment-filter-field { display: flex; flex-direction: column; gap: 6px; min-width: 0; font-size: 13px; }
+    .assignment-filter input[type="text"] { box-sizing: border-box; width: 100%; min-width: 0; border: 1px solid var(--kob-border); border-radius: 8px; padding: 6px 10px; background: var(--kob-surface-strong); color: inherit; }
+    .assignment-case-filters { min-inline-size: 0; margin: 0; padding: 0; border: 0; }
+    .assignment-case-filters legend { margin-bottom: 8px; padding: 0; }
+    .assignment-case { min-width: 0; overflow-wrap: anywhere; }
+    .assignment-filter-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+    #clear-assignment-filters[disabled] { opacity: 0.65; cursor: default; }
+    .assignment-filter input:focus-visible,
+    .assignment-case input:focus-visible,
+    #clear-assignment-filters:focus-visible,
+    .assignment-empty-state .btn:focus-visible { outline: 3px solid var(--kob-accent-border); outline-offset: 2px; }
     .limit-input { width: 80px; }
     .item-link { color: #1f4fa3; text-decoration: none; }
     .item-link:hover { text-decoration: underline; }
@@ -106,6 +119,15 @@ inline constexpr std::string_view kBackboardCssPart2 = R"CSS(
     .detail-stack { display: grid; gap: 8px; }
     .detail-label { display: block; margin-bottom: 4px; color: #586074; font-size: 11px; text-transform: uppercase; font-weight: 700; letter-spacing: 0.03em; }
     .detail-value { min-width: 0; word-break: break-word; }
+    .assignment-columns { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-top: 8px; min-width: 0; }
+    .assignment-column { min-width: 0; border: 1px solid var(--kob-border); border-radius: 8px; padding: 8px; background: var(--kob-surface); }
+    .assignment-value { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; min-width: 0; overflow-wrap: anywhere; word-break: break-word; }
+    .assignment-alias, .assignment-source { max-width: 100%; overflow-wrap: anywhere; word-break: break-word; }
+    .card .assignment-columns { grid-template-columns: minmax(0, 1fr); }
+    .assignment-columns-compact { width: calc(100% - 24px); margin: 4px 0 8px 24px; }
+    .assignment-columns-compact .assignment-column { border: 0; padding: 4px 6px; background: transparent; }
+    .assignment-empty-state { display: grid; gap: 8px; min-width: 0; border: 1px solid var(--kob-border); border-radius: 8px; padding: 8px; background: var(--kob-surface); overflow-wrap: anywhere; }
+    .assignment-empty-state .btn { justify-self: start; }
     .detail-links { display: flex; gap: 6px; flex-wrap: wrap; }
     .detail-kv-list { display: grid; gap: 8px; }
     .detail-kv { display: grid; grid-template-columns: 120px minmax(0, 1fr); gap: 8px; align-items: start; }
@@ -228,6 +250,8 @@ inline constexpr std::string_view kBackboardCssPart2 = R"CSS(
       body { padding: 12px; }
       .app-shell { grid-template-columns: minmax(0, 1fr); }
       .sidebar { position: static; top: auto; }
+      .assignment-filter-fields, .assignment-columns { grid-template-columns: minmax(0, 1fr); }
+      .assignment-columns-compact { width: calc(100% - 14px); margin-left: 14px; }
     }
 )CSS";
 
