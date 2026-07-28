@@ -110,11 +110,45 @@ does not render a global graph.
 
 The graph toolbar also keeps the root-focused isolation contract local and
 bounded: reviewers can change `max_depth`, switch between fade or hide for
-unrelated nodes, click a graph node to re-root the bounded graph query, and use
-Reset scope to restore the incoming root (or clear back to the scaffold when no
-incoming root exists). Hidden or faded nodes and edges always stay diagnosable
-through the graph summary and diagnostics cards; Backboard does not silently
-drop unrelated blockers from review context.
+unrelated nodes, select a graph node without changing the root, and use Reset
+scope to restore the incoming root (or clear back to the scaffold when no
+incoming root exists). Selection opens a compact side panel. Re-rooting is an
+explicit `Set root` action rather than an activation side effect.
+Hidden or faded nodes and edges always stay diagnosable through the graph summary
+and diagnostics cards; Backboard does not silently drop unrelated blockers from
+review context.
+
+### Graph node inspector
+
+Mouse click, Enter, and Space select a graph node and open a compact inspector
+without reloading or changing the item-rooted graph query. The panel renders
+ID, title, type, state, parent, blockers, blocked items, related refs, and
+missing or invalid refs. It paints immediately from the bounded graph payload,
+then uses the existing exact `GET /api/items/<id>?product=<product>` route to
+fill relationship metadata. Only the compact fields are retained in client
+state; raw Markdown content and paths are not copied into the inspector.
+
+Resolved product-qualified items expose explicit Open detail, Set root,
+Isolate node, Expand inbound, Expand outbound, Hide node, and Pin node actions.
+Missing and topic nodes remain inspectable, while unsupported detail, root, and
+expansion actions are visibly disabled. Escape or Close dismisses the panel.
+
+Isolate node changes only the client-side neighborhood focus and is reversible;
+it does not change the root URL or fetch an unbounded graph. Inbound and
+outbound actions reuse the existing one-hop expansion endpoint and its caps.
+Pin and hide are reversible in-memory view state. A pinned node remains visible
+through hide isolation and must be unpinned before manual hiding.
+A manually hidden node leaves an explicit diagnostic with its retained
+dependency-edge count and a Restore action, so hiding never erases blocker
+evidence silently.
+Inspector, pin, manual-hide, and local-isolate state are excluded from URLs,
+saved graph queries, `localStorage`, and `sessionStorage`,
+and are cleared with the base graph.
+
+The canvas and inspector use a two-column desktop layout, collapse to one
+column at tablet width, and make action buttons single-column at narrow width.
+SVG nodes expose button semantics, accessible labels and selection state; panel
+actions use native buttons and visible focus treatment.
 
 The same bounded item-rooted graph data now has client-side viewport controls:
 zoom out, zoom in, fit all, fit focused subgraph, and reset view. The SVG graph
@@ -273,6 +307,8 @@ static-file lookup and Docker packaging drift.
 - `assets/backboard_css.hpp` holds the first-party CSS used by the root shell.
 - `assets/backboard_app_js.hpp` holds the inline page application JavaScript for
   the root shell.
+- `assets/backboard_graph_inspector_js.hpp` holds the bounded graph-node
+  inspector, explicit actions, and ephemeral pin/hide diagnostics.
 - `assets/kob_ui_js.hpp` holds the first-party `/assets/kob-ui.js` runtime.
 
 ## Security Defaults

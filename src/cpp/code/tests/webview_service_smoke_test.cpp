@@ -3521,13 +3521,16 @@ int main() {
             webviewAppRoot / "assets" / "backboard_css.hpp");
         const auto indexAppJsSource = read_text(
             webviewAppRoot / "assets" / "backboard_app_js.hpp");
+        const auto graphInspectorJsSource = read_text(
+            webviewAppRoot / "assets" / "backboard_graph_inspector_js.hpp");
         const auto kobUiJsSource = read_text(
             webviewAppRoot / "assets" / "kob_ui_js.hpp");
         const auto mainSource = read_text(
             webviewAppRoot / "main.cpp");
         const auto assetSource =
             indexHtmlSource + "\n" + indexCssSource + "\n" +
-            indexAppJsSource + "\n" + kobUiJsSource;
+            indexAppJsSource + "\n" + graphInspectorJsSource + "\n" +
+            kobUiJsSource;
 
         expect(indexHtmlSource.find("<script src=\"/assets/kob-ui.js\"></script>") != std::string::npos,
                "index html asset should keep the first-party kob-ui runtime script tag");
@@ -3780,10 +3783,11 @@ int main() {
         expect(assetSource.find("function normalizeGraphIsolationMode") != std::string::npos &&
                     assetSource.find("function graphFetchMaxDepth") != std::string::npos &&
                     assetSource.find("Math.min(localDepth + 1, graphDepthBounds.max)") != std::string::npos &&
-                     assetSource.find("function buildGraphIsolation") != std::string::npos &&
-                     assetSource.find("function bindGraphNodeRerooting") != std::string::npos &&
-                     assetSource.find("function resetGraphScope") != std::string::npos,
-                 "embedded webview assets should expose graph isolation helpers, bounded outer-ring fetch, node rerooting, and reset scope behavior");
+                    assetSource.find("function buildGraphIsolation") != std::string::npos &&
+                    assetSource.find("function bindGraphNodeSelection") != std::string::npos &&
+                    assetSource.find("function renderGraphNodeInspector") != std::string::npos &&
+                    assetSource.find("function resetGraphScope") != std::string::npos,
+                "embedded webview assets should expose graph isolation helpers, bounded outer-ring fetch, node selection inspector, and reset scope behavior");
         expect(assetSource.find("function fitAllGraphView") != std::string::npos &&
                     assetSource.find("function fitFocusedGraphView") != std::string::npos &&
                     assetSource.find("function resetGraphView") != std::string::npos &&
@@ -3797,12 +3801,85 @@ int main() {
                     assetSource.find("canvas.addEventListener('wheel'") != std::string::npos &&
                     assetSource.find("event.key === '0'") != std::string::npos,
                 "embedded webview assets should keep graph viewport transform markers plus pointer, wheel, and focused keyboard event handlers");
-        expect(assetSource.find("Click a node to re-root this bounded graph") != std::string::npos &&
+        expect(assetSource.find("Select a node to inspect it without changing root") != std::string::npos &&
                     assetSource.find("Unrelated nodes are never removed silently") != std::string::npos,
-                "embedded webview assets should describe rerooting and diagnosable isolation behavior");
-        expect(assetSource.find("data-graph-node-id") != std::string::npos &&
-                    assetSource.find("setGraphRoot(nextId, nextProduct") != std::string::npos,
-                "embedded webview assets should reroot from graph node data attributes");
+                "embedded webview assets should describe inspect-first activation and diagnosable isolation behavior");
+        expect(assetSource.find("data-graph-node-key") != std::string::npos &&
+                    assetSource.find("await selectGraphNode(key, { focusInspector: true })") != std::string::npos &&
+                    assetSource.find("setGraphRoot(nextId, nextProduct") == std::string::npos &&
+                    assetSource.find("setGraphRoot(itemId, product, { reason: 'explicit graph inspector root action' })") != std::string::npos,
+                "ordinary graph-node activation should select and inspect while rerooting remains an explicit inspector action");
+        const auto graphNodeSelectionStart = indexAppJsSource.find(
+            "function bindGraphNodeSelection");
+        const auto graphNodeSelectionEnd = indexAppJsSource.find(
+            "inline constexpr std::string_view kBackboardAppJsPart5ab",
+            graphNodeSelectionStart);
+        expect(graphNodeSelectionStart != std::string::npos &&
+                   graphNodeSelectionEnd != std::string::npos &&
+                   graphNodeSelectionEnd > graphNodeSelectionStart,
+               "graph-node selection source should remain extractable for side-effect regression checks");
+        const auto graphNodeSelectionSource = indexAppJsSource.substr(
+            graphNodeSelectionStart,
+            graphNodeSelectionEnd - graphNodeSelectionStart);
+        expect(graphNodeSelectionSource.find("selectGraphNode") != std::string::npos &&
+                   graphNodeSelectionSource.find("setGraphRoot") == std::string::npos,
+               "mouse and keyboard activation handlers must not implicitly reroot the bounded graph");
+        expect(assetSource.find("function projectGraphInspectorDetail") != std::string::npos &&
+                    assetSource.find("`/api/items/${encodeURIComponent(itemId)}?product=${encodeURIComponent(product)}`") != std::string::npos &&
+                    assetSource.find("graphInspectorDetails.set(key, projectGraphInspectorDetail(item))") != std::string::npos &&
+                    assetSource.find("raw: item") == std::string::npos &&
+                    assetSource.find("path: item") == std::string::npos,
+                "graph inspector should reuse the exact bounded item endpoint and retain only a compact projected detail payload");
+        const auto graphInspectorRecordMatcherStart = graphInspectorJsSource.find(
+            "function graphInspectorRecordMatchesNode");
+        const auto graphInspectorRecordMatcherEnd = graphInspectorJsSource.find(
+            "\n    function graphInspectorMissingRefs",
+            graphInspectorRecordMatcherStart);
+        expect(graphInspectorRecordMatcherStart != std::string::npos &&
+                   graphInspectorRecordMatcherEnd != std::string::npos &&
+                   graphInspectorRecordMatcherEnd > graphInspectorRecordMatcherStart,
+               "graph-inspector record matching source should remain extractable for canonical-target regression checks");
+        const auto graphInspectorRecordMatcherSource = graphInspectorJsSource.substr(
+            graphInspectorRecordMatcherStart,
+            graphInspectorRecordMatcherEnd - graphInspectorRecordMatcherStart);
+        expect(graphInspectorJsSource.find("...state.graphExpansionPayloads.values()") != std::string::npos &&
+                    graphInspectorRecordMatcherSource.find("graphInspectorSourceMatches(entry?.source, node)") != std::string::npos &&
+                    graphInspectorRecordMatcherSource.find("const canonicalTarget = String(entry?.id || '').trim()") != std::string::npos &&
+                    graphInspectorRecordMatcherSource.find("values.has(canonicalTarget)") != std::string::npos &&
+                    graphInspectorRecordMatcherSource.find("node?.item_id") == std::string::npos &&
+                    graphInspectorRecordMatcherSource.find("entry?.ref") == std::string::npos,
+                "graph inspector should use canonical product-qualified target IDs so duplicate bare IDs across products cannot cross-match");
+        expect(graphInspectorJsSource.find("pruneMap(state.graphInspectorDetails)") != std::string::npos &&
+                    graphInspectorJsSource.find("pruneMap(state.graphInspectorStatuses)") != std::string::npos &&
+                    graphInspectorJsSource.find("!validKeys.has(state.graphInspectorRequest.key)") != std::string::npos,
+                "graph inspector should bound cached detail and request state to nodes in the current composed graph");
+        expect(assetSource.find("data-graph-inspector-action=\"open-detail\"") != std::string::npos &&
+                    assetSource.find("data-graph-inspector-action=\"set-root\"") != std::string::npos &&
+                    assetSource.find("data-graph-inspector-action=\"isolate\"") != std::string::npos &&
+                    assetSource.find("data-graph-inspector-action=\"expand-inbound\"") != std::string::npos &&
+                    assetSource.find("data-graph-inspector-action=\"expand-outbound\"") != std::string::npos &&
+                    assetSource.find("data-graph-inspector-action=\"hide\"") != std::string::npos &&
+                    assetSource.find("data-graph-inspector-action=\"pin\"") != std::string::npos,
+                "graph inspector should expose each graph-changing operation as a named explicit action");
+        expect(assetSource.find("graphPinnedNodeKeys: new Set()") != std::string::npos &&
+                    assetSource.find("graphHiddenNodeKeys: new Set()") != std::string::npos &&
+                    assetSource.find("state.graphPinnedNodeKeys.clear()") != std::string::npos &&
+                    assetSource.find("state.graphHiddenNodeKeys.clear()") != std::string::npos &&
+                    assetSource.find("graphInspectorStorageKey") == std::string::npos &&
+                    assetSource.find("localStorage.setItem(graphInspector") == std::string::npos &&
+                    assetSource.find("sessionStorage.setItem(graphInspector") == std::string::npos,
+                "pin and hide should remain reversible in-memory view state and clear with the bounded base graph");
+        expect(assetSource.find("dependency edge(s) retained in details and diagnostics") != std::string::npos &&
+                    assetSource.find("data-graph-hidden-restore-key") != std::string::npos &&
+                    assetSource.find("Unpin this node before hiding it.") != std::string::npos,
+                "manual hide should retain dependency evidence, expose restore diagnostics, and never silently hide a pinned blocker");
+        expect(assetSource.find("graphIsolationMode: 'fade'") != std::string::npos &&
+                    assetSource.find("const manualHideIncident = fromReason === 'manual-hide' || toReason === 'manual-hide';") != std::string::npos &&
+                    assetSource.find("const visibility = manualHideIncident") != std::string::npos &&
+                    assetSource.find("? 'hidden'") != std::string::npos &&
+                    assetSource.find("const reason = manualHideIncident") != std::string::npos &&
+                    assetSource.find("? 'manual-hide'") != std::string::npos,
+                "manual hide should mark every incident edge hidden with a manual-hide reason even under the default fade isolation mode");
         expect(assetSource.find("function renderBlockerChain") != std::string::npos &&
                     assetSource.find("function bindBlockerChainJumpActions") != std::string::npos &&
                     assetSource.find("baseData.mode === 'dependency' ? renderBlockerChain(baseData.blocker_chain) : ''") != std::string::npos &&
@@ -3874,8 +3951,9 @@ int main() {
         expect_in_order(assetSource,
                         {"baseData.mode === 'dependency' ? renderBlockerChain(baseData.blocker_chain) : '',",
                          "renderGraphExpansionDiagnostics(composition),",
-                         "graphRender.markup,"},
-                        "base blocker summary and expansion diagnostics should render before the composed graph canvas");
+                         "renderGraphEphemeralDiagnostics(nodes, edges),",
+                         "${graphRender.markup}"},
+                        "base summaries and expansion/view-state diagnostics should render before the composed graph canvas");
         expect(assetSource.find("React") == std::string::npos &&
                     assetSource.find("Vite") == std::string::npos &&
                     assetSource.find("npm") == std::string::npos,
@@ -3936,9 +4014,27 @@ int main() {
                     indexCssSource.find(".blocker-chain-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr)); gap: 8px; min-width: 0; align-items: start; }") != std::string::npos &&
                     indexCssSource.find(".blocker-chain-facts { min-width: 0; }") != std::string::npos,
                 "embedded webview css should top-align blocker panels, preserve semantic prose wrapping, and constrain emergency wrapping to paths, code, and IDs");
-        expect(indexCssSource.find(".graph-node.is-rerootable:focus-visible rect") != std::string::npos &&
-                    indexCssSource.find("stroke-width: 2.5") != std::string::npos,
-                "embedded webview css should provide a distinct focus-visible treatment for rerootable SVG graph nodes");
+        expect(indexCssSource.find(".graph-node.is-selectable:focus-visible rect") != std::string::npos &&
+                    indexCssSource.find(".graph-node-inspector:focus-visible") != std::string::npos &&
+                    indexCssSource.find("stroke-width: 2.5") != std::string::npos &&
+                    assetSource.find("role=\"button\" aria-label=\"Inspect") != std::string::npos &&
+                    assetSource.find("aria-pressed=") != std::string::npos &&
+                    assetSource.find("role=\"button\" aria-label=\"Inspect ${escAttr(rerootId)}\" aria-selected=") == std::string::npos &&
+                    assetSource.find("event.key !== 'Enter' && event.key !== ' '") != std::string::npos &&
+                    assetSource.find("event.key === 'Escape'") != std::string::npos &&
+                    assetSource.find("renderGraphView(undefined, { preserveViewport: true, focusNodeKey })") != std::string::npos,
+                "graph selection and inspector should expose valid pressed state, keyboard activation, Escape focus return, and visible focus");
+        expect(assetSource.find("const inboundLoading = inboundState.state === 'loading';") != std::string::npos &&
+                    assetSource.find("const outboundLoading = outboundState.state === 'loading';") != std::string::npos &&
+                    assetSource.find("data-graph-inspector-action=\"expand-inbound\" aria-busy=") != std::string::npos &&
+                    assetSource.find("data-graph-inspector-action=\"expand-outbound\" aria-busy=") != std::string::npos &&
+                    assetSource.find("button.setAttribute('aria-busy', 'true')") != std::string::npos,
+                "inspector expansion actions should expose busy state and disable synchronously to prevent duplicate requests");
+        expect(indexCssSource.find(".graph-canvas-workspace { display: grid; grid-template-columns: minmax(0, 1fr) minmax(280px, 340px)") != std::string::npos &&
+                    indexCssSource.find("@media (max-width: 980px)") != std::string::npos &&
+                    indexCssSource.find(".graph-canvas-workspace { grid-template-columns: minmax(0, 1fr); }") != std::string::npos &&
+                    indexCssSource.find(".graph-inspector-actions { grid-template-columns: minmax(0, 1fr); }") != std::string::npos,
+                "graph inspector should use a bounded desktop side panel and collapse cleanly at tablet and phone widths");
         expect(indexCssSource.find(".app-shell > main { min-width: 0; }") != std::string::npos &&
                     indexCssSource.find(".tabs { display: flex; gap: 8px; flex-wrap: wrap; }") != std::string::npos &&
                     indexCssSource.find(".row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-bottom: 12px; }") != std::string::npos,
@@ -3993,9 +4089,17 @@ int main() {
                "webview README should document the /graph shell route for the full-page Focus Graph canvas");
         expect(webviewReadme.find("item-rooted and bounded") != std::string::npos &&
                     webviewReadme.find("global all-node graph") != std::string::npos &&
-                    webviewReadme.find("click a graph node to re-root the bounded graph query") != std::string::npos &&
+                    webviewReadme.find("select a graph node without changing the root") != std::string::npos &&
+                    webviewReadme.find("explicit `Set root` action") != std::string::npos &&
                     webviewReadme.find("Hidden or faded nodes and edges always stay diagnosable") != std::string::npos,
                 "webview README should describe the item-rooted bounded graph canvas and no-global-default behavior");
+        expect(webviewReadme.find("### Graph node inspector") != std::string::npos &&
+                    webviewReadme.find("Mouse click, Enter, and Space") != std::string::npos &&
+                    webviewReadme.find("Only the compact fields are retained") != std::string::npos &&
+                    webviewReadme.find("Pin and hide are reversible in-memory view state") != std::string::npos &&
+                    webviewReadme.find("manually hidden node leaves an explicit diagnostic") != std::string::npos &&
+                    webviewReadme.find("cleared with the base graph") != std::string::npos,
+                "webview README should document inspector activation, compact metadata, ephemeral state, and hide diagnostics");
         expect(webviewReadme.find("zoom out, zoom in, fit all, fit focused subgraph, and reset view") != std::string::npos &&
                     webviewReadme.find("pointer drag panning") != std::string::npos &&
                     webviewReadme.find("Reset view only") != std::string::npos,

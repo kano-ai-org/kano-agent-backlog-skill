@@ -3,6 +3,8 @@
 #include <string>
 #include <string_view>
 
+#include "backboard_graph_inspector_js.hpp"
+
 namespace kano::backlog::webview::assets {
 
 inline constexpr std::string_view kBackboardAppJsPart1 = R"JS(
@@ -65,6 +67,16 @@ inline constexpr std::string_view kBackboardAppJsPart1 = R"JS(
         graphExpansionGeneration: 0,
         graphExpansionRequestSeq: 0,
         graphExpansionNotice: '',
+       graphSelectedNodeKey: '',
+       graphInspectionFocusKey: '',
+       graphPinnedNodeKeys: new Set(),
+       graphHiddenNodeKeys: new Set(),
+       graphInspectorDetails: new Map(),
+       graphInspectorStatuses: new Map(),
+       graphInspectorRequest: null,
+       graphInspectorRequestSeq: 0,
+       graphInspectorGeneration: 0,
+       graphInspectorNotice: '',
        graphViewport: {
          scale: 1,
          x: 0,
@@ -869,6 +881,8 @@ inline constexpr std::string_view kBackboardAppJsPart1b = R"JS(
       if (value === 'outside-depth') return 'outside requested depth';
       if (value === 'disconnected') return 'disconnected from focused root';
       if (value === 'root-missing') return 'focused root missing from graph response';
+      if (value === 'manual-hide') return 'manually hidden with diagnostics';
+      if (value === 'pinned') return 'pinned in ephemeral view state';
       return value || 'included';
     }
 
@@ -1186,7 +1200,10 @@ inline constexpr std::string_view kBackboardAppJsPart1bb = R"JS(
       return currentId !== baseId ||
         currentProduct !== baseProduct ||
         state.graphMaxDepth !== baseDepth ||
-        normalizeGraphIsolationMode(state.graphIsolationMode) !== 'fade';
+        normalizeGraphIsolationMode(state.graphIsolationMode) !== 'fade' ||
+        Boolean(state.graphInspectionFocusKey) ||
+        state.graphPinnedNodeKeys.size > 0 ||
+        state.graphHiddenNodeKeys.size > 0;
     }
 
     function syncGraphIsolationControls() {
@@ -1214,7 +1231,7 @@ inline constexpr std::string_view kBackboardAppJsPart1bb = R"JS(
       const scopeHelp = document.getElementById('graph-scope-help');
       if (scopeHelp) {
         scopeHelp.textContent = state.graphItemId
-          ? 'Click a node to re-root this bounded graph. Depth updates the bounded neighborhood; unrelated nodes stay diagnosable when faded or hidden.'
+          ? 'Select a node to inspect it without changing root. Re-root, local isolate, bounded expansion, pin, and hide are explicit inspector actions; hidden relationship evidence stays diagnosable.'
           : 'Select an item to enable bounded graph isolation. Reset scope restores the incoming root or scaffold.';
       }
     }
@@ -1254,6 +1271,7 @@ inline constexpr std::string_view kBackboardAppJsPart1bb = R"JS(
     }
 
     function clearGraphExpansionScope(reason = '') {
+      clearGraphInspectionScope(reason || 'base graph scope changed');
       state.graphExpansionGeneration += 1;
       state.graphExpansionRequests.forEach((request) => request?.controller?.abort?.());
       state.graphExpansionRequests.clear();
@@ -2894,6 +2912,15 @@ inline constexpr std::string_view kBackboardAppJsPart5aa = R"JS(
     }
 
     function graphFocusNodeId(nodes) {
+      const inspectionFocus = String(state.graphInspectionFocusKey || '').trim();
+      if (inspectionFocus) {
+        const selected = nodes.find((node) =>
+          graphCanonicalNodeKey(node) === inspectionFocus
+        );
+        if (selected) {
+          return String(selected.id || '');
+        }
+      }
       const requested = String(state.graphItemId || '').trim();
       if (!requested) {
         return '';
@@ -2918,6 +2945,9 @@ inline constexpr std::string_view kBackboardAppJsPart5aa = R"JS(
       }
       if (fromReason === 'root-missing' || toReason === 'root-missing') {
         return 'root-missing';
+      }
+      if (fromReason === 'manual-hide' || toReason === 'manual-hide') {
+        return 'manual-hide';
       }
       return fromReason || toReason || 'unrelated';
     }
@@ -2961,6 +2991,9 @@ inline constexpr std::string_view kBackboardAppJsPart5aa = R"JS(
       const nodeReasonCounts = new Map();
       nodes.forEach((node) => {
         const nodeId = String(node.id || '');
+        const nodeKey = graphCanonicalNodeKey(node);
+        const pinned = state.graphPinnedNodeKeys.has(nodeKey);
+        const manuallyHidden = state.graphHiddenNodeKeys.has(nodeKey) && !pinned;
         let reason = 'within-depth';
         let visibility = 'visible';
         if (rootMissing) {
@@ -2979,6 +3012,13 @@ inline constexpr std::string_view kBackboardAppJsPart5aa = R"JS(
             visibility = mode === 'hide' ? 'hidden' : 'faded';
           }
         }
+        if (manuallyHidden) {
+          reason = 'manual-hide';
+          visibility = 'hidden';
+        } else if (pinned && visibility !== 'visible') {
+          reason = 'pinned';
+          visibility = 'visible';
+        }
         nodeVisibility.set(nodeId, visibility);
         nodeReason.set(nodeId, reason);
         if (visibility !== 'visible') {
@@ -2993,14 +3033,18 @@ inline constexpr std::string_view kBackboardAppJsPart5aa = R"JS(
         const key = `${String(edge.from || '')}->${String(edge.to || '')}#${index}`;
         const fromVisibility = nodeVisibility.get(String(edge.from || '')) || 'visible';
         const toVisibility = nodeVisibility.get(String(edge.to || '')) || 'visible';
+        const fromReason = nodeReason.get(String(edge.from || '')) || '';
+        const toReason = nodeReason.get(String(edge.to || '')) || '';
+        const manualHideIncident = fromReason === 'manual-hide' || toReason === 'manual-hide';
         const relatedToUnscopedNode = fromVisibility !== 'visible' || toVisibility !== 'visible';
-        const visibility = mode === 'hide' && relatedToUnscopedNode
+        const visibility = manualHideIncident
           ? 'hidden'
-          : (relatedToUnscopedNode ? 'faded' : 'visible');
-        const reason = graphEdgeIsolationReason(
-          nodeReason.get(String(edge.from || '')) || '',
-          nodeReason.get(String(edge.to || '')) || ''
-        );
+          : (mode === 'hide' && relatedToUnscopedNode
+            ? 'hidden'
+            : (relatedToUnscopedNode ? 'faded' : 'visible'));
+        const reason = manualHideIncident
+          ? 'manual-hide'
+          : graphEdgeIsolationReason(fromReason, toReason);
         edgeVisibility.set(key, visibility);
         edgeReason.set(key, visibility === 'visible' ? '' : reason);
         if (visibility !== 'visible') {
@@ -3025,6 +3069,12 @@ inline constexpr std::string_view kBackboardAppJsPart5aa = R"JS(
         visibleEdgeCount: [...edgeVisibility.values()].filter((value) => value === 'visible').length,
         fadedEdgeCount: [...edgeVisibility.values()].filter((value) => value === 'faded').length,
         hiddenEdgeCount: [...edgeVisibility.values()].filter((value) => value === 'hidden').length,
+        manualHiddenNodeCount: nodes.filter((node) =>
+          state.graphHiddenNodeKeys.has(graphCanonicalNodeKey(node))
+        ).length,
+        pinnedNodeCount: nodes.filter((node) =>
+          state.graphPinnedNodeKeys.has(graphCanonicalNodeKey(node))
+        ).length,
       };
     }
 
@@ -3613,18 +3663,25 @@ inline constexpr std::string_view kBackboardAppJsPart5aaab = R"JS(
         const isFocusRoot = nodeId === isolation.focusNodeId;
         const rerootId = String(node.item_id || node.id || '');
         const rerootProduct = String(node.product || state.graphItemProduct || '');
-        const rerootable = Boolean(rerootId);
+        const canonicalKey = graphCanonicalNodeKey(node);
+        const selectable = Boolean(rerootId && canonicalKey);
+        const selected = canonicalKey === state.graphSelectedNodeKey;
+        const pinned = state.graphPinnedNodeKeys.has(canonicalKey);
+        const localFocus = canonicalKey === state.graphInspectionFocusKey;
         const classes = [graphNodeClass(node, incomingDependency.has(node.id))];
         if (visibility === 'faded') classes.push('is-faded');
         if (reason === 'focus-root' || reason === 'within-depth') classes.push('is-included-neighborhood');
         if (isFocusRoot) classes.push('is-focus-root');
         if (node._graph_overlay_key) classes.push('is-overlay');
-        if (rerootable) classes.push('is-rerootable');
-        return `<g class="${escAttr(classes.join(' '))}" transform="translate(${pos.x}, ${pos.y})" data-graph-node-id="${escAttr(rerootId)}" data-graph-node-product="${escAttr(rerootProduct)}" data-node-visibility="${escAttr(visibility)}" data-node-reason="${escAttr(reason)}" data-focus-root="${isFocusRoot ? 'true' : 'false'}" data-graph-overlay-kind="${escAttr(node._graph_overlay_kind || '')}"${rerootable ? ' tabindex="0" role="button"' : ''}>` +
+        if (selectable) classes.push('is-selectable');
+        if (selected) classes.push('is-selected');
+        if (pinned) classes.push('is-pinned');
+        if (localFocus) classes.push('is-local-focus');
+        return `<g class="${escAttr(classes.join(' '))}" transform="translate(${pos.x}, ${pos.y})" data-graph-node-id="${escAttr(rerootId)}" data-graph-node-product="${escAttr(rerootProduct)}" data-graph-node-key="${escAttr(canonicalKey)}" data-node-visibility="${escAttr(visibility)}" data-node-reason="${escAttr(reason)}" data-focus-root="${isFocusRoot ? 'true' : 'false'}" data-graph-overlay-kind="${escAttr(node._graph_overlay_kind || '')}"${selectable ? ` tabindex="0" role="button" aria-label="Inspect ${escAttr(rerootId)}" aria-pressed="${selected ? 'true' : 'false'}"` : ''}>` +
           `<rect width="${pos.w}" height="${pos.h}"></rect>` +
           `<text class="graph-label" x="10" y="20">${esc(shortGraphLabel(node.item_id || node.id, 24))}</text>` +
           `<text class="graph-meta" x="10" y="38">${esc(shortGraphLabel(node.label || '', 30))}</text>` +
-          `<title>${esc(`${node.id || ''} ${meta} / ${graphIsolationReasonLabel(reason)}${node._graph_overlay_kind ? ` / ${node._graph_overlay_kind} expansion overlay` : ' / base graph'}${rerootable ? ' / click to re-root' : ''}`)}</title>` +
+          `<title>${esc(`${node.id || ''} ${meta} / ${graphIsolationReasonLabel(reason)}${node._graph_overlay_kind ? ` / ${node._graph_overlay_kind} expansion overlay` : ' / base graph'}${selectable ? ' / activate to inspect' : ''}`)}</title>` +
         `</g>`;
       }).join('');
 
@@ -3655,26 +3712,26 @@ inline constexpr std::string_view kBackboardAppJsPart5aaab = R"JS(
       ).join('');
     }
 
-    function bindGraphNodeRerooting() {
+    function bindGraphNodeSelection() {
       const container = document.getElementById('graph-list');
       if (!container) {
         return;
       }
-      container.querySelectorAll('[data-graph-node-id]').forEach((node) => {
+      container.querySelectorAll('[data-graph-node-key][role="button"]').forEach((node) => {
         if (node.__kobGraphNodeBound) {
           return;
         }
         node.__kobGraphNodeBound = true;
         const activate = async () => {
-          const nextId = node.getAttribute('data-graph-node-id') || '';
-          const nextProduct = node.getAttribute('data-graph-node-product') || '';
-          if (!nextId) {
+          const key = node.getAttribute('data-graph-node-key') || '';
+          if (!key) {
             return;
           }
-          setGraphRoot(nextId, nextProduct, { reason: 'graph node re-rooted' });
+          await selectGraphNode(key, { focusInspector: true });
         };
         node.addEventListener('click', async (event) => {
           event.preventDefault();
+          event.stopPropagation();
           await activate();
         });
         node.addEventListener('keydown', async (event) => {
@@ -4121,6 +4178,7 @@ inline constexpr std::string_view kBackboardAppJsPart5ad = R"JS(
       const composition = composeGraphPayload(baseData);
       const nodes = composition.nodes;
       const edges = composition.edges;
+      pruneGraphInspectionState(nodes);
       state.graphPayload = { ...baseData, nodes, edges };
       const currentPreset = syncGraphModeControls(baseData);
       syncGraphIsolationControls();
@@ -4145,14 +4203,15 @@ inline constexpr std::string_view kBackboardAppJsPart5ad = R"JS(
         ? `${isolation.hiddenNodeCount} hidden node(s), ${isolation.hiddenEdgeCount} hidden edge(s)`
         : `${isolation.fadedNodeCount} faded node(s), ${isolation.fadedEdgeCount} faded edge(s)`;
       const focusLabel = isolation.focusNodeId || state.graphItemId || 'n/a';
+      const focusKind = state.graphInspectionFocusKey ? 'selected-node local focus' : 'graph root';
       const cycleAudit = baseData.mode === 'cycles' ? renderCycleAudit(baseData.cycle_audit) : '';
       const hierarchySummary = baseData.mode === 'structure' ? renderHierarchySummary(baseData.hierarchy_summary) : '';
       updateFocusGraphPageChrome();
       document.getElementById('graph-summary').textContent =
-        `${modeLabel}: base ${baseNodes.length} node(s), ${baseEdges.length} edge(s), ${missing.length} missing node(s)${truncated} | composed ${nodes.length} node(s), ${edges.length} edge(s) | focus ${focusLabel} | neighborhood depth ${isolation.maxDepth} | isolation ${graphIsolationModeLabel(isolation.mode)} | ${isolationCounts} | caps ${caps}`;
+        `${modeLabel}: base ${baseNodes.length} node(s), ${baseEdges.length} edge(s), ${missing.length} missing node(s)${truncated} | composed ${nodes.length} node(s), ${edges.length} edge(s) | ${focusKind} ${focusLabel} | neighborhood depth ${isolation.maxDepth} | isolation ${graphIsolationModeLabel(isolation.mode)} | ${isolationCounts} | manual hide ${isolation.manualHiddenNodeCount} | pinned ${isolation.pinnedNodeCount} | caps ${caps}`;
 
       const diagnostics = [
-        `<div class="card"><strong>Isolation scope</strong><div class="muted">Focus root ${esc(focusLabel)} / ${esc(graphIsolationModeLabel(isolation.mode))} / depth ${esc(String(isolation.maxDepth))}</div><div class="graph-diagnostic-pills"><span class="pill">canvas nodes ${displayedNodeCount}</span><span class="pill">canvas edges ${displayedEdgeCount}</span><span class="pill">included nodes ${isolation.visibleNodeCount}</span></div></div>`,
+        `<div class="card"><strong>Isolation scope</strong><div class="muted">${esc(focusKind)} ${esc(focusLabel)} / ${esc(graphIsolationModeLabel(isolation.mode))} / depth ${esc(String(isolation.maxDepth))}</div><div class="graph-diagnostic-pills"><span class="pill">canvas nodes ${displayedNodeCount}</span><span class="pill">canvas edges ${displayedEdgeCount}</span><span class="pill">included nodes ${isolation.visibleNodeCount}</span></div></div>`,
         `<div class="card"><strong>${esc(isolation.mode === 'hide' ? 'Hidden' : 'Faded')} unrelated graph elements</strong><div class="muted">Unrelated nodes are never removed silently; counts and reasons stay visible here even when the canvas hides them.</div><div class="graph-diagnostic-pills">${renderGraphIsolationCountPills(isolation.nodeReasonCounts)}</div><div class="graph-diagnostic-pills">${renderGraphIsolationCountPills(isolation.edgeReasonCounts)}</div></div>`,
         ...(isolation.rootMissing
           ? [`<div class="card"><strong>Focused root missing</strong><div class="muted">${esc(state.graphItemId || 'requested root')} was not returned in the bounded graph response, so all returned nodes stay visible with a root-missing diagnostic.</div></div>`]
@@ -4176,7 +4235,8 @@ inline constexpr std::string_view kBackboardAppJsPart5ad = R"JS(
         cycleAudit,
         hierarchySummary,
         renderGraphExpansionDiagnostics(composition),
-        graphRender.markup,
+        renderGraphEphemeralDiagnostics(nodes, edges),
+        `<div class="graph-canvas-workspace"><div class="graph-canvas-column">${graphRender.markup}</div>${renderGraphNodeInspector(baseData, nodes, edges)}</div>`,
         diagnostics ? `<div class="graph-diagnostics">${diagnostics}</div>` : '',
         `<h4>Edge details</h4>`,
         ...(edges.slice(0, 120).map((edge, index) => {
@@ -4193,14 +4253,31 @@ inline constexpr std::string_view kBackboardAppJsPart5ad = R"JS(
           const reason = isolation.nodeReason.get(nodeId) || 'within-depth';
           const rerootId = String(node.item_id || node.id || '');
           const overlay = node._graph_overlay_kind ? `<span class="pill">${esc(node._graph_overlay_kind)} expansion overlay</span>` : '<span class="pill">base graph</span>';
-          return `<div class="card graph-node-detail${node._graph_overlay_kind ? ' is-overlay' : ''}"><div class="detail-title-row"><code>${esc(node.id || '')}</code>${overlay}</div><div>${esc(node.label || '')}</div><div class="muted">${esc(node.kind || '')} ${esc(node.state || '')} / ${esc(visibility)} / ${esc(graphIsolationReasonLabel(reason))}${rerootId ? ` / re-root ${esc(rerootId)}` : ''}</div>${renderGraphExpansionControls(node)}</div>`;
+          return `<div class="card graph-node-detail${node._graph_overlay_kind ? ' is-overlay' : ''}"><div class="detail-title-row"><code>${esc(node.id || '')}</code>${overlay}</div><div>${esc(node.label || '')}</div><div class="muted">${esc(node.kind || '')} ${esc(node.state || '')} / ${esc(visibility)} / ${esc(graphIsolationReasonLabel(reason))}${rerootId ? ` / inspectable ${esc(rerootId)}` : ''}</div>${renderGraphExpansionControls(node)}</div>`;
         })),
       ].join('');
       bindBlockerChainJumpActions();
-      bindGraphNodeRerooting();
+      bindGraphNodeSelection();
+      bindGraphNodeInspectorActions();
+      bindGraphEphemeralDiagnostics();
       bindGraphExpansionControls();
       initializeGraphViewport(graphRender.layout || {}, { preserveViewport: !!options.preserveViewport });
       if (options.focusExpansionKey) focusGraphExpansionControl(options.focusExpansionKey);
+      if (options.focusInspectorAction) {
+        focusGraphInspectorAction(options.focusInspectorAction);
+      } else if (options.focusInspector) {
+        document.getElementById('graph-node-inspector')?.focus?.({ preventScroll: true });
+      } else if (options.focusNodeKey) {
+        const focusNode = [...document.querySelectorAll('[data-graph-node-key]')]
+          .find((node) => node.getAttribute('data-graph-node-key') === options.focusNodeKey);
+        if (focusNode) {
+          focusNode.focus?.({ preventScroll: true });
+        } else {
+          document.getElementById('graph-canvas')?.focus?.({ preventScroll: true });
+        }
+      } else if (options.focusCanvas) {
+        document.getElementById('graph-canvas')?.focus?.({ preventScroll: true });
+      }
     }
 
     async function loadGraph(signal, refresh) {
@@ -5002,6 +5079,7 @@ inline const std::string& BackboardAppJs() {
         kBackboardAppJsPart5ab.size() +
         kBackboardAppJsPart5ac.size() +
         kBackboardAppJsPart5ad.size() +
+        kBackboardGraphInspectorJs.size() +
         kBackboardAppJsPart5b.size() +
         kBackboardAppJsPart6.size() +
         kBackboardAppJsPart7.size());
@@ -5021,6 +5099,7 @@ inline const std::string& BackboardAppJs() {
     text.append(kBackboardAppJsPart5ab);
     text.append(kBackboardAppJsPart5ac);
     text.append(kBackboardAppJsPart5ad);
+    text.append(kBackboardGraphInspectorJs);
     text.append(kBackboardAppJsPart5b);
     text.append(kBackboardAppJsPart6);
     text.append(kBackboardAppJsPart7);

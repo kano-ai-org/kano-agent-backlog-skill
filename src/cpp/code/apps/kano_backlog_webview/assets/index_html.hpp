@@ -221,7 +221,7 @@ inline constexpr std::string_view kIndexHtmlBetweenAssets = R"HTML(
          </div>
          <div class="muted graph-viewport-help">Focus the graph canvas to pan with arrow keys and zoom with +, -, or 0. Drag to pan and use the mouse wheel to zoom around the pointer.</div>
        </div>
-       <div id="graph-scope-help" class="muted graph-scope-help">Click a node to re-root this bounded graph and keep diagnostics visible for unrelated nodes.</div>
+       <div id="graph-scope-help" class="muted graph-scope-help">Select a node to inspect it without changing root; graph-changing operations are explicit panel actions.</div>
        <div id="graph-mode-help" class="muted graph-mode-help"></div>
      </div>
     <div id="graph-summary" class="muted" style="margin-bottom:8px;"></div>

@@ -170,9 +170,12 @@ inline constexpr std::string_view kBackboardCssPart2 = R"CSS(
     .graph-node.is-focus-root rect { fill: var(--kob-accent-soft); stroke: var(--kob-accent); stroke-width: 2.5; }
     .graph-node.is-overlay rect { stroke-dasharray: 3 3; }
     .graph-node.is-faded { opacity: 0.34; }
-    .graph-node.is-rerootable { cursor: pointer; }
-    .graph-node.is-rerootable:hover rect { stroke: var(--kob-accent); stroke-width: 2; filter: drop-shadow(0 4px 10px var(--kob-shadow)); }
-    .graph-node.is-rerootable:focus-visible rect { stroke: var(--kob-accent); stroke-width: 2.5; filter: drop-shadow(0 4px 10px var(--kob-shadow)); }
+    .graph-node.is-selectable { cursor: pointer; }
+    .graph-node.is-selectable:hover rect { stroke: var(--kob-accent); stroke-width: 2; filter: drop-shadow(0 4px 10px var(--kob-shadow)); }
+    .graph-node.is-selectable:focus-visible rect { stroke: var(--kob-accent); stroke-width: 2.5; filter: drop-shadow(0 4px 10px var(--kob-shadow)); }
+    .graph-node.is-selected rect { fill: #fff8e8; stroke: #b57b18; stroke-width: 2.5; filter: drop-shadow(0 4px 10px var(--kob-shadow)); }
+    .graph-node.is-pinned rect { stroke-dasharray: 7 3; }
+    .graph-node.is-local-focus rect { stroke-width: 3; }
     .graph-label { font-size: 12px; fill: #1a1f2e; }
     .graph-meta { font-size: 10px; fill: #65738b; }
     .graph-edge-label { font-size: 10px; fill: #47536a; }
@@ -192,6 +195,32 @@ inline constexpr std::string_view kBackboardCssPart2 = R"CSS(
     .graph-expansion-btn:focus-visible { outline: 3px solid var(--kob-accent-border); outline-offset: 2px; }
     .graph-expansion-statuses { display: grid; gap: 4px; min-width: 0; }
     .graph-expansion-status { color: #586074; font-size: 12px; overflow-wrap: anywhere; }
+    .graph-canvas-workspace { display: grid; grid-template-columns: minmax(0, 1fr) minmax(280px, 340px); gap: 12px; align-items: start; min-width: 0; margin-bottom: 12px; }
+    .graph-canvas-column { min-width: 0; }
+    .graph-canvas-column .graph-canvas { margin-bottom: 0; }
+    .graph-node-inspector { position: sticky; top: 8px; display: grid; gap: 12px; max-height: min(720px, 78vh); overflow: auto; min-width: 0; padding: 12px; border: 1px solid var(--kob-border-strong); border-radius: 10px; background: var(--kob-surface-strong); box-shadow: 0 8px 22px var(--kob-shadow); outline: none; }
+    .graph-node-inspector:focus-visible { box-shadow: 0 0 0 3px var(--kob-accent-border), 0 8px 22px var(--kob-shadow); }
+    .graph-inspector-head { display: flex; gap: 8px; align-items: flex-start; justify-content: space-between; min-width: 0; }
+    .graph-inspector-head h4 { margin: 0; overflow-wrap: anywhere; }
+    .graph-inspector-close { flex: 0 0 auto; }
+    .graph-inspector-identity, .graph-inspector-relationships, .graph-inspector-relationship { display: grid; gap: 7px; min-width: 0; }
+    .graph-inspector-identity code, .graph-inspector-ref-list code { overflow-wrap: anywhere; word-break: break-word; }
+    .graph-inspector-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px; min-width: 0; }
+    .graph-inspector-actions .btn { min-width: 0; min-height: 34px; white-space: normal; }
+    .graph-inspector-actions .btn[aria-pressed="true"] { border-color: var(--kob-accent); background: var(--kob-accent-soft); }
+    .graph-inspector-actions .btn[disabled] { opacity: 0.58; cursor: default; }
+    .graph-inspector-warning { border: 1px solid #d5b15d; border-left: 4px solid #b57b18; border-radius: 6px; padding: 8px 10px; background: #fff9e8; color: #6a4c0f; overflow-wrap: break-word; }
+    .graph-inspector-expansion-status { display: grid; gap: 5px; color: #586074; font-size: 12px; overflow-wrap: anywhere; }
+    .graph-inspector-ref-list { display: grid; gap: 5px; margin: 0; padding: 0; list-style: none; min-width: 0; }
+    .graph-inspector-ref-list li { display: flex; gap: 6px; align-items: baseline; justify-content: space-between; flex-wrap: wrap; min-width: 0; }
+    .graph-inspector-count { color: #1a1f2e; }
+    .graph-inspector-boundary { padding-top: 8px; border-top: 1px solid var(--kob-border); line-height: 1.45; }
+    .graph-view-state-diagnostics { display: grid; gap: 8px; margin-bottom: 12px; min-width: 0; padding: 10px; border: 1px solid var(--kob-border); border-radius: 8px; background: var(--kob-surface); }
+    .graph-view-state-list, .graph-view-state-actions { display: grid; gap: 7px; min-width: 0; }
+    .graph-view-state-row { display: flex; gap: 8px; align-items: center; justify-content: space-between; min-width: 0; padding-top: 7px; border-top: 1px solid var(--kob-border); }
+    .graph-view-state-row > div { min-width: 0; }
+    .graph-view-state-row code { overflow-wrap: anywhere; word-break: break-word; }
+    .graph-view-state-select { justify-self: start; max-width: 100%; white-space: normal; overflow-wrap: anywhere; }
     .graph-page-head { display: flex; gap: 12px; align-items: flex-start; justify-content: space-between; flex-wrap: wrap; margin-bottom: 12px; }
     .graph-page-title { display: grid; gap: 4px; }
     .graph-page-title h3 { margin: 0; }
@@ -261,12 +290,18 @@ inline constexpr std::string_view kBackboardCssPart2 = R"CSS(
     .hierarchy-hidden, .hierarchy-warning { border: 1px solid #d5b15d; border-left: 4px solid #b57b18; border-radius: 6px; padding: 8px 10px; background: #fff9e8; color: #6a4c0f; overflow-wrap: break-word; }
     .hierarchy-jump { justify-self: start; }
     .hierarchy-jump:focus-visible { outline: 3px solid var(--kob-accent-border); outline-offset: 2px; }
+    @media (max-width: 980px) {
+      .graph-canvas-workspace { grid-template-columns: minmax(0, 1fr); }
+      .graph-node-inspector { position: static; max-height: none; }
+    }
     @media (max-width: 720px) {
       body { padding: 12px; }
       .app-shell { grid-template-columns: minmax(0, 1fr); }
       .sidebar { position: static; top: auto; }
       .assignment-filter-fields, .assignment-columns { grid-template-columns: minmax(0, 1fr); }
       .assignment-columns-compact { width: calc(100% - 14px); margin-left: 14px; }
+      .graph-inspector-actions { grid-template-columns: minmax(0, 1fr); }
+      .graph-view-state-row { align-items: flex-start; flex-direction: column; }
     }
 )CSS";
 
