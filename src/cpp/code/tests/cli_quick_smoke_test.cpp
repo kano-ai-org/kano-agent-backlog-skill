@@ -88,6 +88,31 @@ Json::Value read_json(const std::filesystem::path& path) {
     return root;
 }
 
+std::size_t count_occurrences(const std::string& text, const std::string& needle) {
+    if (needle.empty()) {
+        return 0;
+    }
+    std::size_t count = 0;
+    std::size_t position = 0;
+    while ((position = text.find(needle, position)) != std::string::npos) {
+        ++count;
+        position += needle.size();
+    }
+    return count;
+}
+
+bool json_array_contains_string(const Json::Value& array, const std::string& expected) {
+    if (!array.isArray()) {
+        return false;
+    }
+    for (const auto& value : array) {
+        if (value.isString() && value.asString() == expected) {
+            return true;
+        }
+    }
+    return false;
+}
+
 const Json::Value* find_json_object(
     const Json::Value& root,
     const std::string& array_key,
@@ -294,6 +319,38 @@ int main(int argc, char** argv) {
         const auto binary = find_binary(repo_root, executable_path);
         expect(std::filesystem::exists(binary), "native binary not found for cli_quick_smoke_test");
         std::filesystem::current_path(std::filesystem::exists(repo_root) ? repo_root : binary.parent_path());
+
+        const std::vector<std::string> reactivation_dogfood_ids = {
+            "KOB-TSK-0025",
+            "KOB-TSK-0006",
+            "KOB-BUG-0020",
+            "KOB-TSK-0028",
+            "KOB-TSK-0030",
+            "KOB-TSK-0001",
+            "KOB-TSK-0004",
+        };
+        const auto skill_contract = read_text(repo_root / "SKILL.md");
+        expect(skill_contract.find("### Reactivation Review") != std::string::npos,
+            "SKILL contract should define Reactivation Review");
+        expect(skill_contract.find("### Stale Solution Check") != std::string::npos,
+            "SKILL contract should define Stale Solution Check");
+        expect(skill_contract.find("Bug evidence can remain valid") != std::string::npos &&
+                   skill_contract.find("old proposed fix is untrusted") != std::string::npos,
+            "SKILL contract should distinguish durable bug evidence from an untrusted old proposed fix");
+        for (const auto* state_row : {
+                 "| Proposed |",
+                 "| Ready |",
+                 "| InProgress |",
+                 "| Review |",
+                 "| Done / Post-Done |",
+             }) {
+            expect(skill_contract.find(state_row) != std::string::npos,
+                std::string("SKILL contract should cover reactivation state row ") + state_row);
+        }
+        for (const auto& dogfood_id : reactivation_dogfood_ids) {
+            expect(skill_contract.find(dogfood_id) != std::string::npos,
+                "SKILL contract should list initial reactivation dogfood item " + dogfood_id);
+        }
 
         expect(run_command(binary, {"--help"}) == 0, "help command failed");
         expect(run_command(binary, {"--version"}) == 0, "version command failed");
@@ -1316,7 +1373,7 @@ int main(int argc, char** argv) {
         expect(run_command(binary, {"-P", "quick-smoke-product", "workitem", "set-ready", "QS-TSK-0002",
             "--context", "Child task context.",
             "--goal", "Child task goal.",
-            "--approach", "Child task approach.",
+            "--approach", "Child task approach. Reactivation dogfood evidence: KOB-TSK-0025, KOB-TSK-0006, KOB-BUG-0020, KOB-TSK-0028, KOB-TSK-0030, KOB-TSK-0001, KOB-TSK-0004.",
             "--acceptance-criteria", "Child task acceptance.",
             "--risks", "Child task risks.",
             "--agent", "tester"}) == 0,
@@ -1431,11 +1488,16 @@ int main(int argc, char** argv) {
             "intent-stack json failed"
         );
         const auto intent_stack_json_text = read_text(intent_stack_json_output);
+        const auto intent_stack_payload = read_json(intent_stack_json_output);
         expect(intent_stack_json_text.find("\"status\" : \"complete\"") != std::string::npos, "intent-stack json should be complete");
         expect(intent_stack_json_text.find("QS-TSK-0002") != std::string::npos, "intent-stack json should include current task");
         expect(intent_stack_json_text.find("QS-FTR-0001") != std::string::npos, "intent-stack json should include parent feature");
         expect(intent_stack_json_text.find("Parent feature non-goal.") != std::string::npos, "intent-stack json should include parent non-goals");
         expect(intent_stack_json_text.find("Parent feature amendment.") != std::string::npos, "intent-stack json should include parent amendments");
+        for (const auto& dogfood_id : reactivation_dogfood_ids) {
+            expect(json_array_contains_string(intent_stack_payload["evidence_refs"], dogfood_id),
+                "intent-stack evidence contract should retain reactivation dogfood ref " + dogfood_id);
+        }
 
         const auto intent_stack_text_output = temp_root / "intent-stack.txt";
         expect_command_capture_success(
@@ -1465,6 +1527,22 @@ int main(int argc, char** argv) {
         expect(intent_template_text.find("Parent feature amendment.") != std::string::npos, "intent-template text should include intent amendments");
         expect(intent_template_text.find("# Do Not Compliance Report") != std::string::npos, "intent-template text should include compliance heading");
         expect(intent_template_text.find("OK/WARN/VIOLATION") != std::string::npos, "intent-template text should include compliance status prompts");
+        expect(intent_template_text.find("## Reactivation Review") != std::string::npos,
+            "intent-template text should include Reactivation Review");
+        expect(intent_template_text.find("## Stale Solution Check") != std::string::npos,
+            "intent-template text should include Stale Solution Check");
+        expect(count_occurrences(intent_template_text, "## Reactivation Review") == 1,
+            "intent-template text should emit Reactivation Review exactly once");
+        expect(count_occurrences(intent_template_text, "## Stale Solution Check") == 1,
+            "intent-template text should emit Stale Solution Check exactly once");
+        expect(intent_template_text.find("Bug evidence can remain valid") != std::string::npos,
+            "intent-template text should preserve bug evidence separately from stale solutions");
+        expect(intent_template_text.find("old proposed fix is untrusted") != std::string::npos,
+            "intent-template text should distrust old proposed fixes until revalidated");
+        for (const auto* state_label : {"Proposed:", "Ready:", "InProgress:", "Review:", "Done/Post-Done:"}) {
+            expect(intent_template_text.find(state_label) != std::string::npos,
+                std::string("intent-template text should cover reactivation state ") + state_label);
+        }
 
         const auto intent_template_json_output = temp_root / "intent-template.json";
         expect_command_capture_success(
@@ -1479,6 +1557,17 @@ int main(int argc, char** argv) {
         expect(intent_template_json.find("\"preflight\"") != std::string::npos, "intent-template json should include preflight object");
         expect(intent_template_json.find("\"inherited_do_not\"") != std::string::npos, "intent-template json should include inherited_do_not");
         expect(intent_template_json.find("\"intent_amendments\"") != std::string::npos, "intent-template json should include intent amendments");
+        expect(intent_template_json.find("\"reactivation_review\"") != std::string::npos,
+            "intent-template json should include reactivation review protocol");
+        expect(intent_template_json.find("\"state_matrix\"") != std::string::npos,
+            "intent-template json should include reactivation state matrix");
+        expect(intent_template_json.find("\"Done/Post-Done\"") != std::string::npos,
+            "intent-template json should cover Done/Post-Done reactivation");
+        expect(intent_template_json.find("\"stale_solution_check\"") != std::string::npos,
+            "intent-template json should include stale solution protocol");
+        expect(intent_template_json.find("\"bug_evidence\"") != std::string::npos &&
+                   intent_template_json.find("\"proposed_fix\"") != std::string::npos,
+            "intent-template json should distinguish bug evidence from the proposed fix");
 
         const auto intent_handoff_output = temp_root / "intent-handoff.txt";
         expect_command_capture_success(
@@ -1591,6 +1680,14 @@ int main(int argc, char** argv) {
         expect(no_drift_preflight_text.find("handoff allowed: yes") != std::string::npos, "no-drift preflight should state handoff allowed");
         expect(no_drift_preflight_text.find("## Deterministic Evidence Checked") != std::string::npos, "preflight should materialize deterministic evidence checks");
         expect(no_drift_preflight_text.find("parent related tickets") != std::string::npos, "preflight should report parent related tickets");
+        expect(no_drift_preflight_text.find("## Reactivation Review") != std::string::npos,
+            "preflight should emit Reactivation Review");
+        expect(no_drift_preflight_text.find("Bug evidence can remain valid") != std::string::npos,
+            "preflight should preserve bug evidence independently of a stale proposed fix");
+        expect(count_occurrences(no_drift_preflight_text, "## Reactivation Review") == 1,
+            "preflight should emit Reactivation Review exactly once");
+        expect(count_occurrences(no_drift_preflight_text, "## Stale Solution Check") == 1,
+            "preflight should emit Stale Solution Check exactly once");
 
         const auto drift_preflight_output = temp_root / "intent-drift-preflight-drift.txt";
         expect_command_capture_success(
@@ -1626,9 +1723,18 @@ int main(int argc, char** argv) {
             "intent-drift-preflight unknown json failed"
         );
         const auto unknown_preflight_json = read_text(unknown_preflight_json_output);
+        const auto unknown_preflight_payload = read_json(unknown_preflight_json_output);
         expect(unknown_preflight_json.find("\"result\" : \"uncertain\"") != std::string::npos, "unknown preflight result should normalize to uncertain");
         expect(unknown_preflight_json.find("\"explicit_blocks\"") != std::string::npos, "preflight json should include explicit blocks evidence");
         expect(unknown_preflight_json.find("\"recent_worklog\"") != std::string::npos, "preflight json should include worklog/history evidence");
+        expect(unknown_preflight_json.find("\"reactivation_review\"") != std::string::npos &&
+                   unknown_preflight_json.find("\"stale_solution_check\"") != std::string::npos,
+            "preflight json should include reactivation and stale solution protocols");
+        for (const auto& dogfood_id : reactivation_dogfood_ids) {
+            expect(json_array_contains_string(
+                       unknown_preflight_payload["intent_stack"]["evidence_refs"], dogfood_id),
+                "preflight evidence contract should retain reactivation dogfood ref " + dogfood_id);
+        }
 
         const auto proposed_amend_output = temp_root / "intent-amend-proposed.json";
         expect_command_capture_success(

@@ -3735,6 +3735,61 @@ void print_intent_stack_text(const IntentStackResult& stack, std::size_t max_sec
     std::cout << "- semantic_retrieval: external-provider-only\n";
 }
 
+Json::Value reactivation_review_protocol_json() {
+    Json::Value review(Json::objectValue);
+    review["mode"] = "warning-level";
+    review["rule"] = "Run before executing or resuming a stale or dormant item; do not mutate item state automatically.";
+    review["outcomes"] = Json::Value(Json::arrayValue);
+    for (const auto* outcome : {
+             "continue as-is",
+             "refresh and continue",
+             "rewrite approach",
+             "supersede",
+             "split",
+             "close as no-op",
+             "require human decision",
+         }) {
+        review["outcomes"].append(outcome);
+    }
+
+    Json::Value stateMatrix(Json::objectValue);
+    stateMatrix["Proposed"] = "Revalidate current need and parent intent before planning or implementation.";
+    stateMatrix["Ready"] = "Re-run Ready and intent checks; old Ready status does not prove assumptions remain current.";
+    stateMatrix["InProgress"] = "Pause implementation, run preflight, and record whether the plan resumes or changes.";
+    stateMatrix["Review"] = "Treat drift as a review finding and resolve it before Done.";
+    stateMatrix["Done/Post-Done"] = "Preserve history; use reopen semantics or a linked Bug/Task for current work.";
+    review["state_matrix"] = std::move(stateMatrix);
+    return review;
+}
+
+Json::Value stale_solution_check_protocol_json() {
+    Json::Value check(Json::objectValue);
+    check["bug_evidence"] = "Bug evidence can remain valid even when its old proposed fix is obsolete.";
+    check["proposed_fix"] = "An old proposed fix is untrusted until revalidated against current architecture, tool contracts, parent intent, and newer decisions.";
+    check["rule"] = "Do not execute an old proposed fix merely because the original bug evidence remains credible.";
+    return check;
+}
+
+void print_reactivation_review_protocol_text() {
+    std::cout << "## Reactivation Review\n";
+    std::cout << "- Mode: warning-level; do not mutate item state automatically.\n";
+    std::cout << "- Run before executing or resuming a stale or dormant item.\n";
+    std::cout << "- Outcomes: continue as-is, refresh and continue, rewrite approach, supersede, split, close as no-op, or require human decision.\n";
+    std::cout << "### State Matrix\n";
+    std::cout << "- Proposed: revalidate current need and parent intent before planning or implementation.\n";
+    std::cout << "- Ready: re-run Ready and intent checks; old Ready status does not prove assumptions remain current.\n";
+    std::cout << "- InProgress: pause implementation, run preflight, and record whether the plan resumes or changes.\n";
+    std::cout << "- Review: treat drift as a review finding and resolve it before Done.\n";
+    std::cout << "- Done/Post-Done: preserve history; use reopen semantics or a linked Bug/Task for current work.\n";
+}
+
+void print_stale_solution_check_protocol_text() {
+    std::cout << "## Stale Solution Check\n";
+    std::cout << "- Bug evidence can remain valid even when its old proposed fix is obsolete.\n";
+    std::cout << "- An old proposed fix is untrusted until revalidated against current architecture, tool contracts, parent intent, and newer decisions.\n";
+    std::cout << "- Do not execute an old proposed fix merely because the original bug evidence remains credible.\n";
+}
+
 Json::Value intent_template_json(
     const IntentStackResult& stack,
     const std::string& template_kind,
@@ -3751,6 +3806,8 @@ Json::Value intent_template_json(
     preflight["intent_amendments"] = Json::Value(Json::arrayValue);
     preflight["plan_risk_prompts"] = Json::Value(Json::arrayValue);
     preflight["stop_conditions"] = Json::Value(Json::arrayValue);
+    preflight["reactivation_review"] = reactivation_review_protocol_json();
+    preflight["stale_solution_check"] = stale_solution_check_protocol_json();
 
     Json::Value compliance(Json::objectValue);
     compliance["task_completion"] = "OK/WARN/VIOLATION: ";
@@ -3832,6 +3889,8 @@ Json::Value intent_template_json(
     preflight["stop_conditions"].append("Stop if candidate evidence conflicts and no human decision is recorded.");
     preflight["stop_conditions"].append("Stop if an old ticket's proposed fix targets obsolete architecture.");
     compliance["stale_solution_check"].append("Was any old proposed fix used?");
+    compliance["stale_solution_check"].append("Bug evidence can remain valid even when its old proposed fix is obsolete.");
+    compliance["stale_solution_check"].append("An old proposed fix is untrusted until revalidated against current architecture and tool contracts.");
     compliance["stale_solution_check"].append("Was it revalidated against current architecture?");
     compliance["stale_solution_check"].append("Was any stale approach rejected?");
     compliance["validation"].append("List commands run and whether they passed.");
@@ -3947,6 +4006,10 @@ void print_intent_template_text(
         print_trace();
         print_do_not();
         print_amendments();
+        print_reactivation_review_protocol_text();
+        if (template_kind == "preflight") {
+            print_stale_solution_check_protocol_text();
+        }
         std::cout << "## Candidate / Related Evidence\n";
         std::cout << "- Optional KOA/Miyo/semantic provider candidates supplied by ChatGPT/operator; candidate evidence only.\n";
         std::cout << "## Stale or Legacy Evidence\n";
@@ -3991,7 +4054,7 @@ void print_intent_template_text(
         if (!has_rules) {
             std::cout << "- no Do Not constraints recorded\n";
         }
-        std::cout << "## Stale Solution Check\n";
+        print_stale_solution_check_protocol_text();
         std::cout << "- Was any old proposed fix used?\n";
         std::cout << "- Was it revalidated against current architecture?\n";
         std::cout << "- Was any stale approach rejected?\n";
@@ -4400,6 +4463,8 @@ void print_intent_drift_preflight_text(
     std::cout << "- stale architecture/release terms: " << join_or_none(stale_terms) << "\n";
     std::cout << "- optional semantic candidates: provider-backed only; not generated by KOB core\n";
     std::cout << "- current KOA/Miyo/tool contracts: external evidence required when relevant\n\n";
+    print_reactivation_review_protocol_text();
+    print_stale_solution_check_protocol_text();
     std::cout << "## Evidence Classification\n";
     std::cout << "- current authority: ";
     for (const auto& entry : stack.chain) {
@@ -9669,6 +9734,8 @@ int main(int InArgc, char* InArgv[]) {
                     payload["validation_evidence"] = json_array_from_strings(validation_evidence);
                     payload["recent_worklog"] = json_array_from_strings(recent_worklog);
                     payload["stale_terms"] = json_array_from_strings(stale_terms);
+                    payload["reactivation_review"] = reactivation_review_protocol_json();
+                    payload["stale_solution_check"] = stale_solution_check_protocol_json();
                     payload["external_candidate_evidence"] = "semantic candidates, newer external decisions, and current KOA/Miyo/tool contracts must be supplied by ChatGPT/operator when relevant";
                     payload["if_drift"] = "create an Intent Drift Resolution ticket and hand that ticket to the coding agent";
                     payload["if_uncertain"] = "produce an evidence pack and require human confirmation";

@@ -180,6 +180,50 @@ Intent Engineering keeps the human purpose of work visible across agent sessions
 - Review: treat the amendment as a drift finding; do not move to Done until it is resolved or explicitly accepted.
 - Done: record post-done drift and recommend reopen, follow-up Bug, or follow-up Task depending on impact.
 
+### Reactivation Review
+
+Run a Reactivation Review before executing or resuming a stale or dormant item. This
+applies even when the item was previously Ready or implementation had already
+started. Use `kob workitem intent-drift-preflight` to collect deterministic evidence,
+then have ChatGPT/the operator classify any external candidate evidence.
+
+- Check item age and last validation evidence; the current parent chain; explicit
+  relates, blocks, blocked-by, and decisions; parent-related tickets; siblings and
+  children; current architecture and tool contracts; stale release terms; and
+  Worklog/history.
+- Treat the initial result as a warning-level review. Do not automatically close,
+  reopen, supersede, re-scope, or dispatch the item.
+- Select an explicit outcome: continue as-is, refresh and continue, rewrite the
+  approach, supersede, split, close as a no-op, or require a human decision.
+- Keep the initial dogfood set explicit when validating this protocol:
+  `KOB-TSK-0025`, `KOB-TSK-0006`, `KOB-BUG-0020`, `KOB-TSK-0028`,
+  `KOB-TSK-0030`, `KOB-TSK-0001`, and `KOB-TSK-0004`.
+- When evidence conflicts or remains insufficient, produce a bounded evidence pack
+  and require human confirmation instead of choosing intent automatically.
+
+| Item state | Reactivation handling |
+| --- | --- |
+| Proposed | Revalidate current need and parent intent before planning or implementation. |
+| Ready | Re-run the Ready and intent checks; old Ready status is not proof that assumptions remain current. |
+| InProgress | Pause implementation, run preflight, and record whether the plan can resume or must change. |
+| Review | Treat drift as a review finding and resolve it before Done. |
+| Done / Post-Done | Preserve the completed item as history; use reopen semantics or a linked Bug/Task when current behavior needs work. |
+
+### Stale Solution Check
+
+Separate observed evidence from the solution proposed when that evidence was
+recorded. Bug evidence can remain valid even when its old proposed fix is obsolete.
+An old proposed fix is untrusted until it is revalidated against current
+architecture, current tool contracts, parent intent, and newer related decisions.
+
+- Preserve reproducible symptoms, logs, test failures, and historical observations as
+  evidence unless later evidence disproves them.
+- Never execute an old proposed fix merely because the original bug evidence is still
+  credible.
+- Record which assumptions and approaches were accepted, refreshed, or rejected. If
+  the solution boundary changed, create or use an Intent Drift Resolution ticket
+  before coding-agent handoff.
+
 ### Preflight Intent Trace Template
 
 Use this compact block before non-trivial implementation:
