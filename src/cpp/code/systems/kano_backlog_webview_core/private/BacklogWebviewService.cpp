@@ -26,8 +26,41 @@ namespace kano::backlog::webview {
 namespace {
 
 constexpr const char* kDefaultReviewActorAlias = "human-reviewer";
+constexpr size_t kGraphExpansionScanLimit = 20000;
 
 std::string Trim(const std::string& value);
+
+std::string GraphExpansionKindName(const GraphExpansionKind expansion) {
+  switch (expansion) {
+    case GraphExpansionKind::Inbound:
+      return "inbound";
+    case GraphExpansionKind::Outbound:
+      return "outbound";
+    case GraphExpansionKind::Children:
+      return "children";
+    case GraphExpansionKind::Related:
+      return "related";
+  }
+  throw std::logic_error("unhandled graph expansion kind");
+}
+
+std::optional<GraphExpansionKind> ParseGraphExpansionKind(
+    const std::string& rawExpansion) {
+  const auto expansion = text::ToLower(Trim(rawExpansion));
+  if (expansion == "inbound") {
+    return GraphExpansionKind::Inbound;
+  }
+  if (expansion == "outbound") {
+    return GraphExpansionKind::Outbound;
+  }
+  if (expansion == "children") {
+    return GraphExpansionKind::Children;
+  }
+  if (expansion == "related") {
+    return GraphExpansionKind::Related;
+  }
+  return std::nullopt;
+}
 
 struct GraphModePreset {
   std::string id;
@@ -9539,6 +9572,690 @@ Json::Value BacklogWebviewService::BuildDependencyGraph(const ItemQueryOptions& 
   return response;
 }
 
+Json::Value BacklogWebviewService::ExpandGraphNeighborhood(
+    const ItemQueryOptions& options,
+    const std::string& itemId,
+    const std::string& rootProduct,
+    const GraphExpansionKind expansion,
+    GraphQueryCaps caps) {
+  caps.maxDepth = 1;
+  caps.maxChildrenPerNode =
+      std::min(caps.maxChildrenPerNode, size_t{1000});
+  caps.maxTotalNodes = std::min(caps.maxTotalNodes, size_t{1000});
+  caps.maxTotalEdges = std::min(caps.maxTotalEdges, size_t{1000});
+
+  Json::Value response(Json::objectValue);
+  response["schema"] = "kob.backboard.graph_expansion.v1";
+  response["read_only"] = true;
+  response["expansion"] = GraphExpansionKindName(expansion);
+  response["root"] = Json::nullValue;
+  response["nodes"] = Json::arrayValue;
+  response["edges"] = Json::arrayValue;
+  response["missing_nodes"] = Json::arrayValue;
+  response["invalid_refs"] = Json::arrayValue;
+  response["diagnostics"] = Json::arrayValue;
+  response["empty_neighborhood"] = true;
+  response["truncated"] = false;
+  response["scan_truncated"] = false;
+  response["scan_limit"] = static_cast<Json::UInt64>(kGraphExpansionScanLimit);
+  response["scan_count"] = Json::UInt64{0};
+  response["query_total"] = Json::UInt64{0};
+  response["query_count"] = Json::UInt64{0};
+  response["neighbor_candidate_count"] = Json::UInt64{0};
+  response["neighbor_count"] = Json::UInt64{0};
+  response["filtered_neighbor_count"] = Json::UInt64{0};
+  response["node_count"] = Json::UInt64{0};
+  response["edge_count"] = Json::UInt64{0};
+  response["missing_node_count"] = Json::UInt64{0};
+  response["invalid_ref_count"] = Json::UInt64{0};
+  response["hidden_node_count"] = Json::UInt64{0};
+  response["hidden_edge_count"] = Json::UInt64{0};
+  response["effective_caps"]["max_depth"] = Json::UInt64{1};
+  response["effective_caps"]["max_children_per_node"] =
+      static_cast<Json::UInt64>(caps.maxChildrenPerNode);
+  response["effective_caps"]["max_total_nodes"] =
+      static_cast<Json::UInt64>(caps.maxTotalNodes);
+  response["effective_caps"]["max_total_edges"] =
+      static_cast<Json::UInt64>(caps.maxTotalEdges);
+
+  response["query"]["products"] = Json::arrayValue;
+  for (const auto& product : options.products) {
+    response["query"]["products"].append(product);
+  }
+  response["query"]["q"] = options.text;
+  response["query"]["states"] = Json::arrayValue;
+  for (const auto& state : options.states) {
+    response["query"]["states"].append(state);
+  }
+  response["query"]["types"] = Json::arrayValue;
+  for (const auto& type : options.types) {
+    response["query"]["types"].append(type);
+  }
+
+  auto appendDiagnostic = [&](const std::string& code,
+                              const std::string& target,
+                              const std::string& message) {
+    for (const auto& diagnostic : response["diagnostics"]) {
+      if (diagnostic["code"].asString() == code &&
+          diagnostic["target"].asString() == target) {
+        return;
+      }
+    }
+    Json::Value diagnostic(Json::objectValue);
+    diagnostic["code"] = code;
+    diagnostic["target"] = target;
+    diagnostic["message"] = message;
+    response["diagnostics"].append(diagnostic);
+  };
+
+  auto sortJsonArray = [](Json::Value& array,
+                          const auto& less) {
+    std::vector<Json::Value> values;
+    values.reserve(array.size());
+    for (const auto& value : array) {
+      values.push_back(value);
+    }
+    std::sort(values.begin(), values.end(), less);
+    array = Json::arrayValue;
+    for (const auto& value : values) {
+      array.append(value);
+    }
+  };
+
+  auto finalize = [&]() {
+    sortJsonArray(response["missing_nodes"],
+                  [](const Json::Value& left, const Json::Value& right) {
+                    return std::make_tuple(left["id"].asString(),
+                                           left["kind"].asString(),
+                                           left["source"].asString(),
+                                           left["ref"].asString()) <
+                           std::make_tuple(right["id"].asString(),
+                                           right["kind"].asString(),
+                                           right["source"].asString(),
+                                           right["ref"].asString());
+                  });
+    sortJsonArray(response["invalid_refs"],
+                  [](const Json::Value& left, const Json::Value& right) {
+                    return std::make_tuple(left["source"].asString(),
+                                           left["kind"].asString(),
+                                           left["ref"].asString()) <
+                           std::make_tuple(right["source"].asString(),
+                                           right["kind"].asString(),
+                                           right["ref"].asString());
+                  });
+    sortJsonArray(response["diagnostics"],
+                  [](const Json::Value& left, const Json::Value& right) {
+                    return std::make_tuple(left["code"].asString(),
+                                           left["target"].asString(),
+                                           left["message"].asString()) <
+                           std::make_tuple(right["code"].asString(),
+                                           right["target"].asString(),
+                                           right["message"].asString());
+                  });
+    response["node_count"] =
+        static_cast<Json::UInt64>(response["nodes"].size());
+    response["edge_count"] =
+        static_cast<Json::UInt64>(response["edges"].size());
+    response["missing_node_count"] =
+        static_cast<Json::UInt64>(response["missing_nodes"].size());
+    response["invalid_ref_count"] =
+        static_cast<Json::UInt64>(response["invalid_refs"].size());
+    response["empty_neighborhood"] =
+        response["neighbor_count"].asUInt64() == 0 &&
+        response["edges"].empty();
+    return response;
+  };
+
+  const auto selectedProducts = ResolveSelectedProducts(options.products);
+  std::set<std::string> selectedProductSet(selectedProducts.begin(),
+                                           selectedProducts.end());
+  response["selected_products"] = Json::arrayValue;
+  for (const auto& product : selectedProducts) {
+    response["selected_products"].append(product);
+  }
+
+  auto canonicalKey = [](const Json::Value& item) {
+    return item["product"].asString() + ":" + item["id"].asString();
+  };
+  const auto query = Trim(options.text);
+  auto matchesFilters = [&](const Json::Value& item,
+                            const std::string& rawContent) {
+    if (!ContainsToken(options.types, item["type"].asString()) ||
+        !ContainsToken(options.states, item["state"].asString())) {
+      return false;
+    }
+    return query.empty() ||
+           text::ContainsCaseInsensitive(item["id"].asString(), query) ||
+           text::ContainsCaseInsensitive(item["title"].asString(), query) ||
+           text::ContainsCaseInsensitive(item["product"].asString(), query) ||
+           text::ContainsCaseInsensitive(item["topic"].asString(), query) ||
+           text::ContainsCaseInsensitive(rawContent, query);
+  };
+
+  std::map<std::string, Json::Value> allByKey;
+  std::map<std::string, std::vector<std::string>> keysByBareId;
+  std::set<std::string> matchingKeys;
+  size_t scanCount = 0;
+  bool scanTruncated = false;
+  for (const auto& product : selectedProducts) {
+    LoadProduct(product, options.forceRefresh);
+    const auto cacheIt = cacheByProduct.find(product);
+    if (cacheIt == cacheByProduct.end()) {
+      continue;
+    }
+    const auto& productCache = cacheIt->second;
+    std::vector<std::string> ids;
+    ids.reserve(productCache.primaryById.size());
+    for (const auto& [id, _] : productCache.primaryById) {
+      ids.push_back(id);
+    }
+    std::sort(ids.begin(), ids.end());
+    for (const auto& id : ids) {
+      if (scanCount >= kGraphExpansionScanLimit) {
+        scanTruncated = true;
+        break;
+      }
+      const auto primaryIt = productCache.primaryById.find(id);
+      if (primaryIt == productCache.primaryById.end()) {
+        continue;
+      }
+      const auto& record = productCache.allItems[primaryIt->second];
+      auto item = ItemToJson(record, false);
+      const auto duplicateIt = productCache.idIndexes.find(id);
+      if (duplicateIt != productCache.idIndexes.end()) {
+        item["duplicate_count"] =
+            static_cast<Json::UInt64>(duplicateIt->second.size());
+      }
+      const auto key = canonicalKey(item);
+      allByKey[key] = item;
+      keysByBareId[id].push_back(key);
+      ++scanCount;
+      if (matchesFilters(item, record.rawContent)) {
+        matchingKeys.insert(key);
+      }
+    }
+    if (scanTruncated) {
+      break;
+    }
+  }
+  for (auto& [_, keys] : keysByBareId) {
+    std::sort(keys.begin(), keys.end());
+    keys.erase(std::unique(keys.begin(), keys.end()), keys.end());
+  }
+  response["scan_count"] = static_cast<Json::UInt64>(scanCount);
+  response["query_total"] = static_cast<Json::UInt64>(matchingKeys.size());
+  response["query_count"] = static_cast<Json::UInt64>(matchingKeys.size());
+  response["scan_truncated"] = scanTruncated;
+  if (scanTruncated) {
+    response["truncated"] = true;
+    appendDiagnostic(
+        "graph_expand_scan_truncated", "graph",
+        "Configured-product relation scan reached 20,000 records; expansion completeness is not claimed.");
+  }
+
+  const auto requestedItemId = Trim(itemId);
+  const auto requestedRootProduct = Trim(rootProduct);
+  if (requestedItemId.empty()) {
+    appendDiagnostic("graph_expand_root_required", "",
+                     "Pass item to expand a one-hop graph neighborhood.");
+    return finalize();
+  }
+
+  std::optional<std::string> rootKey;
+  if (!requestedRootProduct.empty()) {
+    const auto key = requestedRootProduct + ":" + requestedItemId;
+    if (selectedProductSet.count(requestedRootProduct) == 0) {
+      bool rootExists = false;
+      if (IsValidProductName(requestedRootProduct)) {
+        LoadProduct(requestedRootProduct, options.forceRefresh);
+        const auto cacheIt = cacheByProduct.find(requestedRootProduct);
+        rootExists = cacheIt != cacheByProduct.end() &&
+                     cacheIt->second.primaryById.count(requestedItemId) > 0;
+      }
+      appendDiagnostic(
+          rootExists ? "graph_expand_root_out_of_scope"
+                     : "graph_expand_root_not_found",
+          key,
+          rootExists
+              ? "The qualified root exists but is outside the configured product scope."
+              : "The qualified graph expansion root was not found.");
+      return finalize();
+    }
+    const auto itemIt = allByKey.find(key);
+    if (itemIt == allByKey.end()) {
+      appendDiagnostic(
+          scanTruncated ? "graph_expand_root_not_found_in_bounded_scan"
+                        : "graph_expand_root_not_found",
+          key,
+          scanTruncated
+              ? "The qualified root was not observed before the bounded scan stopped; absence is not claimed."
+              : "The qualified graph expansion root was not found.");
+      return finalize();
+    }
+    if (matchingKeys.count(key) == 0) {
+      appendDiagnostic(
+          "graph_expand_root_filtered", key,
+          "The qualified root exists but is excluded by the active q/state/type filters.");
+      return finalize();
+    }
+    rootKey = key;
+  } else {
+    std::vector<std::string> activeCandidates;
+    const auto bareIt = keysByBareId.find(requestedItemId);
+    if (bareIt != keysByBareId.end()) {
+      for (const auto& key : bareIt->second) {
+        if (matchingKeys.count(key) > 0) {
+          activeCandidates.push_back(key);
+        }
+      }
+    }
+    if (activeCandidates.size() > 1) {
+      appendDiagnostic(
+          "graph_expand_root_ambiguous", requestedItemId,
+          "Multiple filtered roots share this item ID; provide root_product to select one.");
+      return finalize();
+    }
+    if (activeCandidates.size() == 1) {
+      rootKey = activeCandidates.front();
+    } else if (bareIt != keysByBareId.end() && !bareIt->second.empty()) {
+      appendDiagnostic(
+          "graph_expand_root_filtered", requestedItemId,
+          "The graph expansion root exists but is excluded by the active q/state/type filters.");
+      return finalize();
+    } else {
+      appendDiagnostic(
+          scanTruncated ? "graph_expand_root_not_found_in_bounded_scan"
+                        : "graph_expand_root_not_found",
+          requestedItemId,
+          scanTruncated
+              ? "The root was not observed before the bounded scan stopped; absence is not claimed."
+              : "The graph expansion root was not found in the configured product scope.");
+      return finalize();
+    }
+  }
+
+  const auto& rootItem = allByKey.at(*rootKey);
+  auto makeItemNode = [&](const Json::Value& item) {
+    Json::Value node(Json::objectValue);
+    const auto key = canonicalKey(item);
+    node["canonical_node_key"] = key;
+    node["id"] = key;
+    node["item_id"] = item["id"].asString();
+    node["product"] = item["product"].asString();
+    node["label"] = item["title"].asString();
+    node["kind"] = item["type"].asString();
+    node["state"] = item["state"].asString();
+    node["missing"] = false;
+    return node;
+  };
+  response["root"] = makeItemNode(rootItem);
+  response["root"]["root_product"] = rootItem["product"].asString();
+  response["root"]["root_item_id"] = rootItem["id"].asString();
+  response["root_product"] = rootItem["product"].asString();
+  response["root_item_id"] = rootItem["id"].asString();
+  response["root_key"] = *rootKey;
+  if (rootItem.get("duplicate_count", 1U).asUInt64() > 1) {
+    appendDiagnostic(
+        "graph_expand_duplicate_id", *rootKey,
+        "The selected product contains duplicate records for this ID; the canonical primary record was used.");
+  }
+
+  struct RefTarget {
+    std::string product;
+    std::string itemId;
+    std::string key;
+    std::string display;
+    bool valid = false;
+  };
+  auto resolveRef = [&](const std::string& rawRef,
+                        const std::string& defaultProduct) {
+    RefTarget target;
+    target.display = CleanListToken(rawRef);
+    if (target.display.empty()) {
+      return target;
+    }
+    const auto [product, refItemId] =
+        SplitReferenceProduct(target.display, defaultProduct);
+    target.product = product;
+    target.itemId = refItemId;
+    static const std::regex productRegex("^[A-Za-z0-9._-]+$");
+    static const std::regex itemIdRegex("^[A-Z][A-Z0-9]*-[A-Z]+-[0-9]+$");
+    target.valid = std::regex_match(target.product, productRegex) &&
+                   std::regex_match(target.itemId, itemIdRegex);
+    if (!target.valid) {
+      return target;
+    }
+    target.key = target.product + ":" + target.itemId;
+    if (target.display.find(':') == std::string::npos &&
+        allByKey.count(target.key) == 0) {
+      const auto bareIt = keysByBareId.find(target.itemId);
+      if (bareIt != keysByBareId.end() && bareIt->second.size() == 1) {
+        target.key = bareIt->second.front();
+        target.product = target.key.substr(0, target.key.find(':'));
+      } else if (bareIt != keysByBareId.end() && bareIt->second.size() > 1) {
+        appendDiagnostic(
+            "graph_expand_ref_ambiguous", target.itemId,
+            "A bare relation ref matched multiple configured products; canonical same-product resolution was retained.");
+      }
+    }
+    return target;
+  };
+
+  struct EdgeCandidate {
+    std::string from;
+    std::string to;
+    std::string kind;
+    std::string source;
+  };
+  std::map<std::string, Json::Value> candidateNodes;
+  std::vector<EdgeCandidate> candidateEdges;
+  std::set<std::tuple<std::string, std::string, std::string, std::string>>
+      candidateEdgeKeys;
+  std::set<std::tuple<std::string, std::string, std::string, std::string>>
+      missingRefKeys;
+  std::set<std::tuple<std::string, std::string, std::string>> invalidRefKeys;
+  size_t filteredNeighborCount = 0;
+
+  auto appendInvalidRef = [&](const std::string& source,
+                              const std::string& kind,
+                              const RefTarget& target) {
+    const auto key = std::make_tuple(source, kind, target.display);
+    if (!invalidRefKeys.insert(key).second) {
+      return;
+    }
+    Json::Value invalid(Json::objectValue);
+    invalid["source"] = source;
+    invalid["kind"] = kind;
+    invalid["ref"] = target.display;
+    response["invalid_refs"].append(invalid);
+    appendDiagnostic("graph_expand_invalid_ref", source,
+                     "A selected anchor relation contains an invalid item ref.");
+  };
+  auto appendMissingRef = [&](const std::string& source,
+                              const std::string& kind,
+                              const RefTarget& target) {
+    const auto key = std::make_tuple(target.key, kind, source, target.display);
+    if (!missingRefKeys.insert(key).second) {
+      return;
+    }
+    Json::Value missing(Json::objectValue);
+    missing["id"] = target.key;
+    missing["ref"] = target.display;
+    missing["source"] = source;
+    missing["kind"] = kind;
+    response["missing_nodes"].append(missing);
+    appendDiagnostic("graph_expand_missing_ref", target.key,
+                     "A selected anchor relation points to a missing item.");
+  };
+  auto appendEdgeCandidate = [&](const std::string& from,
+                                 const std::string& to,
+                                 const std::string& kind,
+                                 const std::string& source) {
+    const auto edgeKey = std::make_tuple(from, to, kind, source);
+    if (candidateEdgeKeys.insert(edgeKey).second) {
+      candidateEdges.push_back({from, to, kind, source});
+    }
+  };
+  auto appendNeighbor = [&](const RefTarget& target,
+                            const std::string& source,
+                            const std::string& kind,
+                            const std::string& from,
+                            const std::string& to,
+                            const bool reportInvalid) {
+    if (!target.valid) {
+      if (reportInvalid) {
+        appendInvalidRef(source, kind, target);
+      }
+      return;
+    }
+    if (selectedProductSet.count(target.product) == 0) {
+      appendDiagnostic(
+          "graph_expand_neighbor_out_of_scope", target.key,
+          "A relation target is outside the configured product scope and was not expanded.");
+      return;
+    }
+    const auto targetIt = allByKey.find(target.key);
+    if (targetIt == allByKey.end()) {
+      if (scanTruncated) {
+        appendDiagnostic(
+            "graph_expand_ref_unresolved_in_bounded_scan", target.key,
+            "A relation target was not observed before the bounded scan stopped; it is not reported as missing.");
+        return;
+      }
+      appendMissingRef(source, kind, target);
+      Json::Value node(Json::objectValue);
+      node["canonical_node_key"] = target.key;
+      node["id"] = target.key;
+      node["item_id"] = target.itemId;
+      node["product"] = target.product;
+      node["label"] = target.display;
+      node["kind"] = "Missing";
+      node["state"] = "unresolved";
+      node["missing"] = true;
+      if (target.key != *rootKey) {
+        candidateNodes[target.key] = node;
+      }
+      appendEdgeCandidate(from, to, kind, source);
+      return;
+    }
+    if (matchingKeys.count(target.key) == 0) {
+      ++filteredNeighborCount;
+      appendDiagnostic(
+          "graph_expand_neighbor_filtered", target.key,
+          "A one-hop relation target exists but is excluded by the active q/state/type filters.");
+      return;
+    }
+    if (target.key != *rootKey) {
+      candidateNodes[target.key] = makeItemNode(targetIt->second);
+    }
+    if (targetIt->second.get("duplicate_count", 1U).asUInt64() > 1) {
+      appendDiagnostic(
+          "graph_expand_duplicate_id", target.key,
+          "A relation target has duplicate records; the canonical primary record was used.");
+    }
+    appendEdgeCandidate(from, to, kind, source);
+  };
+
+  const auto rootProductName = rootItem["product"].asString();
+  auto appendRootDeclaredRef = [&](const Json::Value& rawRef,
+                                   const std::string& kind,
+                                   const bool targetToRoot) {
+    const auto target = resolveRef(rawRef.asString(), rootProductName);
+    appendNeighbor(target, *rootKey, kind,
+                   targetToRoot ? target.key : *rootKey,
+                   targetToRoot ? *rootKey : target.key, true);
+  };
+
+  switch (expansion) {
+    case GraphExpansionKind::Inbound:
+      for (const auto& ref : rootItem["links"]["blocked_by"]) {
+        appendRootDeclaredRef(ref, "blocked_by", true);
+      }
+      for (const auto& [sourceKey, sourceItem] : allByKey) {
+        for (const auto& ref : sourceItem["links"]["blocks"]) {
+          const auto target =
+              resolveRef(ref.asString(), sourceItem["product"].asString());
+          if (target.valid && target.key == *rootKey) {
+            RefTarget sourceTarget;
+            sourceTarget.product = sourceItem["product"].asString();
+            sourceTarget.itemId = sourceItem["id"].asString();
+            sourceTarget.key = sourceKey;
+            sourceTarget.display = sourceKey;
+            sourceTarget.valid = true;
+            appendNeighbor(sourceTarget, sourceKey, "blocks", sourceKey,
+                           *rootKey, false);
+          }
+        }
+      }
+      break;
+    case GraphExpansionKind::Outbound:
+      for (const auto& ref : rootItem["links"]["blocks"]) {
+        appendRootDeclaredRef(ref, "blocks", false);
+      }
+      for (const auto& [sourceKey, sourceItem] : allByKey) {
+        for (const auto& ref : sourceItem["links"]["blocked_by"]) {
+          const auto target =
+              resolveRef(ref.asString(), sourceItem["product"].asString());
+          if (target.valid && target.key == *rootKey) {
+            RefTarget sourceTarget;
+            sourceTarget.product = sourceItem["product"].asString();
+            sourceTarget.itemId = sourceItem["id"].asString();
+            sourceTarget.key = sourceKey;
+            sourceTarget.display = sourceKey;
+            sourceTarget.valid = true;
+            appendNeighbor(sourceTarget, sourceKey, "blocked_by", *rootKey,
+                           sourceKey, false);
+          }
+        }
+      }
+      break;
+    case GraphExpansionKind::Children:
+      for (const auto& [sourceKey, sourceItem] : allByKey) {
+        const auto parentRef = sourceItem["parent"].asString();
+        if (parentRef.empty()) {
+          continue;
+        }
+        const auto target =
+            resolveRef(parentRef, sourceItem["product"].asString());
+        if (target.valid && target.key == *rootKey) {
+          RefTarget childTarget;
+          childTarget.product = sourceItem["product"].asString();
+          childTarget.itemId = sourceItem["id"].asString();
+          childTarget.key = sourceKey;
+          childTarget.display = sourceKey;
+          childTarget.valid = true;
+          appendNeighbor(childTarget, sourceKey, "parent", *rootKey,
+                         sourceKey, false);
+        }
+      }
+      break;
+    case GraphExpansionKind::Related:
+      for (const auto& ref : rootItem["links"]["relates"]) {
+        appendRootDeclaredRef(ref, "relates", false);
+      }
+      for (const auto& [sourceKey, sourceItem] : allByKey) {
+        if (sourceKey == *rootKey) {
+          continue;
+        }
+        for (const auto& ref : sourceItem["links"]["relates"]) {
+          const auto target =
+              resolveRef(ref.asString(), sourceItem["product"].asString());
+          if (target.valid && target.key == *rootKey) {
+            RefTarget sourceTarget;
+            sourceTarget.product = sourceItem["product"].asString();
+            sourceTarget.itemId = sourceItem["id"].asString();
+            sourceTarget.key = sourceKey;
+            sourceTarget.display = sourceKey;
+            sourceTarget.valid = true;
+            appendNeighbor(sourceTarget, sourceKey, "relates", sourceKey,
+                           *rootKey, false);
+          }
+        }
+      }
+      break;
+  }
+
+  response["filtered_neighbor_count"] =
+      static_cast<Json::UInt64>(filteredNeighborCount);
+  response["neighbor_candidate_count"] =
+      static_cast<Json::UInt64>(candidateNodes.size());
+
+  size_t hiddenNodeCount = 0;
+  size_t hiddenEdgeCount = 0;
+  std::set<std::string> visibleKeys;
+  if (caps.maxTotalNodes > 0) {
+    visibleKeys.insert(*rootKey);
+  } else {
+    ++hiddenNodeCount;
+    response["truncated"] = true;
+    appendDiagnostic("graph_expand_node_limit_truncated", "graph",
+                     "The node cap excluded the anchor and all one-hop nodes.");
+  }
+
+  const size_t nodeSlots = caps.maxTotalNodes > visibleKeys.size()
+                               ? caps.maxTotalNodes - visibleKeys.size()
+                               : 0;
+  const size_t visibleNeighborLimit =
+      std::min({candidateNodes.size(), caps.maxChildrenPerNode, nodeSlots});
+  size_t visibleNeighborCount = 0;
+  for (const auto& [key, _] : candidateNodes) {
+    if (visibleNeighborCount >= visibleNeighborLimit) {
+      break;
+    }
+    visibleKeys.insert(key);
+    ++visibleNeighborCount;
+  }
+  hiddenNodeCount += candidateNodes.size() - visibleNeighborCount;
+  if (candidateNodes.size() > caps.maxChildrenPerNode) {
+    response["truncated"] = true;
+    appendDiagnostic(
+        "graph_expand_children_truncated", *rootKey,
+        "The per-node neighbor cap hid additional one-hop nodes.");
+  }
+  if (candidateNodes.size() > nodeSlots) {
+    response["truncated"] = true;
+    appendDiagnostic("graph_expand_node_limit_truncated", "graph",
+                     "The total node cap hid additional one-hop nodes.");
+  }
+
+  std::map<std::string, Json::Value> visibleNodes;
+  if (visibleKeys.count(*rootKey) > 0) {
+    visibleNodes[*rootKey] = makeItemNode(rootItem);
+  }
+  for (const auto& [key, node] : candidateNodes) {
+    if (visibleKeys.count(key) > 0) {
+      visibleNodes[key] = node;
+    }
+  }
+  for (const auto& [_, node] : visibleNodes) {
+    response["nodes"].append(node);
+  }
+
+  std::sort(candidateEdges.begin(), candidateEdges.end(),
+            [](const EdgeCandidate& left, const EdgeCandidate& right) {
+              return std::tie(left.from, left.to, left.kind, left.source) <
+                     std::tie(right.from, right.to, right.kind, right.source);
+            });
+  std::vector<EdgeCandidate> endpointVisibleEdges;
+  for (const auto& edge : candidateEdges) {
+    if (visibleKeys.count(edge.from) == 0 || visibleKeys.count(edge.to) == 0) {
+      ++hiddenEdgeCount;
+      continue;
+    }
+    endpointVisibleEdges.push_back(edge);
+  }
+  const size_t visibleEdgeLimit =
+      std::min(endpointVisibleEdges.size(), caps.maxTotalEdges);
+  for (size_t index = 0; index < visibleEdgeLimit; ++index) {
+    const auto& candidate = endpointVisibleEdges[index];
+    Json::Value edge(Json::objectValue);
+    edge["from"] = candidate.from;
+    edge["to"] = candidate.to;
+    edge["kind"] = candidate.kind;
+    edge["source"] = candidate.source;
+    edge["depth"] = Json::UInt64{1};
+    edge["direction"] = candidate.kind == "relates"
+                            ? "non_directional_declaration"
+                            : (candidate.kind == "parent"
+                                   ? "parent_to_child"
+                                   : "blocker_to_blocked");
+    response["edges"].append(edge);
+  }
+  hiddenEdgeCount += endpointVisibleEdges.size() - visibleEdgeLimit;
+  if (hiddenEdgeCount > 0) {
+    response["truncated"] = true;
+    appendDiagnostic("graph_expand_edge_limit_truncated", "graph",
+                     "Node or edge caps hid additional one-hop edges.");
+  }
+  response["neighbor_count"] =
+      static_cast<Json::UInt64>(visibleNeighborCount);
+  response["hidden_node_count"] =
+      static_cast<Json::UInt64>(hiddenNodeCount);
+  response["hidden_edge_count"] =
+      static_cast<Json::UInt64>(hiddenEdgeCount);
+  return finalize();
+}
+
 Json::Value BacklogWebviewService::BuildWorkOrderTimeline(const ItemQueryOptions& options,
                                                           const std::string& itemId,
                                                           const std::string& topic) {
@@ -10854,6 +11571,61 @@ void RegisterBacklogWebviewRoutes(
           std::function<void(const HttpResponsePtr&)>&& callback) {
         auto data = service.BuildTopicHome(request->getParameter("topic"),
                                            queryOptionsFromRequest(request));
+        Json::Value body(Json::objectValue);
+        body["ok"] = !data.isMember("error");
+        body["data"] = data;
+        metaAppender(request, body);
+        auto response = HttpResponse::newHttpJsonResponse(body);
+        if (!body["ok"].asBool()) {
+          response->setStatusCode(k400BadRequest);
+        }
+        callback(response);
+      },
+      {Get});
+
+  app().registerHandler(
+      "/api/review/graph/expand",
+      [metaAppender, &service](const HttpRequestPtr& request,
+          std::function<void(const HttpResponsePtr&)>&& callback) {
+        const auto rawExpansion = request->getParameter("expansion");
+        Json::Value data(Json::objectValue);
+        const auto expansion = ParseGraphExpansionKind(rawExpansion);
+        if (Trim(rawExpansion).empty()) {
+          data = MakeError(
+              "graph_expand.expansion_required",
+              "Pass expansion=inbound|outbound|children|related.");
+        } else if (!expansion) {
+          data = MakeError(
+              "graph_expand.expansion_invalid",
+              "Unknown expansion; expected inbound, outbound, children, or related.");
+        } else {
+          ItemQueryOptions options;
+          const auto products = request->getParameter("products");
+          const auto product = request->getParameter("product");
+          options.products = SplitCsv(products.empty() ? product : products);
+          options.text = request->getParameter("q");
+          options.states = SplitCsv(request->getParameter("state"));
+          options.types = SplitCsv(request->getParameter("type"));
+          for (auto& type : options.types) {
+            type = NormalizeItemTypeName(type);
+          }
+
+          GraphQueryCaps graphCaps;
+          graphCaps.maxDepth = 1;
+          graphCaps.maxChildrenPerNode = ParseSizeOrDefault(
+              request->getParameter("max_children_per_node"),
+              graphCaps.maxChildrenPerNode, 1000);
+          graphCaps.maxTotalNodes = ParseSizeOrDefault(
+              request->getParameter("max_total_nodes"),
+              graphCaps.maxTotalNodes, 1000);
+          graphCaps.maxTotalEdges = ParseSizeOrDefault(
+              request->getParameter("max_total_edges"),
+              graphCaps.maxTotalEdges, 1000);
+          data = service.ExpandGraphNeighborhood(
+              options, request->getParameter("item"),
+              request->getParameter("root_product"), *expansion, graphCaps);
+        }
+
         Json::Value body(Json::objectValue);
         body["ok"] = !data.isMember("error");
         body["data"] = data;

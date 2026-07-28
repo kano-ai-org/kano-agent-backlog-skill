@@ -445,8 +445,8 @@ int main() {
                      "Ready",
                      "PRA-EPIC-0001",
                      "Native migration evidence lives here.\n\n"
-                     "## Context\n\n"
-                     "The native migration needs a bounded review surface.\n\n"
+                      "## Context\n\n"
+                      "The native migration needs a bounded review surface with the expansion-body-only-token.\n\n"
                      "## Goal\n\n"
                      "Expose backlog state through deterministic native JSON.\n\n"
                      "## Acceptance Criteria\n\n"
@@ -467,6 +467,7 @@ int main() {
                       "    - product-beta:PRB-BUG-0001\n"
                       "    - PRA-TSK-0003\n"
                       "    - PRA-TSK-9999\n"
+                       "    - not a canonical ref\n"
                       "  blocks:\n"
                       "    - PRA-TSK-0002\n"
                       "    - PRA-TSK-0012\n"
@@ -861,7 +862,7 @@ int main() {
                      "Alpha blocked task",
                      "Blocked",
                      "PRA-EPIC-0001",
-                     "Blocked by the native task.",
+                      "Blocked by the native task. The expansion-body-only-token is intentionally absent from metadata.",
                      "links:\n"
                      "  relates: []\n"
                      "  blocks: []\n"
@@ -2971,7 +2972,236 @@ int main() {
         expect(missingGraph["missing_node_count"].asUInt64() == missingGraph["missing_nodes"].size(),
                "dependency graph missing_node_count should match visible missing nodes");
         expect(has_diagnostic(missingGraph["diagnostics"], "graph_missing_refs", "graph"),
-               "dependency graph should explain visible missing refs");
+                "dependency graph should explain visible missing refs");
+
+        const std::vector<webview::GraphExpansionKind> expansionKinds = {
+            webview::GraphExpansionKind::Inbound,
+            webview::GraphExpansionKind::Outbound,
+            webview::GraphExpansionKind::Children,
+            webview::GraphExpansionKind::Related,
+        };
+        expect(expansionKinds.size() == 4,
+               "graph expansion kind coverage should remain exhaustive");
+
+        webview::GraphQueryCaps expansionCaps;
+        expansionCaps.maxDepth = 9;
+        expansionCaps.maxChildrenPerNode = 20;
+        expansionCaps.maxTotalNodes = 30;
+        expansionCaps.maxTotalEdges = 30;
+        auto inboundExpansion = service.ExpandGraphNeighborhood(
+            allOptions, "PRA-TSK-0001", "product-alpha",
+            webview::GraphExpansionKind::Inbound, expansionCaps);
+        expect(inboundExpansion["read_only"].asBool() &&
+                   inboundExpansion["expansion"].asString() == "inbound" &&
+                   inboundExpansion["effective_caps"]["max_depth"].asUInt64() == 1,
+               "inbound expansion should be read-only and force depth one");
+        expect(inboundExpansion["root"]["canonical_node_key"].asString() ==
+                   "product-alpha:PRA-TSK-0001" &&
+                   has_edge(inboundExpansion["edges"],
+                            "product-alpha:PRA-TSK-0010",
+                            "product-alpha:PRA-TSK-0001", "blocks") &&
+                   has_edge(inboundExpansion["edges"],
+                            "product-alpha:PRA-TSK-0010",
+                            "product-alpha:PRA-TSK-0001", "blocked_by"),
+               "inbound expansion should normalize blocker-to-anchor direction while preserving mirrored declaration kinds");
+
+        auto outboundExpansion = service.ExpandGraphNeighborhood(
+            allOptions, "PRA-TSK-0001", "product-alpha",
+            webview::GraphExpansionKind::Outbound, expansionCaps);
+        expect(has_edge(outboundExpansion["edges"],
+                        "product-alpha:PRA-TSK-0001",
+                        "product-alpha:PRA-TSK-0002", "blocks") &&
+                   has_edge(outboundExpansion["edges"],
+                            "product-alpha:PRA-TSK-0001",
+                            "product-alpha:PRA-TSK-0002", "blocked_by"),
+               "outbound expansion should normalize anchor-to-blocked direction and retain declaration provenance");
+        expect(json_to_string(outboundExpansion["missing_nodes"]).find("PRA-TSK-9998") !=
+                   std::string::npos,
+                "outbound expansion should report missing declared dependencies");
+
+        webview::ItemQueryOptions bodyOnlyExpansionOptions = allOptions;
+        bodyOnlyExpansionOptions.text = "  expansion-body-only-token  ";
+        auto bodyOnlyExpansion = service.ExpandGraphNeighborhood(
+            bodyOnlyExpansionOptions, "PRA-TSK-0001", "product-alpha",
+            webview::GraphExpansionKind::Outbound, expansionCaps);
+        expect(bodyOnlyExpansion["root"]["canonical_node_key"].asString() ==
+                   "product-alpha:PRA-TSK-0001" &&
+                   bodyOnlyExpansion["query_total"].asUInt64() == 2,
+               "body-only q should match the qualified root and count canonical primary matches");
+        expect(has_edge(bodyOnlyExpansion["edges"],
+                        "product-alpha:PRA-TSK-0001",
+                        "product-alpha:PRA-TSK-0002", "blocks"),
+               "body-only q should retain the matching outbound neighbor edge");
+        bool foundBodyOnlyNeighbor = false;
+        bool foundFilteredNeighbor = false;
+        for (const auto& node : bodyOnlyExpansion["nodes"]) {
+            const auto key = node["canonical_node_key"].asString();
+            foundBodyOnlyNeighbor = foundBodyOnlyNeighbor ||
+                key == "product-alpha:PRA-TSK-0002";
+            foundFilteredNeighbor = foundFilteredNeighbor ||
+                key == "product-alpha:PRA-TSK-0012";
+            expect(!node.isMember("content"),
+                   "body-only q expansion nodes must not serialize raw Markdown content");
+        }
+        expect(foundBodyOnlyNeighbor && !foundFilteredNeighbor &&
+                   bodyOnlyExpansion["filtered_neighbor_count"].asUInt64() >= 1,
+               "body-only q should keep the matching neighbor and filter a nonmatching neighbor");
+        expect(!bodyOnlyExpansion["root"].isMember("content"),
+               "body-only q expansion root must not serialize raw Markdown content");
+
+        auto childrenExpansion = service.ExpandGraphNeighborhood(
+            allOptions, "PRA-SUBTSK-0200", "product-alpha",
+            webview::GraphExpansionKind::Children, expansionCaps);
+        expect(childrenExpansion["neighbor_count"].asUInt64() == 3 &&
+                   has_edge(childrenExpansion["edges"],
+                            "product-alpha:PRA-SUBTSK-0200",
+                            "product-alpha:PRA-SUBTSK-0100", "parent"),
+               "children expansion should derive parent-to-child edges by bounded reverse scanning");
+
+        auto relatedExpansion = service.ExpandGraphNeighborhood(
+            allOptions, "PRA-TSK-0001", "product-alpha",
+            webview::GraphExpansionKind::Related, expansionCaps);
+        expect(has_edge(relatedExpansion["edges"],
+                        "product-alpha:PRA-TSK-0001",
+                        "product-alpha:PRA-TSK-0003", "relates") &&
+                   has_edge(relatedExpansion["edges"],
+                            "product-alpha:PRA-TSK-0001",
+                            "product-beta:PRB-BUG-0001", "relates"),
+               "related expansion should preserve same-product and cross-product declared refs");
+        expect(!relatedExpansion["missing_nodes"].empty() &&
+                   !relatedExpansion["invalid_refs"].empty(),
+               "related expansion should report missing and invalid anchor refs");
+        auto reverseRelatedExpansion = service.ExpandGraphNeighborhood(
+            allOptions, "PRA-TSK-0003", "product-alpha",
+            webview::GraphExpansionKind::Related, expansionCaps);
+        expect(has_edge(reverseRelatedExpansion["edges"],
+                        "product-alpha:PRA-TSK-0004",
+                        "product-alpha:PRA-TSK-0003", "relates"),
+               "related expansion should discover one-sided declarations from the other endpoint");
+
+        auto emptyExpansion = service.ExpandGraphNeighborhood(
+            allOptions, "PRA-FTR-0003", "product-alpha",
+            webview::GraphExpansionKind::Related, expansionCaps);
+        expect(emptyExpansion["empty_neighborhood"].asBool() &&
+                   emptyExpansion["nodes"].size() == 1 &&
+                   emptyExpansion["edges"].empty(),
+               "empty neighborhoods should retain only the counted anchor node");
+
+        auto ambiguousExpansion = service.ExpandGraphNeighborhood(
+            allOptions, "SHARED-TSK-0001", "",
+            webview::GraphExpansionKind::Inbound, expansionCaps);
+        expect(has_diagnostic(ambiguousExpansion["diagnostics"],
+                              "graph_expand_root_ambiguous",
+                              "SHARED-TSK-0001") &&
+                   ambiguousExpansion["nodes"].empty(),
+               "duplicate bare root IDs should return an ambiguous empty delta");
+
+        webview::ItemQueryOptions filteredExpansionOptions = allOptions;
+        filteredExpansionOptions.states = {"Done"};
+        auto filteredExpansion = service.ExpandGraphNeighborhood(
+            filteredExpansionOptions, "PRA-TSK-0001", "product-alpha",
+            webview::GraphExpansionKind::Inbound, expansionCaps);
+        expect(has_diagnostic(filteredExpansion["diagnostics"],
+                              "graph_expand_root_filtered",
+                              "product-alpha:PRA-TSK-0001") &&
+                   filteredExpansion["nodes"].empty(),
+               "an active state filter should produce a precise filtered-root empty delta");
+
+        webview::ItemQueryOptions betaExpansionOptions = allOptions;
+        betaExpansionOptions.products = {"product-beta"};
+        auto outOfScopeExpansion = service.ExpandGraphNeighborhood(
+            betaExpansionOptions, "PRA-TSK-0001", "product-alpha",
+            webview::GraphExpansionKind::Inbound, expansionCaps);
+        expect(has_diagnostic(outOfScopeExpansion["diagnostics"],
+                              "graph_expand_root_out_of_scope",
+                              "product-alpha:PRA-TSK-0001") &&
+                   outOfScopeExpansion["nodes"].empty(),
+               "a qualified root outside configured products should return an out-of-scope empty delta");
+
+        auto unknownExpansion = service.ExpandGraphNeighborhood(
+            allOptions, "PRA-TSK-7777", "product-alpha",
+            webview::GraphExpansionKind::Inbound, expansionCaps);
+        expect(has_diagnostic(unknownExpansion["diagnostics"],
+                              "graph_expand_root_not_found",
+                              "product-alpha:PRA-TSK-7777") &&
+                   unknownExpansion["nodes"].empty(),
+               "an unknown qualified root should return a not-found empty delta");
+
+        webview::GraphQueryCaps deterministicCaps;
+        deterministicCaps.maxDepth = 7;
+        deterministicCaps.maxChildrenPerNode = 1;
+        deterministicCaps.maxTotalNodes = 2;
+        deterministicCaps.maxTotalEdges = 1;
+        auto cappedExpansion = service.ExpandGraphNeighborhood(
+            allOptions, "PRA-TSK-0001", "product-alpha",
+            webview::GraphExpansionKind::Related, deterministicCaps);
+        auto repeatedCappedExpansion = service.ExpandGraphNeighborhood(
+            allOptions, "PRA-TSK-0001", "product-alpha",
+            webview::GraphExpansionKind::Related, deterministicCaps);
+        expect(cappedExpansion["truncated"].asBool() &&
+                   cappedExpansion["nodes"].size() == 2 &&
+                   cappedExpansion["edges"].size() == 1 &&
+                   cappedExpansion["hidden_node_count"].asUInt64() > 0 &&
+                   cappedExpansion["hidden_edge_count"].asUInt64() > 0,
+               "one-hop expansion should apply deterministic child, node, and edge caps with the anchor counted");
+        expect(json_to_string(cappedExpansion) == json_to_string(repeatedCappedExpansion),
+               "repeated equivalent graph expansion calls should serialize identically");
+        std::string previousNodeKey;
+        for (const auto& node : cappedExpansion["nodes"]) {
+            const auto nodeKey = node["canonical_node_key"].asString();
+            expect(previousNodeKey.empty() || previousNodeKey < nodeKey,
+                   "expanded nodes should be sorted by canonical key");
+            previousNodeKey = nodeKey;
+        }
+        std::string previousEdgeKey;
+        for (const auto& edge : cappedExpansion["edges"]) {
+            const auto edgeKey = edge["from"].asString() + "\n" +
+                edge["to"].asString() + "\n" + edge["kind"].asString() + "\n" +
+                edge["source"].asString();
+            expect(previousEdgeKey.empty() || previousEdgeKey < edgeKey,
+                   "expanded edges should be sorted by from/to/kind/source");
+            previousEdgeKey = edgeKey;
+            bool foundFrom = false;
+            bool foundTo = false;
+            for (const auto& node : cappedExpansion["nodes"]) {
+                foundFrom = foundFrom ||
+                    node["canonical_node_key"].asString() == edge["from"].asString();
+                foundTo = foundTo ||
+                    node["canonical_node_key"].asString() == edge["to"].asString();
+            }
+            expect(foundFrom && foundTo,
+                   "cap application must not leave dangling expansion edges");
+        }
+        for (const auto& key : {"query_total", "scan_count", "scan_limit",
+                                "neighbor_candidate_count", "neighbor_count",
+                                "node_count", "edge_count", "missing_node_count",
+                                "invalid_ref_count", "hidden_node_count",
+                                "hidden_edge_count"}) {
+            expect(cappedExpansion.isMember(key),
+                   std::string("graph expansion payload should include count field ") + key);
+        }
+        const auto webviewServiceSource = read_text(locate_repo_file(
+            "src/cpp/code/systems/kano_backlog_webview_core/private/BacklogWebviewService.cpp"));
+        const auto expansionRoute = webviewServiceSource.find(
+            "\"/api/review/graph/expand\"");
+        expect(expansionRoute != std::string::npos,
+               "webview service should register the read-only graph expansion GET route");
+        const auto expansionRouteEnd = webviewServiceSource.find("{Get});", expansionRoute);
+        expect(expansionRouteEnd != std::string::npos,
+               "graph expansion route should be registered as GET");
+        const auto expansionRouteSource = webviewServiceSource.substr(
+            expansionRoute, expansionRouteEnd - expansionRoute);
+        for (const auto& parameter : {"product", "products", "item", "root_product",
+                                      "expansion", "q", "state", "type",
+                                      "max_children_per_node", "max_total_nodes",
+                                      "max_total_edges"}) {
+            expect(expansionRouteSource.find(std::string("\"") + parameter + "\"") !=
+                       std::string::npos,
+                   std::string("graph expansion route should parse approved parameter ") +
+                       parameter);
+        }
+        expect(expansionRouteSource.find("max_depth") == std::string::npos,
+               "graph expansion route should not accept caller-controlled depth");
 
         webview::ItemQueryOptions boundedOptions;
         boundedOptions.limit = 1;
@@ -3447,6 +3677,106 @@ int main() {
                     assetSource.find("graphBaseItemId") != std::string::npos &&
                     assetSource.find("graphPayload") != std::string::npos,
                 "embedded webview assets should track graph isolation mode, base scope, and cached payload state");
+        expect(indexAppJsSource.find("graphBasePayload: null") != std::string::npos &&
+                    indexAppJsSource.find("graphBaseQueryString: ''") != std::string::npos &&
+                    indexAppJsSource.find("graphExpansionPayloads: new Map()") != std::string::npos &&
+                    indexAppJsSource.find("graphExpansionStatuses: new Map()") != std::string::npos &&
+                    indexAppJsSource.find("graphExpansionOrder: []") != std::string::npos &&
+                    indexAppJsSource.find("graphExpansionGeneration: 0") != std::string::npos,
+                "graph expansion overlays should use explicit in-memory base, payload, status, order, and generation state");
+        expect(indexAppJsSource.find("function composeGraphPayload") != std::string::npos &&
+                    indexAppJsSource.find("baseNodes.forEach((node) => {") != std::string::npos &&
+                    count_occurrences(indexAppJsSource, "state.graphExpansionOrder.forEach((key) => {") >= 2 &&
+                    indexAppJsSource.find("nodes.length >= nodeCap") != std::string::npos &&
+                    indexAppJsSource.find("edges.length >= edgeCap") != std::string::npos &&
+                    indexAppJsSource.find("!admittedEndpointIds.has(String(edge.from || ''))") != std::string::npos &&
+                    indexAppJsSource.find("!admittedEndpointIds.has(String(edge.to || ''))") != std::string::npos,
+                "graph payload composition should admit base data first, compose overlays in first-click order, enforce caps, and reject dangling overlay edges");
+        expect(indexAppJsSource.find("async function expandGraphNode") != std::string::npos &&
+                     indexAppJsSource.find("new URLSearchParams(state.graphBaseQueryString)") != std::string::npos &&
+                    indexAppJsSource.find("`/api/review/graph/expand?${params.toString()}`") != std::string::npos &&
+                    indexAppJsSource.find("generation !== state.graphExpansionGeneration") != std::string::npos &&
+                    indexAppJsSource.find("state.graphExpansionPayloads.set(key, payload)") != std::string::npos &&
+                    indexAppJsSource.find("state.graphExpansionStatuses.set(key") != std::string::npos,
+                 "graph node expansion should derive requests from the base query, call the bounded expansion API, reject stale generations, and retain result status in memory");
+        const auto expandGraphNodeStart = indexAppJsSource.find(
+            "async function expandGraphNode");
+        const auto expandGraphNodeEnd = indexAppJsSource.find(
+            "\n    function focusGraphProductScope", expandGraphNodeStart);
+        expect(expandGraphNodeStart != std::string::npos &&
+                   expandGraphNodeEnd != std::string::npos,
+               "embedded webview assets should expose a bounded expandGraphNode source contract");
+        const auto expandGraphNodeSource = indexAppJsSource.substr(
+            expandGraphNodeStart, expandGraphNodeEnd - expandGraphNodeStart);
+        expect(expandGraphNodeSource.find("const query = String(state.q || '').trim();") != std::string::npos &&
+                   expandGraphNodeSource.find("if (query) params.set('q', query);") != std::string::npos &&
+                   expandGraphNodeSource.find("else params.delete('q');") != std::string::npos &&
+                   expandGraphNodeSource.find("const states = selectedTokens(state.selectedStates, itemStates);") != std::string::npos &&
+                   expandGraphNodeSource.find("if (states) params.set('state', states);") != std::string::npos &&
+                   expandGraphNodeSource.find("else params.delete('state');") != std::string::npos &&
+                   expandGraphNodeSource.find("const types = selectedTokens(state.selectedTypes, itemTypes);") != std::string::npos &&
+                   expandGraphNodeSource.find("if (types) params.set('type', types);") != std::string::npos &&
+                   expandGraphNodeSource.find("else params.delete('type');") != std::string::npos &&
+                   expandGraphNodeSource.find("params.set('product'") == std::string::npos &&
+                   expandGraphNodeSource.find("params.delete('product'") == std::string::npos &&
+                   expandGraphNodeSource.find("params.set('max_total_nodes'") == std::string::npos &&
+                   expandGraphNodeSource.find("params.delete('max_total_nodes'") == std::string::npos,
+               "graph expansion requests should overlay current q/state/type filters and delete absent defaults from the stored base scope");
+        expect(count_occurrences(
+                   expandGraphNodeSource,
+                   "if (generation !== state.graphExpansionGeneration || activeRequest?.requestSeq !== requestSeq) {\n          return;\n        }") == 2 &&
+                   expandGraphNodeSource.find(
+                       "if (generation === state.graphExpansionGeneration &&\n            activeRequest?.requestSeq === requestSeq) {") != std::string::npos &&
+                   expandGraphNodeSource.find("Ignored stale") == std::string::npos,
+               "stale success and error branches should be side-effect free and finally should not delete a newer-generation request");
+        const auto canonicalKeyStart = indexAppJsSource.find(
+            "function graphCanonicalNodeKey");
+        const auto canonicalKeyEnd = indexAppJsSource.find(
+            "\n    function graphNodeEndpointId", canonicalKeyStart);
+        expect(canonicalKeyStart != std::string::npos &&
+                   canonicalKeyEnd != std::string::npos,
+               "embedded webview assets should expose canonical graph node key normalization");
+        const auto canonicalKeySource = indexAppJsSource.substr(
+            canonicalKeyStart, canonicalKeyEnd - canonicalKeyStart);
+        const auto canonicalFieldPosition = canonicalKeySource.find(
+            "if (canonicalKey) return canonicalKey;");
+        const auto qualifiedItemPosition = canonicalKeySource.find(
+            "if (itemId.includes(':')) return itemId;");
+        const auto qualifiedIdPosition = canonicalKeySource.find(
+            "if (id.includes(':')) return id;");
+        const auto bareItemPosition = canonicalKeySource.find(
+            "if (product && itemId) return `${product}:${itemId}`;");
+        const auto bareIdPosition = canonicalKeySource.find(
+            "if (product && id) return `${product}:${id}`;");
+        expect(canonicalKeySource.find("const canonicalKey = String(node.canonical_node_key || '').trim();") != std::string::npos &&
+                   canonicalFieldPosition < qualifiedItemPosition &&
+                   qualifiedItemPosition < qualifiedIdPosition &&
+                   qualifiedIdPosition < bareItemPosition &&
+                   bareItemPosition < bareIdPosition &&
+                   canonicalKeySource.find("return '';", bareIdPosition) != std::string::npos,
+               "canonical graph keys should preserve qualified IDs without double prefixes while keeping product-qualified bare IDs distinct");
+        expect(indexAppJsSource.find("function clearGraphExpansionScope") != std::string::npos &&
+                    indexAppJsSource.find("state.graphExpansionGeneration += 1") != std::string::npos &&
+                    indexAppJsSource.find("state.graphExpansionRequests.forEach((request) => request?.controller?.abort?.())") != std::string::npos &&
+                    indexAppJsSource.find("state.graphExpansionPayloads.clear()") != std::string::npos &&
+                    indexAppJsSource.find("state.graphExpansionStatuses.clear()") != std::string::npos &&
+                    indexAppJsSource.find("state.graphExpansionOrder = []") != std::string::npos,
+                "graph scope changes should abort pending work and clear every ephemeral expansion overlay collection");
+        expect(indexAppJsSource.find("function renderGraphExpansionControls") != std::string::npos &&
+                    indexAppJsSource.find("function bindGraphExpansionControls") != std::string::npos &&
+                    indexAppJsSource.find("graph-expansion-controls") != std::string::npos &&
+                    indexAppJsSource.find("graph-expansion-btn") != std::string::npos &&
+                    indexAppJsSource.find("data-graph-expansion-key") != std::string::npos &&
+                    indexAppJsSource.find("data-graph-expansion-kind") != std::string::npos &&
+                    indexCssSource.find(".graph-expansion-controls") != std::string::npos &&
+                    indexCssSource.find(".graph-expansion-btn:focus-visible") != std::string::npos &&
+                    indexCssSource.find(".graph-expansion-status") != std::string::npos,
+                "graph expansion controls should expose bindable accessible hooks and dedicated responsive/focus/status classes");
+        expect(indexAppJsSource.find("Expansion overlays are ephemeral and are not included in URLs, saved queries, or workspace storage.") != std::string::npos &&
+                    indexAppJsSource.find("graphExpansionStorageKey") == std::string::npos &&
+                    indexAppJsSource.find("localStorage.setItem(graphExpansion") == std::string::npos &&
+                    indexAppJsSource.find("sessionStorage.setItem(graphExpansion") == std::string::npos,
+                "graph expansion state should remain ephemeral and must not be persisted into URLs, saved queries, local storage, or session storage");
         expect(assetSource.find("function normalizeGraphIsolationMode") != std::string::npos &&
                     assetSource.find("function graphFetchMaxDepth") != std::string::npos &&
                     assetSource.find("Math.min(localDepth + 1, graphDepthBounds.max)") != std::string::npos &&
@@ -3475,8 +3805,9 @@ int main() {
                 "embedded webview assets should reroot from graph node data attributes");
         expect(assetSource.find("function renderBlockerChain") != std::string::npos &&
                     assetSource.find("function bindBlockerChainJumpActions") != std::string::npos &&
-                    assetSource.find("data.blocker_chain") != std::string::npos,
-                "embedded webview assets should expose named blocker-chain renderer and jump binder helpers");
+                    assetSource.find("baseData.mode === 'dependency' ? renderBlockerChain(baseData.blocker_chain) : ''") != std::string::npos &&
+                    assetSource.find("renderBlockerChain(data.blocker_chain)") == std::string::npos,
+                "embedded webview assets should expose named blocker-chain helpers while keeping the semantic summary base-only");
         expect(assetSource.find("Blocker chain") != std::string::npos &&
                     assetSource.find("Root blockers") != std::string::npos &&
                     assetSource.find("Upstream blockers") != std::string::npos &&
@@ -3511,11 +3842,11 @@ int main() {
                     assetSource.find("jumpTarget.reroot_item_id") != std::string::npos &&
                    assetSource.find("target_mode") != std::string::npos,
                "cycle-audit member actions should use member-local jump targets");
-        expect(assetSource.find("data.mode === 'cycles'") != std::string::npos &&
-                   assetSource.find("renderCycleAudit(data.cycle_audit)") != std::string::npos,
-               "cycle-audit panel should be gated to explicit cycles mode");
+        expect(assetSource.find("baseData.mode === 'cycles' ? renderCycleAudit(baseData.cycle_audit) : ''") != std::string::npos &&
+                    assetSource.find("renderCycleAudit(data.cycle_audit)") == std::string::npos,
+                "cycle-audit panel should be gated to explicit base cycles mode and must not be recomputed from composed overlays");
         expect_in_order(assetSource,
-                        {"renderCycleAudit(data.cycle_audit)", "graphRender.markup"},
+                        {"renderCycleAudit(baseData.cycle_audit)", "graphRender.markup"},
                         "cycle-audit panel should render before the graph canvas");
         expect(assetSource.find("function renderHierarchySummary") != std::string::npos &&
                    assetSource.find("function renderHierarchyTreeNode") != std::string::npos &&
@@ -3523,16 +3854,28 @@ int main() {
                    assetSource.find("Recorded parent/child organization only") != std::string::npos &&
                    assetSource.find("recorded child item(s) hidden by the current bounds") != std::string::npos,
                "embedded webview assets should expose a DOM-readable collapsible hierarchy tree with hidden-child copy");
-        expect(assetSource.find("data.mode === 'structure' ? renderHierarchySummary(data.hierarchy_summary) : ''") != std::string::npos,
-               "hierarchy panel should be gated to explicit structure mode");
+        expect(assetSource.find("baseData.mode === 'structure' ? renderHierarchySummary(baseData.hierarchy_summary) : ''") != std::string::npos &&
+                    assetSource.find("renderHierarchySummary(data.hierarchy_summary)") == std::string::npos,
+                "hierarchy panel should be gated to explicit base structure mode and must not be recomputed from composed overlays");
         expect_in_order(assetSource,
-                        {"renderHierarchySummary(data.hierarchy_summary)", "graphRender.markup"},
+                        {"renderHierarchySummary(baseData.hierarchy_summary)", "graphRender.markup"},
                         "hierarchy panel should render before the graph canvas");
         expect(assetSource.find("Re-root structure view at") != std::string::npos &&
                    assetSource.find("data-blocker-chain-jump-id") != std::string::npos,
                "hierarchy entries should expose accessible bounded re-root actions");
-        expect(assetSource.find("data.mode === 'cycles' ? [] : (data.dependency_cycles || [])") != std::string::npos,
-               "cycles mode should not duplicate legacy flat dependency_cycles rows below the grouped audit");
+        expect(assetSource.find("baseData.mode === 'cycles' ? [] : (baseData.dependency_cycles || [])") != std::string::npos &&
+                    assetSource.find("data.mode === 'cycles' ? [] : (data.dependency_cycles || [])") == std::string::npos,
+                "legacy flat dependency cycle diagnostics should remain base-only and stay hidden below grouped cycle audits");
+        expect(assetSource.find("Base mode summaries are not recomputed.") != std::string::npos &&
+                    assetSource.find("baseData.mode === 'dependency' ? renderBlockerChain(baseData.blocker_chain) : ''") != std::string::npos &&
+                    assetSource.find("baseData.mode === 'cycles' ? renderCycleAudit(baseData.cycle_audit) : ''") != std::string::npos &&
+                    assetSource.find("baseData.mode === 'structure' ? renderHierarchySummary(baseData.hierarchy_summary) : ''") != std::string::npos,
+                "blocker-chain, cycle-audit, and hierarchy summaries should remain authoritative base graph projections while overlays affect only composed nodes and edges");
+        expect_in_order(assetSource,
+                        {"baseData.mode === 'dependency' ? renderBlockerChain(baseData.blocker_chain) : '',",
+                         "renderGraphExpansionDiagnostics(composition),",
+                         "graphRender.markup,"},
+                        "base blocker summary and expansion diagnostics should render before the composed graph canvas");
         expect(assetSource.find("React") == std::string::npos &&
                     assetSource.find("Vite") == std::string::npos &&
                     assetSource.find("npm") == std::string::npos,

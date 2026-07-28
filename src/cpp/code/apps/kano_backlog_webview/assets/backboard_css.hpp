@@ -168,6 +168,7 @@ inline constexpr std::string_view kBackboardCssPart2 = R"CSS(
     .graph-node.dependency rect { stroke: #c65f5f; }
     .graph-node.is-included-neighborhood:not(.is-focus-root) rect { stroke: var(--kob-border-strong); }
     .graph-node.is-focus-root rect { fill: var(--kob-accent-soft); stroke: var(--kob-accent); stroke-width: 2.5; }
+    .graph-node.is-overlay rect { stroke-dasharray: 3 3; }
     .graph-node.is-faded { opacity: 0.34; }
     .graph-node.is-rerootable { cursor: pointer; }
     .graph-node.is-rerootable:hover rect { stroke: var(--kob-accent); stroke-width: 2; filter: drop-shadow(0 4px 10px var(--kob-shadow)); }
@@ -177,6 +178,20 @@ inline constexpr std::string_view kBackboardCssPart2 = R"CSS(
     .graph-edge-label { font-size: 10px; fill: #47536a; }
     .graph-diagnostics { display: grid; gap: 6px; margin-bottom: 12px; }
     .graph-diagnostic-pills { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+    .graph-expansion-diagnostics { display: grid; gap: 8px; margin-bottom: 12px; min-width: 0; }
+    .graph-expansion-header { display: grid; gap: 4px; min-width: 0; }
+    .graph-expansion-header h4 { margin: 0; }
+    .graph-expansion-diagnostic-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(260px, 100%), 1fr)); gap: 8px; min-width: 0; }
+    .graph-expansion-diagnostic { display: grid; gap: 8px; margin: 0; min-width: 0; overflow-wrap: anywhere; }
+    .graph-expansion-server-diagnostics, .graph-expansion-missing { display: grid; gap: 4px; padding-top: 8px; border-top: 1px solid var(--kob-border); min-width: 0; overflow-wrap: anywhere; }
+    .graph-node-detail.is-overlay { border-left: 3px solid var(--kob-accent-border); }
+    .graph-expansion-controls { display: grid; gap: 6px; margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--kob-border); min-width: 0; }
+    .graph-expansion-actions { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(140px, 100%), 1fr)); gap: 6px; min-width: 0; }
+    .graph-expansion-btn { width: 100%; min-height: 32px; white-space: nowrap; }
+    .graph-expansion-btn[disabled] { opacity: 0.65; cursor: default; }
+    .graph-expansion-btn:focus-visible { outline: 3px solid var(--kob-accent-border); outline-offset: 2px; }
+    .graph-expansion-statuses { display: grid; gap: 4px; min-width: 0; }
+    .graph-expansion-status { color: #586074; font-size: 12px; overflow-wrap: anywhere; }
     .graph-page-head { display: flex; gap: 12px; align-items: flex-start; justify-content: space-between; flex-wrap: wrap; margin-bottom: 12px; }
     .graph-page-title { display: grid; gap: 4px; }
     .graph-page-title h3 { margin: 0; }
