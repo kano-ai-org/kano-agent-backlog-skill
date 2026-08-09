@@ -1089,9 +1089,12 @@ int main(int argc, char** argv) {
             "tags: []\n"
             "---\n\n"
             "# Context\n\nValidate a canonical cross-product reference and ADR-0001. External thread "
-            "019cdf6a-0000-7000-8000-000000009099 is provenance only. Canonical remap: "
-            "QS-TSK-9998 is represented by QS-TSK-9000.\n\n"
-            "# Goal\n\nKeep prose from becoming a whole reference.\n";
+            "019cdf6a-0000-7000-8000-000000009099 is provenance only. Historical identities "
+            "QS-TSK-9998 and QS-TSK-9999 belong to current item QS-TSK-9000.\n\n"
+            "# Goal\n\nKeep prose from becoming a whole reference.\n\n"
+            "# Worklog\n\n"
+            "2026-07-21 00:01 [agent=tester] Remapped ID: QS-TSK-9998 -> QS-TSK-9999\n"
+            "2026-07-21 00:02 [agent=tester] Remapped ID: QS-TSK-9999 -> QS-TSK-9000\n";
         write_text(link_fixture_path, valid_link_fixture);
         expect_command_capture_success(
             run_command_capture(binary, {"validate", "links", "--product", "quick-smoke-product"}, validate_links_output),
@@ -1141,6 +1144,25 @@ int main(int argc, char** argv) {
         expect(read_text(admin_validate_links_output) == read_text(global_validate_links_output),
             "admin validate links compatibility route should preserve native link validation semantics");
 
+        auto structured_alias_fixture = valid_link_fixture;
+        const std::string structured_alias_anchor = "    - SP-TSK-0001\n";
+        const auto structured_alias_position = structured_alias_fixture.find(structured_alias_anchor);
+        expect(structured_alias_position != std::string::npos,
+            "link fixture should expose a structured relates insertion point");
+        structured_alias_fixture.insert(
+            structured_alias_position + structured_alias_anchor.size(),
+            "    - QS-TSK-9998\n"
+        );
+        write_text(link_fixture_path, structured_alias_fixture);
+        const auto validate_structured_alias_output = temp_root / "validate-links-structured-alias.txt";
+        expect(run_command_capture(binary, {
+            "validate", "links", "--product", "quick-smoke-product"
+        }, validate_structured_alias_output) != 0,
+            "a structured historical alias should remain fail-closed");
+        expect(read_text(validate_structured_alias_output).find("unresolvable ref: QS-TSK-9998") != std::string::npos,
+            "structured links should remain unconditional despite prose remap evidence");
+        write_text(link_fixture_path, valid_link_fixture);
+
         write_text(link_fixture_path, valid_link_fixture + "\n# Risks / Dependencies\n\nMissing canonical dependency QS-BUG-9999.\n");
         const auto validate_missing_link_output = temp_root / "validate-links-missing.txt";
         expect(run_command_capture(binary, {"validate", "links", "--product", "quick-smoke-product"}, validate_missing_link_output) != 0,
@@ -1148,6 +1170,27 @@ int main(int argc, char** argv) {
         expect(read_text(validate_missing_link_output).find("unresolvable ref: QS-BUG-9999") != std::string::npos,
             "missing canonical ref should remain fail-closed");
         write_text(link_fixture_path, valid_link_fixture);
+
+        const auto ambiguous_link_peer_path = second_product_items / "SP-TSK-0001_ambiguous-link-peer.md";
+        write_text(
+            ambiguous_link_peer_path,
+            list_fixture_item_markdown(
+                "SP-TSK-0001",
+                "019f2000-0001-7000-8000-000000000099",
+                "Ambiguous link target peer",
+                "Ready",
+                "P1",
+                "2026-07-21"
+            )
+        );
+        const auto validate_ambiguous_link_output = temp_root / "validate-links-ambiguous.txt";
+        expect(run_command_capture(binary, {
+            "validate", "links", "--product", "quick-smoke-product"
+        }, validate_ambiguous_link_output) != 0,
+            "an ambiguous structured display ID should remain fail-closed");
+        expect(read_text(validate_ambiguous_link_output).find("unresolvable ref: SP-TSK-0001") != std::string::npos,
+            "ambiguous structured links should retain the validator diagnostic");
+        std::filesystem::remove(ambiguous_link_peer_path);
 
         const auto text_root = temp_root / "ready-fields";
         write_text(text_root / "context.md", "Quick smoke context.\n");

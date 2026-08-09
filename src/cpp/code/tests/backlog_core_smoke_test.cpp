@@ -261,16 +261,21 @@ int main() {
         reference_source.links.relates = {"GT-TSK-0002"};
         reference_source.decisions = {
             "Evidence sentence with a source/path marker (source: implementation/preflight).",
-            "Canonical dependency GT-BUG-0003 remains reviewable in prose."
+            "Canonical dependency GT-BUG-0003 remains reviewable in prose.",
+            "Historical identities GT-TSK-9998 and GT-TSK-9999 belong to this item."
         };
         reference_source.links.blocks = {"019cdf6a-0000-7000-8000-000000000099"};
         reference_source.context =
             "Context also names ADR-0013 for explicit validation. External thread "
             "019cdf6a-0000-7000-8000-000000000098 is provenance, not a backlog link. "
-            "Canonical remap: GT-TSK-9998 from isolated GT-FTR-9998 is represented by "
-            "GT-TSK-0002 under GT-FTR-0002. Follow-up GT-BUG-0004 remains active. "
+            "Current identity GT-TSK-0001 remains active. Canonical remap: isolated "
+            "GT-FTR-9998 is represented by GT-FTR-0002. Follow-up GT-BUG-0004 remains active. "
             "The legacy GT-BUG-9998 label and mislabeled "
             "GT-BUG-9997 commit remain historical evidence.";
+        reference_source.worklog.push_back(
+            "2026-03-12 00:01 [agent=opencode] Remapped ID: GT-TSK-9998 -> GT-TSK-9999\r");
+        reference_source.worklog.push_back(
+            "2026-03-12 00:02 [agent=opencode] Remapped ID: GT-TSK-9999 -> GT-TSK-0001");
         const auto extracted_refs = RefResolver::get_references(reference_source);
         expect(std::find(extracted_refs.begin(), extracted_refs.end(), "GT-TSK-0002") != extracted_refs.end(),
             "structured item links should remain references");
@@ -283,19 +288,66 @@ int main() {
         expect(std::find(extracted_refs.begin(), extracted_refs.end(), "019cdf6a-0000-7000-8000-000000000098") == extracted_refs.end(),
             "free-form UUIDv7 provenance should not become a backlog reference");
         expect(std::find(extracted_refs.begin(), extracted_refs.end(), "GT-TSK-9998") == extracted_refs.end() &&
-               std::find(extracted_refs.begin(), extracted_refs.end(), "GT-FTR-9998") == extracted_refs.end(),
-            "explicit canonical-remap source IDs should remain historical prose");
-        expect(std::find(extracted_refs.begin(), extracted_refs.end(), "GT-BUG-9998") == extracted_refs.end() &&
-               std::find(extracted_refs.begin(), extracted_refs.end(), "GT-BUG-9997") == extracted_refs.end(),
-            "legacy and mislabeled IDs should remain historical prose");
-        expect(std::find(extracted_refs.begin(), extracted_refs.end(), "GT-TSK-0002") != extracted_refs.end() &&
+               std::find(extracted_refs.begin(), extracted_refs.end(), "GT-TSK-9999") == extracted_refs.end(),
+            "ordered two-hop Worklog remap sources should remain historical prose");
+        expect(std::find(extracted_refs.begin(), extracted_refs.end(), "GT-TSK-0001") != extracted_refs.end(),
+            "the current item ID should never be suppressed from prose");
+        expect(std::find(extracted_refs.begin(), extracted_refs.end(), "GT-FTR-9998") != extracted_refs.end() &&
                std::find(extracted_refs.begin(), extracted_refs.end(), "GT-FTR-0002") != extracted_refs.end(),
-            "canonical-remap target IDs should remain active references");
+            "canonical-remap wording without Worklog proof should remain fail-closed");
+        expect(std::find(extracted_refs.begin(), extracted_refs.end(), "GT-BUG-9998") != extracted_refs.end() &&
+               std::find(extracted_refs.begin(), extracted_refs.end(), "GT-BUG-9997") != extracted_refs.end(),
+            "legacy and mislabeled wording without Worklog proof should remain fail-closed");
         expect(std::find(extracted_refs.begin(), extracted_refs.end(), "GT-BUG-0004") != extracted_refs.end(),
-            "canonical-remap suppression should not cross into the next sentence");
+            "unrelated active prose references should remain validated");
         expect(std::none_of(extracted_refs.begin(), extracted_refs.end(), [](const std::string& ref) {
             return ref.find("Evidence sentence") != std::string::npos;
         }), "decision prose should not become a whole path reference");
+
+        BacklogItem one_hop_reference = item;
+        one_hop_reference.decisions = {
+            "Historical identity GT-TSK-9996 now belongs to current item GT-TSK-0001."
+        };
+        one_hop_reference.worklog.push_back(
+            "2026-03-12 00:01 [agent=opencode] Remapped ID: GT-TSK-9996 -> GT-TSK-0001\r");
+        const auto one_hop_refs = RefResolver::get_references(one_hop_reference);
+        expect(std::find(one_hop_refs.begin(), one_hop_refs.end(), "GT-TSK-9996") == one_hop_refs.end(),
+            "an exact one-hop Worklog remap source should remain historical prose");
+        expect(std::find(one_hop_refs.begin(), one_hop_refs.end(), "GT-TSK-0001") != one_hop_refs.end(),
+            "an exact one-hop Worklog remap target should remain active prose");
+
+        BacklogItem structured_alias_reference = one_hop_reference;
+        structured_alias_reference.links.relates = {"GT-TSK-9996"};
+        const auto structured_alias_refs = RefResolver::get_references(structured_alias_reference);
+        expect(std::find(structured_alias_refs.begin(), structured_alias_refs.end(), "GT-TSK-9996") != structured_alias_refs.end(),
+            "structured links should remain unconditional even for a proven historical prose alias");
+
+        const auto expect_unproven_alias_retained = [&](const std::vector<std::string>& worklog, const std::string& message) {
+            BacklogItem candidate = item;
+            candidate.decisions = {"Historical identity GT-TSK-9995 remains reviewable."};
+            candidate.worklog = worklog;
+            const auto candidate_refs = RefResolver::get_references(candidate);
+            expect(std::find(candidate_refs.begin(), candidate_refs.end(), "GT-TSK-9995") != candidate_refs.end(), message);
+        };
+        expect_unproven_alias_retained({
+            "2026-03-12 00:01 [agent=opencode] Remapped ID: GT-TSK-9995 -> GT-TSK-0001."
+        }, "a malformed remap message should fail closed");
+        expect_unproven_alias_retained({
+            "2026-03-12 00:01 [agent=opencode] Remapped ID: GT-TSK-9995 -> GT-TSK-9994",
+            "2026-03-12 00:02 [agent=opencode] Remapped ID: GT-TSK-9995 -> GT-TSK-0001"
+        }, "a branched remap history should fail closed");
+        expect_unproven_alias_retained({
+            "2026-03-12 00:01 [agent=opencode] Remapped ID: GT-TSK-9995 -> GT-TSK-9994",
+            "2026-03-12 00:02 [agent=opencode] Remapped ID: GT-TSK-9994 -> GT-TSK-9995",
+            "2026-03-12 00:03 [agent=opencode] Remapped ID: GT-TSK-9995 -> GT-TSK-0001"
+        }, "a cyclic remap history should fail closed");
+        expect_unproven_alias_retained({
+            "2026-03-12 00:01 [agent=opencode] Remapped ID: GT-TSK-9994 -> GT-TSK-0001",
+            "2026-03-12 00:02 [agent=opencode] Remapped ID: GT-TSK-9995 -> GT-TSK-9994"
+        }, "an out-of-order remap history should fail closed");
+        expect_unproven_alias_retained({
+            "2026-03-12 00:01 [agent=opencode] Remapped ID: GT-TSK-9995 -> GT-TSK-9994"
+        }, "a remap chain ending at an unrelated ID should fail closed");
 
         BacklogItem incomplete_subtask = subtask;
         incomplete_subtask.approach.reset();

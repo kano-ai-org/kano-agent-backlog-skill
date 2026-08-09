@@ -3,10 +3,9 @@
 #include "kano/backlog_core/models/errors.hpp"
 #include <regex>
 #include <set>
-#include <algorithm>
-#include <cctype>
 #include <iomanip>
 #include <sstream>
+#include <utility>
 
 namespace kano::backlog_core {
 
@@ -56,37 +55,67 @@ std::vector<std::string> RefResolver::get_references(const BacklogItem& item) {
         R"(\b(?:[A-Z][A-Z0-9]{1,15}-(?:INIT|EPIC|FTR|USR|TSK|SUBTSK|BUG|ISS)-\d{4}|ADR-\d{4})\b)"
     );
 
-    const auto is_explicit_historical_source = [](const std::string& text, std::size_t token_start) {
-        auto lower = text;
-        std::transform(lower.begin(), lower.end(), lower.begin(), [](unsigned char ch) {
-            return static_cast<char>(std::tolower(ch));
-        });
-        const auto remap_start = lower.rfind("canonical remap:", token_start);
-        if (remap_start != std::string::npos) {
-            const auto represented_by = lower.find("represented by", remap_start);
-            const auto clause_end = lower.find_first_of(".\r\n", remap_start);
-            if (represented_by != std::string::npos &&
-                (clause_end == std::string::npos || represented_by < clause_end) &&
-                token_start < represented_by) {
-                return true;
+    static const std::regex remapped_id_message_pattern(
+        R"(^Remapped ID: ([A-Z][A-Z0-9]{1,15}-(?:INIT|EPIC|FTR|USR|TSK|SUBTSK|BUG|ISS)-\d{4}) -> ([A-Z][A-Z0-9]{1,15}-(?:INIT|EPIC|FTR|USR|TSK|SUBTSK|BUG|ISS)-\d{4})$)"
+    );
+
+    const auto historical_prose_ids = [&]() {
+        std::vector<std::pair<std::string, std::string>> remap_chain;
+        for (const auto& raw_line : item.worklog) {
+            auto line = raw_line;
+            if (!line.empty() && line.back() == '\r') {
+                line.pop_back();
             }
+
+            const auto parsed_entry = WorklogEntry::parse(line);
+            if (!parsed_entry) {
+                if (line.find("Remapped ID:") != std::string::npos) {
+                    return std::set<std::string>{};
+                }
+                continue;
+            }
+
+            std::smatch match;
+            if (!std::regex_match(parsed_entry->message, match, remapped_id_message_pattern)) {
+                if (parsed_entry->message.find("Remapped ID:") != std::string::npos) {
+                    return std::set<std::string>{};
+                }
+                continue;
+            }
+            remap_chain.emplace_back(match[1].str(), match[2].str());
         }
 
-        const auto context_start = token_start > 32 ? token_start - 32 : 0;
-        const auto prefix = lower.substr(context_start, token_start - context_start);
-        return prefix.ends_with("legacy ") || prefix.ends_with("mislabeled ");
-    };
+        if (remap_chain.empty()) {
+            return std::set<std::string>{};
+        }
+
+        std::set<std::string> visited_ids;
+        std::set<std::string> historical_ids;
+        std::string cursor = remap_chain.front().first;
+        visited_ids.insert(cursor);
+        for (const auto& [old_id, new_id] : remap_chain) {
+            if (old_id != cursor || old_id == new_id || visited_ids.contains(new_id)) {
+                return std::set<std::string>{};
+            }
+            historical_ids.insert(old_id);
+            visited_ids.insert(new_id);
+            cursor = new_id;
+        }
+
+        if (cursor != item.id) {
+            return std::set<std::string>{};
+        }
+        historical_ids.erase(item.id);
+        return historical_ids;
+    }();
 
     const auto extract_canonical_prose_tokens = [&](const std::string& text) {
         std::smatch match;
         std::string remaining = text;
-        std::size_t consumed = 0;
         while (std::regex_search(remaining, match, canonical_prose_pattern)) {
-            const auto token_start = consumed + static_cast<std::size_t>(match.position());
-            if (!is_explicit_historical_source(text, token_start)) {
+            if (!historical_prose_ids.contains(match.str())) {
                 refs.insert(match.str());
             }
-            consumed = token_start + static_cast<std::size_t>(match.length());
             remaining = match.suffix().str();
         }
     };
