@@ -164,12 +164,12 @@ RefreshIndexResult refresh_index(
 }
 
 GetIndexStatusResult get_index_status(
-    const std::filesystem::path& product_root,
+    const std::filesystem::path& backlog_root,
     const std::optional<std::string>& product_name
 ) {
     GetIndexStatusResult result;
 
-    std::filesystem::path cache_root = product_root / ".cache" / "index";
+    std::filesystem::path cache_root = backlog_root / ".cache" / "index";
     std::filesystem::path index_path = cache_root / "backlog.db";
 
     IndexStatusEntry entry;

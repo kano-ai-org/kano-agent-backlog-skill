@@ -5637,6 +5637,12 @@ Json::Value admin_init_result_to_json(const OrchestrationOps::InitResult& result
     payload["product"] = result.product;
     payload["product_name"] = result.product_name;
     payload["prefix"] = result.prefix;
+    payload["prefix_source"] = result.prefix_source;
+    Json::Value prefix_candidates(Json::arrayValue);
+    for (const auto& candidate : result.prefix_candidates) {
+        prefix_candidates.append(candidate);
+    }
+    payload["prefix_candidates"] = prefix_candidates;
     payload["project_root"] = result.project_root.string();
     payload["backlog_root"] = result.backlog_root.string();
     payload["product_root"] = result.product_root.string();
@@ -5667,6 +5673,7 @@ void print_admin_init_result(const OrchestrationOps::InitResult& result) {
     std::cout << "Backlog root: " << result.backlog_root.string() << "\n";
     std::cout << "Product root: " << result.product_root.string() << "\n";
     std::cout << "Config: " << result.config_path.string() << "\n";
+    std::cout << "Prefix: " << result.prefix << " (" << result.prefix_source << ")\n";
     std::cout << "Created paths: " << result.created_paths.size() << "\n";
     std::cout << "Refreshed dashboards: " << result.views_refreshed.size() << "\n";
 }
@@ -19721,7 +19728,7 @@ int main(int InArgc, char* InArgv[]) {
                             : std::optional<std::string>(idx_product),
                         sandbox_name_opt.empty() ? std::nullopt : std::optional<std::string>(sandbox_name_opt)
                     );
-                    auto result = get_index_status(ctx.product_root, ctx.product_name);
+                    auto result = get_index_status(ctx.backlog_root, ctx.product_name);
                     if (result.indexes.empty()) {
                         std::cout << "No indexes found.\n";
                         return;
@@ -21260,6 +21267,11 @@ int main(int InArgc, char* InArgv[]) {
                 checkCmd->callback([&, state]() {
                     const auto backlog_root = resolve_backlog_root_arg(state->backlog_root);
 
+                    std::optional<ProjectConfig> project_config;
+                    if (const auto config_path = ConfigLoader::find_project_config(backlog_root)) {
+                        project_config = ProjectConfig::load_from_toml(*config_path);
+                    }
+
                     int total_checked = 0;
                     int total_issues = 0;
 
@@ -21278,6 +21290,18 @@ int main(int InArgc, char* InArgv[]) {
                         auto product_root = entry.path();
                         CanonicalStore store(product_root);
                         auto item_paths = store.list_items();
+                        std::optional<std::string> expected_prefix;
+                        if (project_config) {
+                            if (const auto definition = project_config->get_product(product_name)) {
+                                expected_prefix = trim_copy(definition->prefix);
+                                std::transform(
+                                    expected_prefix->begin(),
+                                    expected_prefix->end(),
+                                    expected_prefix->begin(),
+                                    [](unsigned char ch) { return static_cast<char>(std::toupper(ch)); }
+                                );
+                            }
+                        }
                         int product_checked = 0;
                         int product_issues = 0;
 
@@ -21285,6 +21309,15 @@ int main(int InArgc, char* InArgv[]) {
                             try {
                                 auto item = store.read(item_path);
                                 auto errors = Validator::validate_schema(item);
+                                if (expected_prefix && !expected_prefix->empty()) {
+                                    if (const auto parsed = RefParser::parse_display_id(item.id);
+                                        parsed && parsed->product != *expected_prefix) {
+                                        errors.push_back(
+                                            "display ID prefix " + parsed->product +
+                                            " does not match configured product prefix " + *expected_prefix
+                                        );
+                                    }
+                                }
                                 ++product_checked;
                                 if (!errors.empty()) {
                                     ++product_issues;
@@ -21306,7 +21339,7 @@ int main(int InArgc, char* InArgv[]) {
                         if (product_issues == 0 && product_checked > 0) {
                             std::cout << "OK " << product_name << ": all " << product_checked << " items have required fields\n";
                         } else if (product_issues > 0) {
-                            std::cout << "FAIL " << product_name << ": " << product_issues << " items with missing fields\n";
+                            std::cout << "FAIL " << product_name << ": " << product_issues << " items with schema issues\n";
                         }
                     }
 

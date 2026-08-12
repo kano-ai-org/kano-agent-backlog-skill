@@ -481,9 +481,7 @@ BacklogContext BacklogContext::resolve(
     if (!project_config) {
         throw ConfigError("Failed to parse project config at " + config_path->string());
     }
-    if (const auto collisions = project_config->find_prefix_collisions(*config_path); !collisions.empty()) {
-        throw ConfigError(ProjectConfig::describe_prefix_collisions(collisions));
-    }
+    const auto collisions = project_config->find_prefix_collisions(*config_path);
 
     std::string product_name;
     bool is_sandbox = false;
@@ -499,11 +497,32 @@ BacklogContext BacklogContext::resolve(
             throw ConfigError("No products defined in project config");
         }
     } else {
+        const bool exact_product_name = project_config->products.contains(*product_name_opt);
+        if (!collisions.empty() && !exact_product_name) {
+            throw ConfigError(
+                ProjectConfig::describe_prefix_collisions(collisions) +
+                "\nProduct registry recovery requires an exact canonical product slug; prefix aliases are disabled until collisions are repaired."
+            );
+        }
         const auto resolved_product_name = project_config->resolve_product_name(*product_name_opt);
         if (!resolved_product_name) {
             throw ConfigError("Product '" + *product_name_opt + "' not found in project config");
         }
         product_name = *resolved_product_name;
+    }
+
+    std::vector<ProductPrefixCollision> selected_product_collisions;
+    for (const auto& collision : collisions) {
+        if (collision.left_product == product_name || collision.right_product == product_name) {
+            selected_product_collisions.push_back(collision);
+        }
+    }
+    if (!selected_product_collisions.empty()) {
+        throw ConfigError(
+            ProjectConfig::describe_prefix_collisions(selected_product_collisions) +
+            "\nSelected product '" + product_name +
+            "' participates in the collision and remains blocked until its canonical prefix is repaired."
+        );
     }
 
     auto product_root = project_config->resolve_backlog_root(product_name, *config_path);
@@ -514,7 +533,7 @@ BacklogContext BacklogContext::resolve(
     std::filesystem::path project_root = ConfigLoader::resolve_project_root(*config_path).value_or(infer_project_root(*config_path));
 
     std::filesystem::path backlog_root = *product_root;
-    if (product_root->parent_path().filename() == "products" && product_root->parent_path().parent_path().filename() == "backlog") {
+    if (product_root->parent_path().filename() == "products") {
         backlog_root = product_root->parent_path().parent_path();
     }
 

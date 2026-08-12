@@ -40,15 +40,27 @@ bash scripts/kob admin init --product my-app --agent my-agent
 
 This scaffolds local markdown artifacts under `_kano/backlog/`, including product config, backlog items, decisions, and generated views.
 
-Use `--prefix` when the derived two-letter prefix would collide with another
-product in the same shared backlog root. For example,
-`kano-agent-ark-skill` should use `KOA`; `kano-ai-3d-asset-skill` should use a
-distinct prefix such as `KA3D` or `K3DA`, not the ambiguous derived `KA`.
+When `--prefix` is omitted, KOB tries a deterministic ordered set of candidates
+and persists the first unused prefix. Dry-run output reports `prefix_source` and
+`prefix_candidates`, so an agent can review the namespace choice before
+confirmation. Use an explicit `--prefix` when the repository has a preferred
+canonical abbreviation. For example, `kano-agent-ark-skill` should use `KOA`;
+`kano-ai-3d-asset-skill` should use a distinct prefix such as `KA3D` or `K3DA`.
 
 ```bash
 bash scripts/kob admin init --product kano-agent-ark-skill --prefix KOA --agent my-agent
 bash scripts/kob admin init --product kano-ai-3d-asset-skill --prefix KA3D --agent my-agent
 ```
+
+Existing product prefixes are preserved when `--prefix` is omitted. During an
+existing registry collision, doctor and config validation continue to fail.
+Only an unaffected product selected by its exact canonical slug remains usable
+for repair tracking; colliding products and all prefix aliases stay blocked.
+`admin init --force --prefix <unique>` may repair one participating product at
+a time even when another independent collision remains; unrelated registration
+and config updates stay blocked until global uniqueness is restored.
+Run `schema check` after a prefix repair to detect item IDs that still carry the
+old prefix before publishing the registry change.
 
 Add derived data to `.gitignore`:
 

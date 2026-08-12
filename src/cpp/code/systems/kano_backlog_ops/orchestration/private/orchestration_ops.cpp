@@ -11,6 +11,8 @@
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <iterator>
+#include <set>
 #include <sstream>
 #include <stdexcept>
 #include <string>
@@ -113,6 +115,91 @@ std::string derive_prefix(std::string product_name) {
         return static_cast<char>(std::toupper(ch));
     });
     return prefix;
+}
+
+std::vector<std::string> product_name_segments(std::string product_name) {
+    product_name = trim(product_name);
+    std::transform(product_name.begin(), product_name.end(), product_name.begin(), [](unsigned char ch) {
+        return static_cast<char>(std::toupper(ch));
+    });
+
+    std::vector<std::string> segments;
+    std::string current;
+    for (const unsigned char ch : product_name) {
+        if (std::isalnum(ch)) {
+            current.push_back(static_cast<char>(ch));
+        } else if (!current.empty()) {
+            segments.push_back(current);
+            current.clear();
+        }
+    }
+    if (!current.empty()) {
+        segments.push_back(current);
+    }
+    return segments;
+}
+
+bool is_valid_prefix_candidate(const std::string& value) {
+    return value.size() >= 2 && value.size() <= 16 &&
+           std::isalpha(static_cast<unsigned char>(value.front())) &&
+           std::all_of(value.begin(), value.end(), [](unsigned char ch) { return std::isalnum(ch); });
+}
+
+struct DerivedPrefixSelection {
+    std::string prefix;
+    std::vector<std::string> considered;
+};
+
+DerivedPrefixSelection select_derived_prefix(
+    const std::string& product_name,
+    const std::set<std::string>& occupied_prefixes
+) {
+    DerivedPrefixSelection result;
+    std::set<std::string> emitted;
+
+    const auto try_candidate = [&](std::string candidate) {
+        if (candidate.size() > 16) {
+            candidate.resize(16);
+        }
+        if (!is_valid_prefix_candidate(candidate) || !emitted.insert(candidate).second) {
+            return false;
+        }
+        result.considered.push_back(candidate);
+        if (!occupied_prefixes.contains(candidate)) {
+            result.prefix = candidate;
+            return true;
+        }
+        return false;
+    };
+
+    const std::string primary = derive_prefix(product_name);
+    if (try_candidate(primary)) {
+        return result;
+    }
+
+    const auto segments = product_name_segments(product_name);
+    std::string acronym;
+    std::string compact;
+    for (const auto& segment : segments) {
+        if (!segment.empty()) {
+            acronym.push_back(segment.front());
+            compact += segment;
+        }
+    }
+    if (try_candidate(acronym) || try_candidate(compact)) {
+        return result;
+    }
+
+    const std::string suffix_base = is_valid_prefix_candidate(primary) ? primary : "PX";
+    for (int suffix = 2; suffix <= 9999; ++suffix) {
+        const std::string suffix_text = std::to_string(suffix);
+        const auto base_size = std::min<std::size_t>(suffix_base.size(), 16 - suffix_text.size());
+        if (try_candidate(suffix_base.substr(0, base_size) + suffix_text)) {
+            return result;
+        }
+    }
+
+    throw std::runtime_error("Unable to derive an unused product prefix; pass an explicit --prefix");
 }
 
 std::string normalize_prefix(std::string prefix) {
@@ -240,29 +327,34 @@ void validate_prefix_collision(
     if (!config) {
         return;
     }
-    if (const auto collisions = config->find_prefix_collisions(config_path); !collisions.empty()) {
-        throw std::runtime_error(kano::backlog_core::ProjectConfig::describe_prefix_collisions(collisions));
-    }
+    const auto existing_collisions = config->find_prefix_collisions(config_path);
+    const auto collision_involves_product = [&](const kano::backlog_core::ProductPrefixCollision& collision) {
+        return collision.left_product == product || collision.right_product == product;
+    };
+    const bool repairing_colliding_product = std::any_of(
+        existing_collisions.begin(),
+        existing_collisions.end(),
+        collision_involves_product
+    );
 
-    for (const auto& [configured_product, definition] : config->products) {
-        const std::string configured_prefix = trim(definition.prefix);
-        if (configured_product == product || configured_prefix.empty()) {
-            continue;
-        }
-        if (normalize_prefix(configured_prefix) == prefix) {
-            kano::backlog_core::ProductPrefixCollision collision;
-            collision.prefix = prefix;
-            collision.left_product = configured_product;
-            collision.left_prefix = configured_prefix;
-            collision.left_config_path = config_path.string();
-            if (const auto root = config->resolve_backlog_root(configured_product, config_path)) {
-                collision.left_backlog_root = root->string();
-            }
-            collision.right_product = product;
-            collision.right_prefix = prefix;
-            collision.right_config_path = config_path.string();
-            throw std::runtime_error(kano::backlog_core::ProjectConfig::describe_prefix_collision(collision));
-        }
+    auto prospective = *config;
+    prospective.products[product].prefix = prefix;
+    const auto prospective_collisions = prospective.find_prefix_collisions(config_path);
+    std::vector<kano::backlog_core::ProductPrefixCollision> product_collisions;
+    std::copy_if(
+        prospective_collisions.begin(),
+        prospective_collisions.end(),
+        std::back_inserter(product_collisions),
+        collision_involves_product
+    );
+    if (!product_collisions.empty()) {
+        throw std::runtime_error(kano::backlog_core::ProjectConfig::describe_prefix_collisions(product_collisions));
+    }
+    if (!existing_collisions.empty() && !repairing_colliding_product) {
+        throw std::runtime_error(
+            kano::backlog_core::ProjectConfig::describe_prefix_collisions(existing_collisions) +
+            "\nExisting product prefix collisions must be repaired before registering or updating an unaffected product."
+        );
     }
 }
 
@@ -461,20 +553,45 @@ OrchestrationOps::InitResult OrchestrationOps::initialize_backlog(const InitOpti
     if (actual_product_name.empty()) {
         throw std::runtime_error("Product name cannot be empty");
     }
+    std::optional<kano::backlog_core::ProjectConfig> existing_config;
+    if (std::filesystem::exists(config_path)) {
+        existing_config = kano::backlog_core::ProjectConfig::load_from_toml(config_path);
+    }
+
     std::optional<std::string> existing_product_prefix;
-    if (!options.prefix && std::filesystem::exists(config_path)) {
-        const auto existing_config = kano::backlog_core::ProjectConfig::load_from_toml(config_path);
-        if (existing_config) {
-            if (const auto existing_product = existing_config->get_product(product)) {
-                if (!trim(existing_product->prefix).empty()) {
-                    existing_product_prefix = existing_product->prefix;
-                }
+    if (existing_config) {
+        if (const auto existing_product = existing_config->get_product(product)) {
+            if (!trim(existing_product->prefix).empty()) {
+                existing_product_prefix = existing_product->prefix;
             }
         }
     }
-    const std::string actual_prefix = normalize_prefix(
-        options.prefix ? *options.prefix : existing_product_prefix.value_or(derive_prefix(actual_product_name))
-    );
+
+    std::string actual_prefix;
+    std::string prefix_source;
+    std::vector<std::string> prefix_candidates;
+    if (options.prefix) {
+        actual_prefix = normalize_prefix(*options.prefix);
+        prefix_source = "explicit";
+        prefix_candidates.push_back(actual_prefix);
+    } else if (existing_product_prefix) {
+        actual_prefix = normalize_prefix(*existing_product_prefix);
+        prefix_source = "existing";
+        prefix_candidates.push_back(actual_prefix);
+    } else {
+        std::set<std::string> occupied_prefixes;
+        if (existing_config) {
+            for (const auto& [configured_product, definition] : existing_config->products) {
+                if (configured_product != product && !trim(definition.prefix).empty()) {
+                    occupied_prefixes.insert(normalize_prefix(definition.prefix));
+                }
+            }
+        }
+        auto selection = select_derived_prefix(actual_product_name, occupied_prefixes);
+        actual_prefix = selection.prefix;
+        prefix_candidates = std::move(selection.considered);
+        prefix_source = prefix_candidates.size() == 1 ? "derived" : "derived_collision_free";
+    }
 
     validate_prefix_collision(config_path, product, actual_prefix);
 
@@ -483,6 +600,8 @@ OrchestrationOps::InitResult OrchestrationOps::initialize_backlog(const InitOpti
     result.product = product;
     result.product_name = actual_product_name;
     result.prefix = actual_prefix;
+    result.prefix_source = prefix_source;
+    result.prefix_candidates = std::move(prefix_candidates);
     result.dry_run = options.dry_run;
     result.project_root = project_root;
     result.backlog_root = backlog_root;
