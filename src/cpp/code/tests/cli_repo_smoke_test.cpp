@@ -2302,6 +2302,44 @@ int main(int argc, char** argv) {
         }) == 0, "admin release phase2 check failed");
         expect(std::filesystem::exists(backlog_root / "topics" / "native-release-smoke" / "publish" / "release_check_0.0.4_phase2.md"), "admin release phase2 did not write report");
 
+        const auto phase1_repo = temp_root / "release-phase1-policy-repo";
+        const auto phase1_backlog = temp_root / "release-phase1-policy-backlog";
+        write_text(phase1_repo / "VERSION", "0.0.5\n");
+        write_text(phase1_repo / "CHANGELOG.md", "# Changelog\n\n## [0.0.5] - Unreleased\n");
+        write_text(phase1_repo / "src" / "shell" / "core" / "kano-backlog", "#!/usr/bin/env bash\n");
+        write_text(phase1_repo / "src" / "shell" / "release" / "post_release_verify.py", "# bounded release-only verifier\n");
+        write_text(phase1_repo / "_ws" / "generated.py", "# generated workspace fixture\n");
+        write_text(phase1_repo / "src" / "wix" / "out" / "payload" / "generated.py", "# generated package fixture\n");
+        write_text(phase1_repo / "node_modules" / "vendor.py", "# third-party fixture\n");
+        std::filesystem::create_directories(phase1_repo / "src" / "cpp");
+
+        expect(run_command(binary, {
+            "-p", phase1_repo.string(),
+            "admin", "release", "check",
+            "--version", "0.0.5",
+            "--topic", "phase1-policy-pass",
+            "--agent", "tester",
+            "--phase", "phase1",
+            "--backlog-root", phase1_backlog.string()
+        }) == 0, "admin release phase1 rejected bounded verifier or generated outputs");
+        const auto phase1_pass_report = phase1_backlog / "topics" / "phase1-policy-pass" / "publish" / "release_check_0.0.5_phase1.md";
+        expect(read_text(phase1_pass_report).find("[PASS] runtime:no-python-source-or-stubs") != std::string::npos,
+               "admin release phase1 did not report the bounded Python source policy as passing");
+
+        write_text(phase1_repo / "src" / "runtime" / "rogue.py", "# unapproved runtime fixture\n");
+        expect(run_command(binary, {
+            "-p", phase1_repo.string(),
+            "admin", "release", "check",
+            "--version", "0.0.5",
+            "--topic", "phase1-policy-reject",
+            "--agent", "tester",
+            "--phase", "phase1",
+            "--backlog-root", phase1_backlog.string()
+        }) != 0, "admin release phase1 accepted an unapproved Python source");
+        const auto phase1_reject_report = phase1_backlog / "topics" / "phase1-policy-reject" / "publish" / "release_check_0.0.5_phase1.md";
+        expect(read_text(phase1_reject_report).find("src/runtime/rogue.py") != std::string::npos,
+               "admin release phase1 did not identify the unapproved Python source");
+
         expect(run_command(binary, {
             "-P", "kano-ai-3d-asset-skill",
             "evidence", "delete",

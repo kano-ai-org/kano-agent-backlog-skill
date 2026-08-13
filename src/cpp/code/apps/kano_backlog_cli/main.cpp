@@ -5468,18 +5468,20 @@ std::vector<std::string> collect_repo_python_artifacts(const std::filesystem::pa
     while (!ec && it != end) {
         const auto path = it->path();
         const auto filename = path.filename().string();
-        const auto generic = path.generic_string();
+        std::error_code rel_ec;
+        const auto relative_path = std::filesystem::relative(path, repo_root, rel_ec);
+        const auto relative = rel_ec ? path.generic_string() : relative_path.lexically_normal().generic_string();
         if (it->is_directory(ec)) {
             if (filename == ".git" || filename == ".kano" || filename == ".pixi" ||
-                generic.find("/src/cpp/out") != std::string::npos) {
+                filename == "node_modules" || relative == "_ws" || relative == "src/cpp/out" ||
+                relative == "src/wix/out") {
                 it.disable_recursion_pending();
             }
         } else if (it->is_regular_file(ec)) {
             const auto ext = path.extension().string();
-            if (ext == ".py" || ext == ".pyi") {
-                std::error_code rel_ec;
-                auto relative = std::filesystem::relative(path, repo_root, rel_ec);
-                artifacts.push_back(rel_ec ? path.generic_string() : relative.generic_string());
+            if ((ext == ".py" || ext == ".pyi") &&
+                relative != "src/shell/release/post_release_verify.py") {
+                artifacts.push_back(relative);
                 if (artifacts.size() >= 20) {
                     break;
                 }
