@@ -45,6 +45,7 @@
 #include <cstring>
 #include <cmath>
 #include <cstdio>
+#include <utility>
 
 #ifdef _WIN32
 #include <process.h>
@@ -59,6 +60,36 @@ using namespace kano::backlog_core;
 using namespace kano::backlog_ops;
 
 namespace {
+
+class Cli11CommandStateArena {
+public:
+    template <typename T>
+    T& keep() {
+        return keep(T{});
+    }
+
+    template <typename T>
+    T& keep(T value) {
+        auto owner = std::make_shared<T>(std::move(value));
+        storage_.push_back(owner);
+        return *owner;
+    }
+
+    template <typename T, typename... Args>
+    std::shared_ptr<T> make_shared(Args&&... args) {
+        auto owner = std::make_shared<T>(std::forward<Args>(args)...);
+        storage_.push_back(owner);
+        return owner;
+    }
+
+    template <typename T>
+    void retain(const std::shared_ptr<T>& owner) {
+        storage_.push_back(owner);
+    }
+
+private:
+    std::vector<std::shared_ptr<void>> storage_;
+};
 
 std::string join_strings(const std::vector<std::string>& values, const std::string& separator = ", ") {
     std::ostringstream oss;
@@ -8912,6 +8943,7 @@ int main(int InArgc, char* InArgv[]) {
         return 1;
     }
 
+    Cli11CommandStateArena cli11_state;
     CLI::App app{
         "kano-backlog — Local-first backlog CLI\n"
         "Standalone: kano-backlog <command>\n"
@@ -8986,9 +9018,14 @@ int main(int InArgc, char* InArgv[]) {
         // workitem create
         {
             auto* createCmd = workitemCmd->add_subcommand("create", "Create a new work item");
-            std::string type_str, title, agent, parent, owner, reviewer;
-            bool profile_mutations = false;
-            auto duplicate_admission = std::make_shared<DuplicateAdmissionEvidence>();
+            auto& type_str = cli11_state.keep<std::string>();
+            auto& title = cli11_state.keep<std::string>();
+            auto& agent = cli11_state.keep<std::string>();
+            auto& parent = cli11_state.keep<std::string>();
+            auto& owner = cli11_state.keep<std::string>();
+            auto& reviewer = cli11_state.keep<std::string>();
+            auto& profile_mutations = cli11_state.keep<bool>(false);
+            auto duplicate_admission = cli11_state.make_shared<DuplicateAdmissionEvidence>();
             createCmd->add_option("-t,--type", type_str, "Item type (initiative, epic, feature, userstory, task, subtask, bug, issue)")->required();
             createCmd->add_option("--title", title, "Item title")->required();
             createCmd->add_option("--agent", agent, "Agent ID")->required();
@@ -9066,10 +9103,16 @@ int main(int InArgc, char* InArgv[]) {
             auto* updateStateCmd = workitemCmd->add_subcommand(
                 "update-state",
                 "Update item state; Review to InProgress uses audited reopen and requires a rationale");
-            std::string ref, state_str, state_opt_str, update_agent, update_msg, update_msg_file, update_duplicate_of;
-            bool update_consume_input_files = false;
-            bool update_refresh_views = false;
-            bool update_no_sync_parent = false;
+            auto& ref = cli11_state.keep<std::string>();
+            auto& state_str = cli11_state.keep<std::string>();
+            auto& state_opt_str = cli11_state.keep<std::string>();
+            auto& update_agent = cli11_state.keep<std::string>();
+            auto& update_msg = cli11_state.keep<std::string>();
+            auto& update_msg_file = cli11_state.keep<std::string>();
+            auto& update_duplicate_of = cli11_state.keep<std::string>();
+            auto& update_consume_input_files = cli11_state.keep<bool>(false);
+            auto& update_refresh_views = cli11_state.keep<bool>(false);
+            auto& update_no_sync_parent = cli11_state.keep<bool>(false);
             updateStateCmd->add_option("ref", ref, "Item ID or UID")->required();
             updateStateCmd->add_option("state_arg", state_str, "New state (positional)");
             updateStateCmd->add_option("--state", state_opt_str, "New state (option form)");
@@ -9081,7 +9124,7 @@ int main(int InArgc, char* InArgv[]) {
             updateStateCmd->add_option("--message-file", update_msg_file, "Read optional log message from file");
             updateStateCmd->add_option("--duplicate-of", update_duplicate_of, "Canonical item ID or UID required when transitioning to Duplicate");
             updateStateCmd->add_flag("--consume-input-files", update_consume_input_files, "Delete input files after a successful update; files must be under ~/.kano/tmp/backlog or KANO_BACKLOG_TEXT_TMP");
-            bool update_force = false;
+            auto& update_force = cli11_state.keep<bool>(false);
             updateStateCmd->add_flag(
                 "-f,--force",
                 update_force,
@@ -9138,9 +9181,23 @@ int main(int InArgc, char* InArgv[]) {
         // workitem set-ready
         {
             auto* setReadyCmd = workitemCmd->add_subcommand("set-ready", "Populate Ready-gate body fields on an item");
-            std::string ref, context, goal, non_goals, approach, intent_amendments, acceptance_criteria, risks, set_ready_agent;
-            std::string context_file, goal_file, non_goals_file, approach_file, intent_amendments_file, acceptance_criteria_file, risks_file;
-            bool set_ready_consume_input_files = false;
+            auto& ref = cli11_state.keep<std::string>();
+            auto& context = cli11_state.keep<std::string>();
+            auto& goal = cli11_state.keep<std::string>();
+            auto& non_goals = cli11_state.keep<std::string>();
+            auto& approach = cli11_state.keep<std::string>();
+            auto& intent_amendments = cli11_state.keep<std::string>();
+            auto& acceptance_criteria = cli11_state.keep<std::string>();
+            auto& risks = cli11_state.keep<std::string>();
+            auto& set_ready_agent = cli11_state.keep<std::string>();
+            auto& context_file = cli11_state.keep<std::string>();
+            auto& goal_file = cli11_state.keep<std::string>();
+            auto& non_goals_file = cli11_state.keep<std::string>();
+            auto& approach_file = cli11_state.keep<std::string>();
+            auto& intent_amendments_file = cli11_state.keep<std::string>();
+            auto& acceptance_criteria_file = cli11_state.keep<std::string>();
+            auto& risks_file = cli11_state.keep<std::string>();
+            auto& set_ready_consume_input_files = cli11_state.keep<bool>(false);
             setReadyCmd->add_option("ref", ref, "Item ID or UID")->required();
             setReadyCmd->add_option("--context", context, "Context text");
             setReadyCmd->add_option("--goal", goal, "Goal text");
@@ -9235,7 +9292,7 @@ int main(int InArgc, char* InArgv[]) {
                 std::string ref;
                 bool no_check_parent = false;
             };
-            auto state = std::make_shared<CheckReadyCommandState>();
+            auto state = cli11_state.make_shared<CheckReadyCommandState>();
             checkReadyCmd->add_option("ref", state->ref, "Item ID or UID")->required();
             checkReadyCmd->add_flag("--no-check-parent", state->no_check_parent, "Skip parent Ready validation");
 
@@ -9280,7 +9337,7 @@ int main(int InArgc, char* InArgv[]) {
                 int max_depth = 8;
                 int max_section_chars = 600;
             };
-            const auto state = std::make_shared<IntentStackCommandState>();
+            const auto state = cli11_state.make_shared<IntentStackCommandState>();
             intentStackCmd->add_option("ref", state->ref, "Item ID or UID")->required();
             intentStackCmd->add_option("--format", state->format, "Output format: text or json");
             intentStackCmd->add_option("--max-depth", state->max_depth, "Maximum parent-chain depth to resolve");
@@ -9320,7 +9377,7 @@ int main(int InArgc, char* InArgv[]) {
                 std::string format = "text";
                 bool source_changing = false;
             };
-            const auto state = std::make_shared<WorkOrderAdmissionCommandState>();
+            const auto state = cli11_state.make_shared<WorkOrderAdmissionCommandState>();
             admissionCmd->add_option("ref", state->ref, "Item ID or UID")->required();
             auto* admissionIntentOption = admissionCmd->add_option("--intent", state->intent, "Requested work intent for admission");
             admissionCmd->add_option("--format", state->format, "Output format: text or json");
@@ -9367,7 +9424,7 @@ int main(int InArgc, char* InArgv[]) {
                 int max_depth = 8;
                 int max_section_chars = 600;
             };
-            const auto state = std::make_shared<IntentTemplateCommandState>();
+            const auto state = cli11_state.make_shared<IntentTemplateCommandState>();
             intentTemplateCmd->add_option("ref", state->ref, "Item ID or UID")->required();
             intentTemplateCmd->add_option("--kind", state->kind, "Template kind: preflight, compliance, handoff, both, or all");
             intentTemplateCmd->add_option("--format", state->format, "Output format: text or json");
@@ -9418,7 +9475,7 @@ int main(int InArgc, char* InArgv[]) {
                 std::string format = "text";
                 bool consume_input_files = false;
             };
-            const auto state = std::make_shared<IntentAmendCommandState>();
+            const auto state = cli11_state.make_shared<IntentAmendCommandState>();
             intentAmendCmd->add_option("ref", state->ref, "Item ID or UID")->required();
             intentAmendCmd->add_option("--correction", state->correction, "Human/reviewer correction text");
             intentAmendCmd->add_option("--correction-file", state->correction_file, "Read correction text from file");
@@ -9497,7 +9554,7 @@ int main(int InArgc, char* InArgv[]) {
                 int max_depth = 8;
                 int max_section_chars = 600;
             };
-            const auto state = std::make_shared<DriftResolutionTemplateCommandState>();
+            const auto state = cli11_state.make_shared<DriftResolutionTemplateCommandState>();
             driftTemplateCmd->add_option("ref", state->ref, "Source item ID or UID")->required();
             driftTemplateCmd->add_option("--drift-type", state->drift_type, "Drift type label");
             driftTemplateCmd->add_option("--detection-stage", state->detection_stage, "Detection stage");
@@ -9559,7 +9616,7 @@ int main(int InArgc, char* InArgv[]) {
                 int max_depth = 8;
                 int max_section_chars = 600;
             };
-            const auto state = std::make_shared<CreateDriftResolutionCommandState>();
+            const auto state = cli11_state.make_shared<CreateDriftResolutionCommandState>();
             createDriftCmd->add_option("ref", state->ref, "Source item ID or UID")->required();
             createDriftCmd->add_option("--drift-type", state->drift_type, "Drift type label");
             createDriftCmd->add_option("--detection-stage", state->detection_stage, "Detection stage");
@@ -9695,7 +9752,7 @@ int main(int InArgc, char* InArgv[]) {
                 std::string format = "text";
                 int max_depth = 8;
             };
-            const auto state = std::make_shared<IntentDriftPreflightCommandState>();
+            const auto state = cli11_state.make_shared<IntentDriftPreflightCommandState>();
             driftPreflightCmd->add_option("ref", state->ref, "Item ID or UID")->required();
             driftPreflightCmd->add_option("--result", state->result, "Operator classification: no-drift, drift, or uncertain");
             driftPreflightCmd->add_option("--format", state->format, "Output format: text or json");
@@ -9760,7 +9817,9 @@ int main(int InArgc, char* InArgv[]) {
         // workitem trash
         {
             auto* trashCmd = workitemCmd->add_subcommand("trash", "Move item to trash");
-            std::string trash_ref, trash_agent, trash_reason;
+            auto& trash_ref = cli11_state.keep<std::string>();
+            auto& trash_agent = cli11_state.keep<std::string>();
+            auto& trash_reason = cli11_state.keep<std::string>();
             trashCmd->add_option("ref", trash_ref, "Item ID or UID")->required();
             trashCmd->add_option("--agent", trash_agent, "Agent ID")->required();
             trashCmd->add_option("-r,--reason", trash_reason, "Reason for trashing");
@@ -9790,7 +9849,7 @@ int main(int InArgc, char* InArgv[]) {
                 std::string source;
                 bool consume_input_files = false;
             };
-            const auto state = std::make_shared<DecisionCommandState>();
+            const auto state = cli11_state.make_shared<DecisionCommandState>();
             decisionCmd->add_option("ref", state->ref, "Item ID or UID")->required();
             decisionCmd->add_option("text", state->text, "Decision text (positional)");
             decisionCmd->add_option("--decision", state->text_option, "Decision text (option form)");
@@ -9829,15 +9888,15 @@ int main(int InArgc, char* InArgv[]) {
         // workitem attach-artifact
         {
             auto* attachCmd = workitemCmd->add_subcommand("attach-artifact", "Attach an artifact file to a work item");
-            std::string attach_ref;
-            std::string attach_path;
-            std::string attach_agent;
-            std::string attach_product;
-            std::string attach_backlog_root_override;
-            std::string attach_note;
-            std::string attach_format = "plain";
-            bool attach_shared = true;
-            bool attach_no_shared = false;
+            auto& attach_ref = cli11_state.keep<std::string>();
+            auto& attach_path = cli11_state.keep<std::string>();
+            auto& attach_agent = cli11_state.keep<std::string>();
+            auto& attach_product = cli11_state.keep<std::string>();
+            auto& attach_backlog_root_override = cli11_state.keep<std::string>();
+            auto& attach_note = cli11_state.keep<std::string>();
+            auto& attach_format = cli11_state.keep<std::string>("plain");
+            auto& attach_shared = cli11_state.keep<bool>(true);
+            auto& attach_no_shared = cli11_state.keep<bool>(false);
             attachCmd->add_option("item_id", attach_ref, "Item ID, UID, or path")->required();
             attachCmd->add_option("--path", attach_path, "Path to artifact file")->required();
             attachCmd->add_flag("--shared", attach_shared, "Store under _shared/artifacts");
@@ -9933,7 +9992,7 @@ int main(int InArgc, char* InArgv[]) {
                 std::string format = "plain";
                 bool apply = false;
             };
-            auto state = std::make_shared<RemapIdCommandState>();
+            auto state = cli11_state.make_shared<RemapIdCommandState>();
             remapIdCmd->add_option("ref", state->ref, "Current item ID or UID")->required();
             remapIdCmd->add_option("--to", state->to, "New ID")->required();
             remapIdCmd->add_option("--agent", state->agent, "Agent ID")->required();
@@ -9969,7 +10028,9 @@ int main(int InArgc, char* InArgv[]) {
         // workitem remap-parent
         {
             auto* remapCmd = workitemCmd->add_subcommand("remap-parent", "Remap item parent");
-            std::string remap_ref, parent_ref, remap_agent;
+            auto& remap_ref = cli11_state.keep<std::string>();
+            auto& parent_ref = cli11_state.keep<std::string>();
+            auto& remap_agent = cli11_state.keep<std::string>();
             remapCmd->add_option("ref", remap_ref, "Item ID or UID")->required();
             remapCmd->add_option("parent", parent_ref, "New parent ID or UID (use 'none' to clear)")->required();
             remapCmd->add_option("--agent", remap_agent, "Agent ID")->required();
@@ -9995,7 +10056,7 @@ int main(int InArgc, char* InArgv[]) {
                 std::string format = "plain";
                 bool compact = false;
             };
-            auto state = std::make_shared<ListCommandState>();
+            auto state = cli11_state.make_shared<ListCommandState>();
             listCmd->add_option("--type", state->filter_type_str, "Filter by type (initiative, epic, feature, userstory, task, subtask, bug, issue)");
             listCmd->add_option("--state", state->filter_state_str, "Filter by state");
             listCmd->add_option("--item", state->exact_item, "Retrieve one exact display ID or UID");
@@ -10157,13 +10218,13 @@ int main(int InArgc, char* InArgv[]) {
 
             auto* configDumpCmd = configCmd->add_subcommand("dump", "Dump effective configuration as JSON");
             configDumpCmd->alias("show");
-            std::string cfg_show_path;
-            std::string cfg_show_product;
-            std::string cfg_show_sandbox;
-            std::string cfg_show_agent;
-            std::string cfg_show_topic;
-            std::string cfg_show_profile;
-            std::string cfg_show_workset;
+            auto& cfg_show_path = cli11_state.keep<std::string>();
+            auto& cfg_show_product = cli11_state.keep<std::string>();
+            auto& cfg_show_sandbox = cli11_state.keep<std::string>();
+            auto& cfg_show_agent = cli11_state.keep<std::string>();
+            auto& cfg_show_topic = cli11_state.keep<std::string>();
+            auto& cfg_show_profile = cli11_state.keep<std::string>();
+            auto& cfg_show_workset = cli11_state.keep<std::string>();
             configDumpCmd->add_option("--path", cfg_show_path, "Resource path to resolve config from");
             configDumpCmd->add_option("--product", cfg_show_product, "Product name");
             configDumpCmd->add_option("--sandbox", cfg_show_sandbox, "Sandbox name");
@@ -10219,8 +10280,8 @@ int main(int InArgc, char* InArgv[]) {
             auto* profilesCmd = configCmd->add_subcommand("profiles", "Named config profiles");
             {
                 auto* listCmd = profilesCmd->add_subcommand("list", "List available profile names");
-                std::string list_path;
-                std::string list_product;
+                auto& list_path = cli11_state.keep<std::string>();
+                auto& list_product = cli11_state.keep<std::string>();
                 listCmd->add_option("--path", list_path, "Resource path to resolve config from");
                 listCmd->add_option("--product", list_product, "Product name");
                 listCmd->callback([&]() {
@@ -10253,9 +10314,9 @@ int main(int InArgc, char* InArgv[]) {
                 });
 
                 auto* showCmd = profilesCmd->add_subcommand("show", "Show profile config as JSON");
-                std::string profile_name;
-                std::string show_path;
-                std::string show_product;
+                auto& profile_name = cli11_state.keep<std::string>();
+                auto& show_path = cli11_state.keep<std::string>();
+                auto& show_product = cli11_state.keep<std::string>();
                 showCmd->add_option("name", profile_name, "Profile shorthand or path")->required();
                 showCmd->add_option("--path", show_path, "Resource path to resolve config from");
                 showCmd->add_option("--product", show_product, "Product name");
@@ -10275,12 +10336,12 @@ int main(int InArgc, char* InArgv[]) {
             }
 
             auto* pipelineCmd = configCmd->add_subcommand("pipeline", "Inspect effective embedding pipeline configuration");
-            std::string pipeline_path;
-            std::string pipeline_product;
-            std::string pipeline_sandbox;
-            std::string pipeline_agent;
-            std::string pipeline_topic;
-            std::string pipeline_profile;
+            auto& pipeline_path = cli11_state.keep<std::string>();
+            auto& pipeline_product = cli11_state.keep<std::string>();
+            auto& pipeline_sandbox = cli11_state.keep<std::string>();
+            auto& pipeline_agent = cli11_state.keep<std::string>();
+            auto& pipeline_topic = cli11_state.keep<std::string>();
+            auto& pipeline_profile = cli11_state.keep<std::string>();
             pipelineCmd->add_option("--path", pipeline_path, "Resource path to resolve config from");
             pipelineCmd->add_option("--product", pipeline_product, "Product name");
             pipelineCmd->add_option("--sandbox", pipeline_sandbox, "Sandbox name");
@@ -10307,16 +10368,16 @@ int main(int InArgc, char* InArgv[]) {
             });
 
             auto* exportConfigCmd = configCmd->add_subcommand("export", "Write effective merged config to disk");
-            std::string export_path;
-            std::string export_product;
-            std::string export_sandbox;
-            std::string export_agent;
-            std::string export_topic;
-            std::string export_profile;
-            std::string export_workset;
-            std::string export_format = "toml";
-            std::string export_out;
-            bool export_overwrite = false;
+            auto& export_path = cli11_state.keep<std::string>();
+            auto& export_product = cli11_state.keep<std::string>();
+            auto& export_sandbox = cli11_state.keep<std::string>();
+            auto& export_agent = cli11_state.keep<std::string>();
+            auto& export_topic = cli11_state.keep<std::string>();
+            auto& export_profile = cli11_state.keep<std::string>();
+            auto& export_workset = cli11_state.keep<std::string>();
+            auto& export_format = cli11_state.keep<std::string>("toml");
+            auto& export_out = cli11_state.keep<std::string>();
+            auto& export_overwrite = cli11_state.keep<bool>(false);
             exportConfigCmd->add_option("--path", export_path, "Resource path to resolve config from");
             exportConfigCmd->add_option("--product", export_product, "Product name");
             exportConfigCmd->add_option("--sandbox", export_sandbox, "Sandbox name");
@@ -10350,13 +10411,13 @@ int main(int InArgc, char* InArgv[]) {
             });
 
             auto* validateConfigCmd = configCmd->add_subcommand("validate", "Validate layered config");
-            std::string validate_path;
-            std::string validate_product;
-            std::string validate_sandbox;
-            std::string validate_agent;
-            std::string validate_topic;
-            std::string validate_profile;
-            std::string validate_workset;
+            auto& validate_path = cli11_state.keep<std::string>();
+            auto& validate_product = cli11_state.keep<std::string>();
+            auto& validate_sandbox = cli11_state.keep<std::string>();
+            auto& validate_agent = cli11_state.keep<std::string>();
+            auto& validate_topic = cli11_state.keep<std::string>();
+            auto& validate_profile = cli11_state.keep<std::string>();
+            auto& validate_workset = cli11_state.keep<std::string>();
             validateConfigCmd->add_option("--path", validate_path, "Resource path to resolve config from");
             validateConfigCmd->add_option("--product", validate_product, "Product name");
             validateConfigCmd->add_option("--sandbox", validate_sandbox, "Sandbox name");
@@ -10420,15 +10481,15 @@ int main(int InArgc, char* InArgv[]) {
             });
 
             auto* initConfigCmd = configCmd->add_subcommand("init", "Instantiate a product config from the native template");
-            std::string init_path;
-            std::string init_product_cfg;
-            std::string init_sandbox_cfg;
-            std::string init_agent_cfg;
-            std::string init_topic_cfg;
-            std::string init_profile_cfg;
-            std::string init_workset_cfg;
-            std::string init_prefix_cfg;
-            bool init_force_cfg = false;
+            auto& init_path = cli11_state.keep<std::string>();
+            auto& init_product_cfg = cli11_state.keep<std::string>();
+            auto& init_sandbox_cfg = cli11_state.keep<std::string>();
+            auto& init_agent_cfg = cli11_state.keep<std::string>();
+            auto& init_topic_cfg = cli11_state.keep<std::string>();
+            auto& init_profile_cfg = cli11_state.keep<std::string>();
+            auto& init_workset_cfg = cli11_state.keep<std::string>();
+            auto& init_prefix_cfg = cli11_state.keep<std::string>();
+            auto& init_force_cfg = cli11_state.keep<bool>(false);
             initConfigCmd->add_option("--path", init_path, "Resource path to resolve config from");
             initConfigCmd->add_option("--product", init_product_cfg, "Product name");
             initConfigCmd->add_option("--sandbox", init_sandbox_cfg, "Sandbox name");
@@ -10484,13 +10545,13 @@ int main(int InArgc, char* InArgv[]) {
             });
 
             auto* migrateCmd = configCmd->add_subcommand("migrate-json", "Convert JSON config files to TOML with backups");
-            std::string migrate_path = ".";
-            std::string migrate_product;
-            std::string migrate_sandbox;
-            std::string migrate_agent;
-            std::string migrate_topic;
-            std::string migrate_workset;
-            bool migrate_write = false;
+            auto& migrate_path = cli11_state.keep<std::string>(".");
+            auto& migrate_product = cli11_state.keep<std::string>();
+            auto& migrate_sandbox = cli11_state.keep<std::string>();
+            auto& migrate_agent = cli11_state.keep<std::string>();
+            auto& migrate_topic = cli11_state.keep<std::string>();
+            auto& migrate_workset = cli11_state.keep<std::string>();
+            auto& migrate_write = cli11_state.keep<bool>(false);
             migrateCmd->add_option("--path", migrate_path, "Resource path to resolve config from");
             migrateCmd->add_option("--product", migrate_product, "Product name");
             migrateCmd->add_option("--sandbox", migrate_sandbox, "Sandbox name");
@@ -10600,7 +10661,7 @@ int main(int InArgc, char* InArgv[]) {
                 std::string from;
                 bool write = false;
             };
-            const auto migratePrefixState = std::make_shared<MigratePrefixCommandState>();
+            const auto migratePrefixState = cli11_state.make_shared<MigratePrefixCommandState>();
             auto& migpf_path = migratePrefixState->path;
             auto& migpf_product = migratePrefixState->product;
             auto& migpf_to = migratePrefixState->to;
@@ -10973,7 +11034,8 @@ int main(int InArgc, char* InArgv[]) {
                 bool confirm = false;
             };
 
-            const auto add_plan_options = [](auto* command, const auto& options) {
+            const auto add_plan_options = [&](auto* command, const auto& options) {
+                cli11_state.retain(options);
                 command->add_option("source_ref", options->source_ref, "Source root display ID or UUIDv7 UID")->required();
                 command->add_option("--source-product", options->source_product, "Registered source product slug")->required();
                 command->add_option("--target-product", options->target_product, "Registered target product slug")->required();
@@ -11020,7 +11082,7 @@ int main(int InArgc, char* InArgv[]) {
                 return plan_options;
             };
 
-            auto options = std::make_shared<MigrationPlanCliOptions>();
+            auto options = cli11_state.make_shared<MigrationPlanCliOptions>();
             auto* plan_cmd = migration_cmd->add_subcommand(
                 "plan",
                 "Build an immutable migration preflight plan without writes");
@@ -11030,7 +11092,7 @@ int main(int InArgc, char* InArgv[]) {
                 std::cout << result.to_json(!options->compact) << "\n";
             });
 
-            auto apply_options = std::make_shared<MigrationPlanCliOptions>();
+            auto apply_options = cli11_state.make_shared<MigrationPlanCliOptions>();
             auto* apply_cmd = migration_cmd->add_subcommand(
                 "apply",
                 "Apply an exact immutable migration plan through an atomic rollback-capable transaction");
@@ -11052,7 +11114,8 @@ int main(int InArgc, char* InArgv[]) {
                 bool compact = false;
                 bool confirm = false;
             };
-            const auto add_recovery_options = [](auto* command, const auto& recovery) {
+            const auto add_recovery_options = [&](auto* command, const auto& recovery) {
+                cli11_state.retain(recovery);
                 command->add_option("plan_hash", recovery->plan_hash, "Persisted migration plan SHA-256")->required();
                 command->add_option("--backlog-root", recovery->backlog_root, "Explicit shared backlog root");
                 command->add_flag("--compact", recovery->compact, "Emit compact JSON");
@@ -11068,7 +11131,7 @@ int main(int InArgc, char* InArgv[]) {
                 return request;
             };
 
-            auto verify_options = std::make_shared<MigrationRecoveryCliOptions>();
+            auto verify_options = cli11_state.make_shared<MigrationRecoveryCliOptions>();
             auto* verify_cmd = migration_cmd->add_subcommand(
                 "verify", "Verify canonical migration postconditions");
             add_recovery_options(verify_cmd, verify_options);
@@ -11077,7 +11140,7 @@ int main(int InArgc, char* InArgv[]) {
                 std::cout << result.to_json(!verify_options->compact) << "\n";
             });
 
-            auto status_options = std::make_shared<MigrationRecoveryCliOptions>();
+            auto status_options = cli11_state.make_shared<MigrationRecoveryCliOptions>();
             auto* status_cmd = migration_cmd->add_subcommand(
                 "status", "Inspect a persisted migration transaction");
             add_recovery_options(status_cmd, status_options);
@@ -11086,7 +11149,7 @@ int main(int InArgc, char* InArgv[]) {
                 std::cout << result.to_json(!status_options->compact) << "\n";
             });
 
-            auto rollback_options = std::make_shared<MigrationRecoveryCliOptions>();
+            auto rollback_options = cli11_state.make_shared<MigrationRecoveryCliOptions>();
             auto* rollback_cmd = migration_cmd->add_subcommand(
                 "rollback", "Restore the exact pre-migration state from the transaction journal");
             add_recovery_options(rollback_cmd, rollback_options);
@@ -11119,7 +11182,7 @@ int main(int InArgc, char* InArgv[]) {
             };
 
             const auto add_mutation_command = [&](const std::string& name, bool add) {
-                auto options = std::make_shared<MutationOptions>();
+                auto options = cli11_state.make_shared<MutationOptions>();
                 auto* command = relation_cmd->add_subcommand(name, add ? "Add a relation" : "Remove a relation");
                 command->add_option("source_item", options->source_item, "Source display ID or UUIDv7 UID")->required();
                 command->add_option("target_item", options->target_item, "Target display ID or UUIDv7 UID")->required();
@@ -11184,7 +11247,7 @@ int main(int InArgc, char* InArgv[]) {
                 std::size_t max_products = 64;
                 std::size_t max_items = 20000;
             };
-            auto list_options = std::make_shared<ListOptions>();
+            auto list_options = cli11_state.make_shared<ListOptions>();
             auto* list_cmd = relation_cmd->add_subcommand("list", "List bounded incoming and outgoing relations");
             list_cmd->add_option("item", list_options->item, "Display ID or UUIDv7 UID")->required();
             list_cmd->add_option("--product", list_options->product, "Product name or configured prefix")->required();
@@ -11242,8 +11305,8 @@ int main(int InArgc, char* InArgv[]) {
         // ============================================================
         {
             auto* doctorCmd = app.add_subcommand("doctor", "Environment healthy check");
-            auto doctor_backlog_root = std::make_shared<std::string>();
-            auto doctor_config_path = std::make_shared<std::string>();
+            auto doctor_backlog_root = cli11_state.make_shared<std::string>();
+            auto doctor_config_path = cli11_state.make_shared<std::string>();
             doctorCmd->add_option("--backlog-root", *doctor_backlog_root, "Explicit backlog root path");
             doctorCmd->add_option("--config", *doctor_config_path, "Explicit .kano/backlog_config.toml path");
             doctorCmd->callback([&path_str, doctor_backlog_root, doctor_config_path]() {
@@ -11272,14 +11335,14 @@ int main(int InArgc, char* InArgv[]) {
             auto* adminCmd = app.add_subcommand("admin", "Administrative operations");
 
             auto* initCmd = adminCmd->add_subcommand("init", "Initialize a new backlog");
-            std::string init_agent;
-            std::string init_product;
-            std::string init_backlog_root;
-            std::string init_product_name;
-            std::string init_prefix;
-            bool init_force = false;
-            bool init_dry_run = false;
-            bool init_skip_refresh_views = false;
+            auto& init_agent = cli11_state.keep<std::string>();
+            auto& init_product = cli11_state.keep<std::string>();
+            auto& init_backlog_root = cli11_state.keep<std::string>();
+            auto& init_product_name = cli11_state.keep<std::string>();
+            auto& init_prefix = cli11_state.keep<std::string>();
+            auto& init_force = cli11_state.keep<bool>(false);
+            auto& init_dry_run = cli11_state.keep<bool>(false);
+            auto& init_skip_refresh_views = cli11_state.keep<bool>(false);
             initCmd->add_option("--agent", init_agent, "Agent ID")->required();
             initCmd->add_option("--product", init_product, "Product name");
             initCmd->add_option("--backlog-root", init_backlog_root, "Backlog root path");
@@ -11318,7 +11381,7 @@ int main(int InArgc, char* InArgv[]) {
             // admin sync-sequences
             {
                 auto* syncCmd = adminCmd->add_subcommand("sync-sequences", "Sync DB ID sequences from existing files");
-                std::string sync_product;
+                auto& sync_product = cli11_state.keep<std::string>();
                 syncCmd->add_option("--product", sync_product, "Product name");
                 syncCmd->callback([&]() {
                     auto ctx = BacklogContext::resolve(
@@ -11364,14 +11427,14 @@ int main(int InArgc, char* InArgv[]) {
                 auto* itemsCmd = adminCmd->add_subcommand("items", "Item maintenance helpers");
 
                 auto* trashCmd = itemsCmd->add_subcommand("trash", "Move an item file to a per-product _trash folder");
-                std::string item_ref;
-                std::string trash_product;
-                std::string trash_backlog_root;
-                std::string trash_agent;
-                std::string trash_model;
-                std::string trash_reason;
-                std::string trash_format = "markdown";
-                bool trash_apply = false;
+                auto& item_ref = cli11_state.keep<std::string>();
+                auto& trash_product = cli11_state.keep<std::string>();
+                auto& trash_backlog_root = cli11_state.keep<std::string>();
+                auto& trash_agent = cli11_state.keep<std::string>();
+                auto& trash_model = cli11_state.keep<std::string>();
+                auto& trash_reason = cli11_state.keep<std::string>();
+                auto& trash_format = cli11_state.keep<std::string>("markdown");
+                auto& trash_apply = cli11_state.keep<bool>(false);
                 trashCmd->add_option("item_ref", item_ref, "Item ID, UID, or path to trash")->required();
                 trashCmd->add_option("--product", trash_product, "Product name");
                 trashCmd->add_option("--backlog-root", trash_backlog_root, "Backlog root (_kano/backlog)");
@@ -11450,15 +11513,15 @@ int main(int InArgc, char* InArgv[]) {
                 });
 
                 auto* setParentCmd = itemsCmd->add_subcommand("set-parent", "Update a work item's parent field");
-                std::string sp_item_ref;
-                std::string sp_parent;
-                std::string sp_product;
-                std::string sp_backlog_root;
-                std::string sp_agent;
-                std::string sp_model;
-                std::string sp_format = "markdown";
-                bool sp_clear = false;
-                bool sp_apply = false;
+                auto& sp_item_ref = cli11_state.keep<std::string>();
+                auto& sp_parent = cli11_state.keep<std::string>();
+                auto& sp_product = cli11_state.keep<std::string>();
+                auto& sp_backlog_root = cli11_state.keep<std::string>();
+                auto& sp_agent = cli11_state.keep<std::string>();
+                auto& sp_model = cli11_state.keep<std::string>();
+                auto& sp_format = cli11_state.keep<std::string>("markdown");
+                auto& sp_clear = cli11_state.keep<bool>(false);
+                auto& sp_apply = cli11_state.keep<bool>(false);
                 setParentCmd->add_option("item_ref", sp_item_ref, "Item ID, UID, or path to update")->required();
                 setParentCmd->add_option("--parent", sp_parent, "Parent item ID");
                 setParentCmd->add_flag("--clear", sp_clear, "Clear parent reference");
@@ -16924,13 +16987,14 @@ int main(int InArgc, char* InArgv[]) {
             // topic create
             {
                 auto* createCmd = topicCmd->add_subcommand("create", "Create a new topic");
-                std::string name, agent;
-                std::string create_template;
-                std::string create_format = "plain";
+                auto& name = cli11_state.keep<std::string>();
+                auto& agent = cli11_state.keep<std::string>();
+                auto& create_template = cli11_state.keep<std::string>();
+                auto& create_format = cli11_state.keep<std::string>("plain");
                 std::vector<std::string> create_vars;
-                bool create_list_templates = false;
-                bool create_no_notes = false;
-                bool create_with_spec = false;
+                auto& create_list_templates = cli11_state.keep<bool>(false);
+                auto& create_no_notes = cli11_state.keep<bool>(false);
+                auto& create_with_spec = cli11_state.keep<bool>(false);
                 createCmd->add_option("name", name, "Topic name")->required();
                 createCmd->add_option("--agent", agent, "Agent ID")->required();
                 createCmd->add_option("--template", create_template, "Template name to use");
@@ -17038,7 +17102,7 @@ int main(int InArgc, char* InArgv[]) {
                 auto* templateCmd = topicCmd->add_subcommand("template", "Template management commands");
 
                 auto* listCmd = templateCmd->add_subcommand("list", "List available templates");
-                std::string list_format = "plain";
+                auto& list_format = cli11_state.keep<std::string>("plain");
                 listCmd->add_option("--format", list_format, "Output format: plain|json");
                 listCmd->callback([&]() {
                     const auto format_norm = lower_copy(list_format.empty() ? std::string("plain") : list_format);
@@ -17090,8 +17154,8 @@ int main(int InArgc, char* InArgv[]) {
                 });
 
                 auto* showCmd = templateCmd->add_subcommand("show", "Show detailed information about a template");
-                std::string show_template_name;
-                std::string show_format = "plain";
+                auto& show_template_name = cli11_state.keep<std::string>();
+                auto& show_format = cli11_state.keep<std::string>("plain");
                 showCmd->add_option("template-name", show_template_name, "Template name")->required();
                 showCmd->add_option("--format", show_format, "Output format: plain|json");
                 showCmd->callback([&]() {
@@ -17161,8 +17225,8 @@ int main(int InArgc, char* InArgv[]) {
                 });
 
                 auto* validateCmd = templateCmd->add_subcommand("validate", "Validate a template");
-                std::string validate_template_name;
-                std::string validate_format = "plain";
+                auto& validate_template_name = cli11_state.keep<std::string>();
+                auto& validate_format = cli11_state.keep<std::string>("plain");
                 validateCmd->add_option("template-name", validate_template_name, "Template name")->required();
                 validateCmd->add_option("--format", validate_format, "Output format: plain|json");
                 validateCmd->callback([&]() {
@@ -17199,12 +17263,12 @@ int main(int InArgc, char* InArgv[]) {
                 auto* snapshotCmd = topicCmd->add_subcommand("snapshot", "Topic snapshot management commands");
 
                 auto* createSnapshotCmd = snapshotCmd->add_subcommand("create", "Create a snapshot of a topic's current state");
-                std::string snapshot_topic_name;
-                std::string snapshot_name;
-                std::string snapshot_agent;
-                std::string snapshot_description;
-                std::string snapshot_format = "plain";
-                bool snapshot_no_materials = false;
+                auto& snapshot_topic_name = cli11_state.keep<std::string>();
+                auto& snapshot_name = cli11_state.keep<std::string>();
+                auto& snapshot_agent = cli11_state.keep<std::string>();
+                auto& snapshot_description = cli11_state.keep<std::string>();
+                auto& snapshot_format = cli11_state.keep<std::string>("plain");
+                auto& snapshot_no_materials = cli11_state.keep<bool>(false);
                 createSnapshotCmd->add_option("topic-name", snapshot_topic_name, "Topic name")->required();
                 createSnapshotCmd->add_option("snapshot-name", snapshot_name, "Snapshot name")->required();
                 createSnapshotCmd->add_option("--agent", snapshot_agent, "Agent identity")->required();
@@ -17240,8 +17304,8 @@ int main(int InArgc, char* InArgv[]) {
                 });
 
                 auto* listSnapshotCmd = snapshotCmd->add_subcommand("list", "List all snapshots for a topic");
-                std::string list_snapshot_topic_name;
-                std::string list_snapshot_format = "plain";
+                auto& list_snapshot_topic_name = cli11_state.keep<std::string>();
+                auto& list_snapshot_format = cli11_state.keep<std::string>("plain");
                 listSnapshotCmd->add_option("topic-name", list_snapshot_topic_name, "Topic name")->required();
                 listSnapshotCmd->add_option("--format", list_snapshot_format, "Output format: plain|json");
                 listSnapshotCmd->callback([&]() {
@@ -17276,14 +17340,14 @@ int main(int InArgc, char* InArgv[]) {
                 });
 
                 auto* restoreSnapshotCmd = snapshotCmd->add_subcommand("restore", "Restore a topic from a snapshot");
-                std::string restore_topic_name;
-                std::string restore_snapshot_name;
-                std::string restore_agent;
-                std::string restore_format = "plain";
-                bool restore_no_backup = false;
-                bool restore_manifest_only = false;
-                bool restore_brief_only = false;
-                bool restore_notes_only = false;
+                auto& restore_topic_name = cli11_state.keep<std::string>();
+                auto& restore_snapshot_name = cli11_state.keep<std::string>();
+                auto& restore_agent = cli11_state.keep<std::string>();
+                auto& restore_format = cli11_state.keep<std::string>("plain");
+                auto& restore_no_backup = cli11_state.keep<bool>(false);
+                auto& restore_manifest_only = cli11_state.keep<bool>(false);
+                auto& restore_brief_only = cli11_state.keep<bool>(false);
+                auto& restore_notes_only = cli11_state.keep<bool>(false);
                 restoreSnapshotCmd->add_option("topic-name", restore_topic_name, "Topic name")->required();
                 restoreSnapshotCmd->add_option("snapshot-name", restore_snapshot_name, "Snapshot name")->required();
                 restoreSnapshotCmd->add_option("--agent", restore_agent, "Agent identity")->required();
@@ -17334,11 +17398,11 @@ int main(int InArgc, char* InArgv[]) {
                 });
 
                 auto* cleanupSnapshotCmd = snapshotCmd->add_subcommand("cleanup", "Clean up old snapshots for a topic");
-                std::string cleanup_snapshot_topic_name;
-                std::string cleanup_snapshot_format = "plain";
-                int cleanup_ttl_days = 30;
-                int cleanup_keep_latest = 5;
-                bool cleanup_apply = false;
+                auto& cleanup_snapshot_topic_name = cli11_state.keep<std::string>();
+                auto& cleanup_snapshot_format = cli11_state.keep<std::string>("plain");
+                auto& cleanup_ttl_days = cli11_state.keep<int>(30);
+                auto& cleanup_keep_latest = cli11_state.keep<int>(5);
+                auto& cleanup_apply = cli11_state.keep<bool>(false);
                 cleanupSnapshotCmd->add_option("topic-name", cleanup_snapshot_topic_name, "Topic name")->required();
                 cleanupSnapshotCmd->add_option("--ttl-days", cleanup_ttl_days, "Delete snapshots older than N days");
                 cleanupSnapshotCmd->add_option("--keep-latest", cleanup_keep_latest, "Always keep N most recent snapshots");
@@ -17378,7 +17442,8 @@ int main(int InArgc, char* InArgv[]) {
             // topic add
             {
                 auto* addCmd = topicCmd->add_subcommand("add", "Add an item to a topic");
-                std::string topic_name, item_ref;
+                auto& topic_name = cli11_state.keep<std::string>();
+                auto& item_ref = cli11_state.keep<std::string>();
                 addCmd->add_option("topic-name", topic_name, "Topic name")->required();
                 addCmd->add_option("--item", item_ref, "Item ID, UID, or path")->required();
                 addCmd->callback([&]() {
@@ -17425,7 +17490,7 @@ int main(int InArgc, char* InArgv[]) {
                     std::string as_of;
                     std::string output_format = "plain";
                 };
-                const auto state = std::make_shared<TopicAuditCommandState>();
+                const auto state = cli11_state.make_shared<TopicAuditCommandState>();
                 auditCmd->add_option("--ttl-days", state->ttl_days, "Closed-topic TTL in days for cleanup/delete recommendations");
                 auditCmd->add_option("--stale-days", state->stale_days, "Open-topic inactivity days for stale recommendations");
                 auditCmd->add_option("--as-of", state->as_of, "Audit date or timestamp for deterministic testing");
@@ -17446,7 +17511,8 @@ int main(int InArgc, char* InArgv[]) {
             // topic switch
             {
                 auto* switchCmd = topicCmd->add_subcommand("switch", "Switch active topic");
-                std::string topic_name, agent;
+                auto& topic_name = cli11_state.keep<std::string>();
+                auto& agent = cli11_state.keep<std::string>();
                 switchCmd->add_option("topic-name", topic_name, "Topic name")->required();
                 switchCmd->add_option("--agent", agent, "Agent ID")->required();
                 switchCmd->callback([&]() {
@@ -17462,7 +17528,7 @@ int main(int InArgc, char* InArgv[]) {
             // topic distill
             {
                 auto* distillCmd = topicCmd->add_subcommand("distill", "Generate brief.generated.md from materials");
-                std::string topic_name;
+                auto& topic_name = cli11_state.keep<std::string>();
                 distillCmd->add_option("topic-name", topic_name, "Topic name")->required();
                 distillCmd->callback([&]() {
                     auto ctx = resolve_topic_ctx();
@@ -17474,7 +17540,7 @@ int main(int InArgc, char* InArgv[]) {
             // topic status
             {
                 auto* statusCmd = topicCmd->add_subcommand("status", "Show topic status");
-                std::string topic_name;
+                auto& topic_name = cli11_state.keep<std::string>();
                 statusCmd->add_option("topic-name", topic_name, "Topic name")->required();
                 statusCmd->callback([&]() {
                     auto ctx = resolve_topic_ctx();
@@ -17492,8 +17558,8 @@ int main(int InArgc, char* InArgv[]) {
             // topic export-context
             {
                 auto* exportCmd = topicCmd->add_subcommand("export-context", "Export topic context bundle");
-                std::string topic_name;
-                std::string format_str = "markdown";
+                auto& topic_name = cli11_state.keep<std::string>();
+                auto& format_str = cli11_state.keep<std::string>("markdown");
                 exportCmd->add_option("topic-name", topic_name, "Topic name")->required();
                 exportCmd->add_option("--format", format_str, "Output format (markdown or json)");
                 exportCmd->callback([&]() {
@@ -17588,8 +17654,9 @@ int main(int InArgc, char* InArgv[]) {
             // workset init
             {
                 auto* initCmd = worksetCmd->add_subcommand("init", "Initialize a workset for an item");
-                std::string item_ref, agent;
-                int ttl_hours = 72;
+                auto& item_ref = cli11_state.keep<std::string>();
+                auto& agent = cli11_state.keep<std::string>();
+                auto& ttl_hours = cli11_state.keep<int>(72);
                 initCmd->add_option("--item", item_ref, "Item ID, UID, or path")->required();
                 initCmd->add_option("--agent", agent, "Agent ID")->required();
                 initCmd->add_option("--ttl-hours", ttl_hours, "Time-to-live in hours");
@@ -17603,7 +17670,7 @@ int main(int InArgc, char* InArgv[]) {
             // workset next
             {
                 auto* nextCmd = worksetCmd->add_subcommand("next", "Get next unchecked action from plan");
-                std::string item_ref;
+                auto& item_ref = cli11_state.keep<std::string>();
                 nextCmd->add_option("--item", item_ref, "Item ID, UID, or path")->required();
                 nextCmd->callback([&]() {
                     auto ctx = resolve_ctx();
@@ -17619,7 +17686,8 @@ int main(int InArgc, char* InArgv[]) {
             // workset refresh
             {
                 auto* refreshCmd = worksetCmd->add_subcommand("refresh", "Refresh workset timestamp");
-                std::string item_ref, agent;
+                auto& item_ref = cli11_state.keep<std::string>();
+                auto& agent = cli11_state.keep<std::string>();
                 refreshCmd->add_option("--item", item_ref, "Item ID, UID, or path")->required();
                 refreshCmd->add_option("--agent", agent, "Agent ID")->required();
                 refreshCmd->callback([&]() {
@@ -17632,8 +17700,9 @@ int main(int InArgc, char* InArgv[]) {
             // workset promote
             {
                 auto* promoteCmd = worksetCmd->add_subcommand("promote", "Promote deliverables to artifacts");
-                std::string item_ref, agent;
-                bool dry_run = false;
+                auto& item_ref = cli11_state.keep<std::string>();
+                auto& agent = cli11_state.keep<std::string>();
+                auto& dry_run = cli11_state.keep<bool>(false);
                 promoteCmd->add_option("--item", item_ref, "Item ID, UID, or path")->required();
                 promoteCmd->add_option("--agent", agent, "Agent ID")->required();
                 promoteCmd->add_flag("--dry-run", dry_run, "Show what would be promoted without copying");
@@ -17677,8 +17746,8 @@ int main(int InArgc, char* InArgv[]) {
             // workset cleanup
             {
                 auto* cleanupCmd = worksetCmd->add_subcommand("cleanup", "Remove expired worksets");
-                int ttl_hours = 72;
-                bool dry_run = true;
+                auto& ttl_hours = cli11_state.keep<int>(72);
+                auto& dry_run = cli11_state.keep<bool>(true);
                 cleanupCmd->add_option("--ttl-hours", ttl_hours, "Age threshold in hours");
                 cleanupCmd->add_flag("--apply", dry_run, "Actually delete (default is dry-run)");
                 cleanupCmd->callback([&]() {
@@ -17696,8 +17765,8 @@ int main(int InArgc, char* InArgv[]) {
             // workset detect-adr
             {
                 auto* detectCmd = worksetCmd->add_subcommand("detect-adr", "Detect Decision: markers in notes.md");
-                std::string item_ref;
-                std::string format_str = "plain";
+                auto& item_ref = cli11_state.keep<std::string>();
+                auto& format_str = cli11_state.keep<std::string>("plain");
                 detectCmd->add_option("--item", item_ref, "Item ID, UID, or path")->required();
                 detectCmd->add_option("--format", format_str, "Output format (plain or json)");
                 detectCmd->callback([&]() {
@@ -17750,8 +17819,13 @@ int main(int InArgc, char* InArgv[]) {
             // state transition
             {
                 auto* transitionCmd = stateCmd->add_subcommand("transition", "Transition item state");
-                std::string item_ref, action_str, agent, message, message_file, model;
-                bool transition_consume_input_files = false;
+                auto& item_ref = cli11_state.keep<std::string>();
+                auto& action_str = cli11_state.keep<std::string>();
+                auto& agent = cli11_state.keep<std::string>();
+                auto& message = cli11_state.keep<std::string>();
+                auto& message_file = cli11_state.keep<std::string>();
+                auto& model = cli11_state.keep<std::string>();
+                auto& transition_consume_input_files = cli11_state.keep<bool>(false);
                 transitionCmd->add_option("ref", item_ref, "Item ID, UID, or path")->required();
                 transitionCmd->add_option(
                     "action",
@@ -17798,7 +17872,9 @@ int main(int InArgc, char* InArgv[]) {
             // topic pin
             {
                 auto* pinCmd = topicCmd->add_subcommand("pin", "Pin a document to a topic");
-                std::string topic_name, doc_path, output_format = "plain";
+                auto& topic_name = cli11_state.keep<std::string>();
+                auto& doc_path = cli11_state.keep<std::string>();
+                auto& output_format = cli11_state.keep<std::string>("plain");
                 pinCmd->add_option("topic-name", topic_name, "Topic name")->required();
                 pinCmd->add_option("--doc", doc_path, "Document path relative to workspace root")->required();
                 pinCmd->add_option("--format", output_format, "Output format: plain|json");
@@ -17843,10 +17919,13 @@ int main(int InArgc, char* InArgv[]) {
             // topic add-snippet
             {
                 auto* snippetCmd = topicCmd->add_subcommand("add-snippet", "Collect a code snippet reference into a topic");
-                std::string topic_name, file_path, agent, output_format = "plain";
-                int start_line = 0;
-                int end_line = 0;
-                bool snapshot = false;
+                auto& topic_name = cli11_state.keep<std::string>();
+                auto& file_path = cli11_state.keep<std::string>();
+                auto& agent = cli11_state.keep<std::string>();
+                auto& output_format = cli11_state.keep<std::string>("plain");
+                auto& start_line = cli11_state.keep<int>(0);
+                auto& end_line = cli11_state.keep<int>(0);
+                auto& snapshot = cli11_state.keep<bool>(false);
                 snippetCmd->add_option("topic-name", topic_name, "Topic name")->required();
                 snippetCmd->add_option("--file", file_path, "Workspace-relative or absolute file path")->required();
                 snippetCmd->add_option("--start", start_line, "Start line (1-based, inclusive)")->required();
@@ -17942,7 +18021,8 @@ int main(int InArgc, char* InArgv[]) {
             // topic decision-audit
             {
                 auto* auditCmd = topicCmd->add_subcommand("decision-audit", "Generate a decision write-back audit report for a topic");
-                std::string topic_name, output_format = "plain";
+                auto& topic_name = cli11_state.keep<std::string>();
+                auto& output_format = cli11_state.keep<std::string>("plain");
                 auditCmd->add_option("topic-name", topic_name, "Topic name")->required();
                 auditCmd->add_option("--format", output_format, "Output format: plain|json");
                 auditCmd->callback([&]() {
@@ -18052,7 +18132,7 @@ int main(int InArgc, char* InArgv[]) {
                     std::string mAgent;
                     std::string mOutputFormat = "plain";
                 };
-                const auto state = std::make_shared<TopicCloseCommandState>();
+                const auto state = cli11_state.make_shared<TopicCloseCommandState>();
                 closeCmd->add_option("topic-name", state->mTopicName, "Topic name")->required();
                 closeCmd->add_option("--agent", state->mAgent, "Agent identity");
                 closeCmd->add_option("--format", state->mOutputFormat, "Output format: plain|json");
@@ -18090,10 +18170,10 @@ int main(int InArgc, char* InArgv[]) {
             // topic cleanup
             {
                 auto* cleanupCmd = topicCmd->add_subcommand("cleanup", "Cleanup raw materials for closed topics after TTL");
-                int ttl_days = 14;
-                bool apply = false;
-                bool delete_topic_dir = false;
-                std::string output_format = "plain";
+                auto& ttl_days = cli11_state.keep<int>(14);
+                auto& apply = cli11_state.keep<bool>(false);
+                auto& delete_topic_dir = cli11_state.keep<bool>(false);
+                auto& output_format = cli11_state.keep<std::string>("plain");
                 cleanupCmd->add_option("--ttl-days", ttl_days, "Delete materials older than N days after close");
                 cleanupCmd->add_flag("--apply", apply, "Perform deletion");
                 cleanupCmd->add_flag("--delete-topic", delete_topic_dir, "Delete the whole topic directory");
@@ -18180,7 +18260,9 @@ int main(int InArgc, char* InArgv[]) {
             // topic add-reference
             {
                 auto* addRefCmd = topicCmd->add_subcommand("add-reference", "Add a bidirectional reference between topics");
-                std::string topic_name, referenced_topic, output_format = "plain";
+                auto& topic_name = cli11_state.keep<std::string>();
+                auto& referenced_topic = cli11_state.keep<std::string>();
+                auto& output_format = cli11_state.keep<std::string>("plain");
                 addRefCmd->add_option("topic-name", topic_name, "Source topic name")->required();
                 addRefCmd->add_option("referenced-topic", referenced_topic, "Target topic name")->required();
                 addRefCmd->add_option("--format", output_format, "Output format: plain|json");
@@ -18228,7 +18310,9 @@ int main(int InArgc, char* InArgv[]) {
             // topic remove-reference
             {
                 auto* removeRefCmd = topicCmd->add_subcommand("remove-reference", "Remove a bidirectional reference between topics");
-                std::string topic_name, referenced_topic, output_format = "plain";
+                auto& topic_name = cli11_state.keep<std::string>();
+                auto& referenced_topic = cli11_state.keep<std::string>();
+                auto& output_format = cli11_state.keep<std::string>("plain");
                 removeRefCmd->add_option("topic-name", topic_name, "Source topic name")->required();
                 removeRefCmd->add_option("referenced-topic", referenced_topic, "Target topic name")->required();
                 removeRefCmd->add_option("--format", output_format, "Output format: plain|json");
@@ -18269,7 +18353,7 @@ int main(int InArgc, char* InArgv[]) {
             // topic list-active
             {
                 auto* listActiveCmd = topicCmd->add_subcommand("list-active", "List all active topics across agents");
-                std::string output_format = "plain";
+                auto& output_format = cli11_state.keep<std::string>("plain");
                 listActiveCmd->add_option("--format", output_format, "Output format: plain|json");
                 listActiveCmd->callback([&]() {
                     auto ctx = resolve_topic_ctx();
@@ -18316,8 +18400,8 @@ int main(int InArgc, char* InArgv[]) {
             // topic show-state
             {
                 auto* showStateCmd = topicCmd->add_subcommand("show-state", "Show shared topic state");
-                std::string agent_filter;
-                std::string output_format = "plain";
+                auto& agent_filter = cli11_state.keep<std::string>();
+                auto& output_format = cli11_state.keep<std::string>("plain");
                 showStateCmd->add_option("--agent", agent_filter, "Filter text output by agent ID");
                 showStateCmd->add_option("--format", output_format, "Output format: plain|json");
                 showStateCmd->callback([&]() {
@@ -18351,13 +18435,13 @@ int main(int InArgc, char* InArgv[]) {
             // topic sync-opencode-plan
             {
                 auto* syncOpencodeCmd = topicCmd->add_subcommand("sync-opencode-plan", "Sync a backlog topic plan into .sisyphus plans");
-                std::string topic_name;
-                std::string plan_file = "plan.md";
-                std::string target_name;
-                std::string import_sisyphus_plan;
-                std::string output_format = "plain";
-                bool set_active = false;
-                bool oh_my_opencode = false;
+                auto& topic_name = cli11_state.keep<std::string>();
+                auto& plan_file = cli11_state.keep<std::string>("plan.md");
+                auto& target_name = cli11_state.keep<std::string>();
+                auto& import_sisyphus_plan = cli11_state.keep<std::string>();
+                auto& output_format = cli11_state.keep<std::string>("plain");
+                auto& set_active = cli11_state.keep<bool>(false);
+                auto& oh_my_opencode = cli11_state.keep<bool>(false);
                 syncOpencodeCmd->add_option("topic-name", topic_name, "Topic name")->required();
                 syncOpencodeCmd->add_option("--plan-file", plan_file, "Plan filename inside topic directory");
                 syncOpencodeCmd->add_option("--target-name", target_name, "Output filename under .sisyphus/plans");
@@ -18445,14 +18529,14 @@ int main(int InArgc, char* InArgv[]) {
             // topic resolve-opencode-plan
             {
                 auto* resolveOpencodeCmd = topicCmd->add_subcommand("resolve-opencode-plan", "Resolve the plan path for Oh My OpenCode topic integration");
-                std::string topic_name;
-                std::string agent = "atlas";
-                std::string plan_file = "plan.md";
-                std::string provider = "backlog";
-                std::string output_format = "json";
-                bool sync_compat = false;
-                bool set_active_compat = false;
-                bool oh_my_opencode = false;
+                auto& topic_name = cli11_state.keep<std::string>();
+                auto& agent = cli11_state.keep<std::string>("atlas");
+                auto& plan_file = cli11_state.keep<std::string>("plan.md");
+                auto& provider = cli11_state.keep<std::string>("backlog");
+                auto& output_format = cli11_state.keep<std::string>("json");
+                auto& sync_compat = cli11_state.keep<bool>(false);
+                auto& set_active_compat = cli11_state.keep<bool>(false);
+                auto& oh_my_opencode = cli11_state.keep<bool>(false);
                 resolveOpencodeCmd->add_option("topic-name", topic_name, "Topic name; defaults to active topic for --agent");
                 resolveOpencodeCmd->add_option("--agent", agent, "Agent identity used when topic is omitted");
                 resolveOpencodeCmd->add_option("--plan-file", plan_file, "Plan filename inside topic directory");
@@ -18532,13 +18616,13 @@ int main(int InArgc, char* InArgv[]) {
             // topic split
             {
                 auto* splitCmd = topicCmd->add_subcommand("split", "Split a topic into focused subtopics");
-                std::string source_topic;
-                std::string agent;
-                std::string config_file;
+                auto& source_topic = cli11_state.keep<std::string>();
+                auto& agent = cli11_state.keep<std::string>();
+                auto& config_file = cli11_state.keep<std::string>();
                 std::vector<std::string> new_topic_specs;
-                std::string output_format = "plain";
-                bool dry_run = false;
-                bool no_snapshots = false;
+                auto& output_format = cli11_state.keep<std::string>("plain");
+                auto& dry_run = cli11_state.keep<bool>(false);
+                auto& no_snapshots = cli11_state.keep<bool>(false);
                 splitCmd->add_option("source-topic", source_topic, "Source topic name to split")->required();
                 splitCmd->add_option("--agent", agent, "Agent identity")->required();
                 splitCmd->add_option("--config", config_file, "JSON file with split configuration");
@@ -18678,16 +18762,16 @@ int main(int InArgc, char* InArgv[]) {
             // topic merge
             {
                 auto* mergeCmd = topicCmd->add_subcommand("merge", "Merge multiple topics into a target topic");
-                std::string target_topic;
-                std::string first_source_topic;
+                auto& target_topic = cli11_state.keep<std::string>();
+                auto& first_source_topic = cli11_state.keep<std::string>();
                 std::vector<std::string> extra_source_topics;
-                std::string agent;
-                std::string output_format = "plain";
-                bool dry_run = false;
-                bool no_snapshots = false;
-                bool delete_sources = false;
-                bool update_worksets = true;
-                bool no_update_worksets = false;
+                auto& agent = cli11_state.keep<std::string>();
+                auto& output_format = cli11_state.keep<std::string>("plain");
+                auto& dry_run = cli11_state.keep<bool>(false);
+                auto& no_snapshots = cli11_state.keep<bool>(false);
+                auto& delete_sources = cli11_state.keep<bool>(false);
+                auto& update_worksets = cli11_state.keep<bool>(true);
+                auto& no_update_worksets = cli11_state.keep<bool>(false);
                 mergeCmd->add_option("target-topic", target_topic, "Target topic name to merge into")->required();
                 mergeCmd->add_option("source-topic", first_source_topic, "First source topic name to merge from")->required();
                 mergeCmd->add_option_function<std::string>(
@@ -18838,7 +18922,7 @@ int main(int InArgc, char* InArgv[]) {
             // topic migrate
             {
                 auto* migrateCmd = topicCmd->add_subcommand("migrate", "Migrate legacy active_topic files to shared topic state");
-                std::string output_format = "plain";
+                auto& output_format = cli11_state.keep<std::string>("plain");
                 migrateCmd->add_option("--format", output_format, "Output format: plain|json");
                 migrateCmd->callback([&]() {
                     auto ctx = resolve_topic_ctx();
@@ -18885,8 +18969,8 @@ int main(int InArgc, char* InArgv[]) {
             // topic cleanup-legacy
             {
                 auto* cleanupLegacyCmd = topicCmd->add_subcommand("cleanup-legacy", "Remove legacy active_topic files");
-                bool no_dry_run = false;
-                std::string output_format = "plain";
+                auto& no_dry_run = cli11_state.keep<bool>(false);
+                auto& output_format = cli11_state.keep<std::string>("plain");
                 cleanupLegacyCmd->add_flag("--no-dry-run", no_dry_run, "Actually delete files");
                 cleanupLegacyCmd->add_option("--format", output_format, "Output format: plain|json");
                 cleanupLegacyCmd->callback([&]() {
@@ -18936,8 +19020,8 @@ int main(int InArgc, char* InArgv[]) {
             // topic migrate-filenames
             {
                 auto* migrateFilenamesCmd = topicCmd->add_subcommand("migrate-filenames", "Migrate topic state filenames to slug_uuid format");
-                bool no_dry_run = false;
-                std::string output_format = "plain";
+                auto& no_dry_run = cli11_state.keep<bool>(false);
+                auto& output_format = cli11_state.keep<std::string>("plain");
                 migrateFilenamesCmd->add_flag("--no-dry-run", no_dry_run, "Actually rename files");
                 migrateFilenamesCmd->add_option("--format", output_format, "Output format: plain|json");
                 migrateFilenamesCmd->callback([&]() {
@@ -18997,8 +19081,12 @@ int main(int InArgc, char* InArgv[]) {
             // worklog append
             {
                 auto* appendCmd = worklogCmd->add_subcommand("append", "Append a worklog entry");
-                std::string item_ref, message, message_file, agent, model;
-                bool append_consume_input_files = false;
+                auto& item_ref = cli11_state.keep<std::string>();
+                auto& message = cli11_state.keep<std::string>();
+                auto& message_file = cli11_state.keep<std::string>();
+                auto& agent = cli11_state.keep<std::string>();
+                auto& model = cli11_state.keep<std::string>();
+                auto& append_consume_input_files = cli11_state.keep<bool>(false);
                 appendCmd->add_option("ref", item_ref, "Item ID, UID, or path")->required();
                 appendCmd->add_option("message", message, "Worklog message");
                 appendCmd->add_option("--message-file", message_file, "Read worklog message from file");
@@ -19037,11 +19125,11 @@ int main(int InArgc, char* InArgv[]) {
             {
                 auto* sandboxCmd = adminCmd->add_subcommand("sandbox", "Sandbox environment operations");
                 auto* sandboxInitCmd = sandboxCmd->add_subcommand("init", "Initialize a sandbox environment");
-                std::string sandbox_name;
-                std::string sandbox_product;
-                std::string sandbox_agent;
-                std::string sandbox_backlog_root;
-                bool sandbox_force = false;
+                auto& sandbox_name = cli11_state.keep<std::string>();
+                auto& sandbox_product = cli11_state.keep<std::string>();
+                auto& sandbox_agent = cli11_state.keep<std::string>();
+                auto& sandbox_backlog_root = cli11_state.keep<std::string>();
+                auto& sandbox_force = cli11_state.keep<bool>(false);
                 sandboxInitCmd->add_option("name", sandbox_name, "Sandbox name")->required();
                 sandboxInitCmd->add_option("--product", sandbox_product, "Source product to mirror")->required();
                 sandboxInitCmd->add_option("--agent", sandbox_agent, "Agent ID")->required();
@@ -19062,10 +19150,10 @@ int main(int InArgc, char* InArgv[]) {
                 auto* personaCmd = adminCmd->add_subcommand("persona", "Persona activity operations");
 
                 auto* summaryCmd = personaCmd->add_subcommand("summary", "Generate a persona activity summary");
-                std::string summary_product;
-                std::string summary_agent;
-                std::string summary_backlog_root;
-                std::string summary_output;
+                auto& summary_product = cli11_state.keep<std::string>();
+                auto& summary_agent = cli11_state.keep<std::string>();
+                auto& summary_backlog_root = cli11_state.keep<std::string>();
+                auto& summary_output = cli11_state.keep<std::string>();
                 summaryCmd->add_option("--product", summary_product, "Product name")->required();
                 summaryCmd->add_option("--agent", summary_agent, "Agent/persona identifier")->required();
                 summaryCmd->add_option("--backlog-root", summary_backlog_root, "Backlog root path");
@@ -19080,10 +19168,10 @@ int main(int InArgc, char* InArgv[]) {
                 });
 
                 auto* reportCmd = personaCmd->add_subcommand("report", "Generate a full persona activity report");
-                std::string report_product;
-                std::string report_agent;
-                std::string report_backlog_root;
-                std::string report_output;
+                auto& report_product = cli11_state.keep<std::string>();
+                auto& report_agent = cli11_state.keep<std::string>();
+                auto& report_backlog_root = cli11_state.keep<std::string>();
+                auto& report_output = cli11_state.keep<std::string>();
                 reportCmd->add_option("--product", report_product, "Product name")->required();
                 reportCmd->add_option("--agent", report_agent, "Agent/persona identifier")->required();
                 reportCmd->add_option("--backlog-root", report_backlog_root, "Backlog root path");
@@ -19105,13 +19193,13 @@ int main(int InArgc, char* InArgv[]) {
             {
                 auto* releaseCmd = adminCmd->add_subcommand("release", "Release verification workflows");
                 auto* checkCmd = releaseCmd->add_subcommand("check", "Run native release checks and write reports to a topic");
-                std::string release_version;
-                std::string release_topic;
-                std::string release_agent;
-                std::string release_product = "kano-agent-backlog-skill";
-                std::string release_sandbox_name = "release-0-0-2-smoke";
-                std::string release_phase = "all";
-                std::string release_backlog_root;
+                auto& release_version = cli11_state.keep<std::string>();
+                auto& release_topic = cli11_state.keep<std::string>();
+                auto& release_agent = cli11_state.keep<std::string>();
+                auto& release_product = cli11_state.keep<std::string>("kano-agent-backlog-skill");
+                auto& release_sandbox_name = cli11_state.keep<std::string>("release-0-0-2-smoke");
+                auto& release_phase = cli11_state.keep<std::string>("all");
+                auto& release_backlog_root = cli11_state.keep<std::string>();
                 checkCmd->add_option("--version", release_version, "Target release version")->required();
                 checkCmd->add_option("--topic", release_topic, "Topic name to store reports under")->required();
                 checkCmd->add_option("--agent", release_agent, "Agent ID")->required();
@@ -19203,7 +19291,7 @@ int main(int InArgc, char* InArgv[]) {
             // evidence add
             {
                 auto* addCmd = evidenceCmd->add_subcommand("add", "Add an evidence record to a workset evidence store");
-                auto state = std::make_shared<EvidenceAddCommandState>();
+                auto state = cli11_state.make_shared<EvidenceAddCommandState>();
                 addCmd->add_option("--item", state->item_ref, "Item ID, UID, or path")->required();
                 addCmd->add_option("--claim-id", state->claim_id, "ID of the claim this evidence supports")->required();
                 addCmd->add_option("--source", state->source, "Source of the evidence")->required();
@@ -19275,7 +19363,7 @@ int main(int InArgc, char* InArgv[]) {
             // evidence list
             {
                 auto* listCmd = evidenceCmd->add_subcommand("list", "List evidence records for an item");
-                auto state = std::make_shared<EvidenceItemCommandState>();
+                auto state = cli11_state.make_shared<EvidenceItemCommandState>();
                 listCmd->add_option("--item", state->item_ref, "Item ID, UID, or path")->required();
                 listCmd->add_option("--claim-id", state->claim_id, "Filter by claim ID");
                 listCmd->add_option("--backlog-root", state->backlog_root, "Path to _kano/backlog");
@@ -19329,7 +19417,7 @@ int main(int InArgc, char* InArgv[]) {
             // evidence get
             {
                 auto* getCmd = evidenceCmd->add_subcommand("get", "Get a specific evidence record by ID");
-                auto state = std::make_shared<EvidenceItemCommandState>();
+                auto state = cli11_state.make_shared<EvidenceItemCommandState>();
                 getCmd->add_option("--item", state->item_ref, "Item ID, UID, or path")->required();
                 getCmd->add_option("--evidence-id", state->evidence_id, "Evidence record ID")->required();
                 getCmd->add_option("--backlog-root", state->backlog_root, "Path to _kano/backlog");
@@ -19358,7 +19446,7 @@ int main(int InArgc, char* InArgv[]) {
             // evidence delete
             {
                 auto* deleteCmd = evidenceCmd->add_subcommand("delete", "Delete an evidence record by ID");
-                auto state = std::make_shared<EvidenceItemCommandState>();
+                auto state = cli11_state.make_shared<EvidenceItemCommandState>();
                 deleteCmd->add_option("--item", state->item_ref, "Item ID, UID, or path")->required();
                 deleteCmd->add_option("--evidence-id", state->evidence_id, "Evidence record ID")->required();
                 deleteCmd->add_option("--backlog-root", state->backlog_root, "Path to _kano/backlog");
@@ -19394,7 +19482,7 @@ int main(int InArgc, char* InArgv[]) {
             // evidence summary
             {
                 auto* summaryCmd = evidenceCmd->add_subcommand("summary", "Compute summary statistics for all evidence records");
-                auto state = std::make_shared<EvidenceItemCommandState>();
+                auto state = cli11_state.make_shared<EvidenceItemCommandState>();
                 summaryCmd->add_option("--item", state->item_ref, "Item ID, UID, or path")->required();
                 summaryCmd->add_option("--backlog-root", state->backlog_root, "Path to _kano/backlog");
                 summaryCmd->add_option("--format", state->format, "Output format: plain|json");
@@ -19528,8 +19616,9 @@ int main(int InArgc, char* InArgv[]) {
             // assumptions list
             {
                 auto* listCmd = assumptionsCmd->add_subcommand("list", "List assumptions extracted from work items");
-                std::string item_ref;
-                std::string backlog_root_str, format_str = "plain";
+                auto& item_ref = cli11_state.keep<std::string>();
+                auto& backlog_root_str = cli11_state.keep<std::string>();
+                auto& format_str = cli11_state.keep<std::string>("plain");
                 listCmd->add_option("--item", item_ref, "Specific item reference to scan");
                 listCmd->add_option("--backlog-root", backlog_root_str, "Path to _kano/backlog");
                 listCmd->add_option("--format", format_str, "Output format: plain|json|markdown");
@@ -19578,8 +19667,10 @@ int main(int InArgc, char* InArgv[]) {
             // assumptions generate
             {
                 auto* generateCmd = assumptionsCmd->add_subcommand("generate", "Generate an assumptions registry report");
-                std::string item_ref;
-                std::string backlog_root_str, output_path_str, format_str = "markdown";
+                auto& item_ref = cli11_state.keep<std::string>();
+                auto& backlog_root_str = cli11_state.keep<std::string>();
+                auto& output_path_str = cli11_state.keep<std::string>();
+                auto& format_str = cli11_state.keep<std::string>("markdown");
                 generateCmd->add_option("--item", item_ref, "Specific item reference to scan");
                 generateCmd->add_option("--backlog-root", backlog_root_str, "Path to _kano/backlog");
                 generateCmd->add_option("-o,--output", output_path_str, "Output file path");
@@ -19652,7 +19743,7 @@ int main(int InArgc, char* InArgv[]) {
                     std::string agent;
                     std::string backlog_root;
                 };
-                const auto state = std::make_shared<ViewRefreshCommandState>();
+                const auto state = cli11_state.make_shared<ViewRefreshCommandState>();
                 refreshCmd->add_option("--product", state->product, "Product name");
                 refreshCmd->add_option("--backlog-root", state->backlog_root, "Backlog root path");
                 refreshCmd->add_option("--agent", state->agent, "Agent ID")->required();
@@ -19680,7 +19771,7 @@ int main(int InArgc, char* InArgv[]) {
                     std::string product;
                     bool force = false;
                 };
-                const auto state = std::make_shared<IndexBuildCommandState>();
+                const auto state = cli11_state.make_shared<IndexBuildCommandState>();
                 buildCmd->add_option("--product", state->product, "Product name");
                 buildCmd->add_flag("--force", state->force, "Rebuild even if index exists");
                 buildCmd->callback([&, state]() {
@@ -19705,7 +19796,7 @@ int main(int InArgc, char* InArgv[]) {
                 struct IndexRefreshCommandState {
                     std::string product;
                 };
-                const auto state = std::make_shared<IndexRefreshCommandState>();
+                const auto state = cli11_state.make_shared<IndexRefreshCommandState>();
                 refreshCmd->add_option("--product", state->product, "Product name");
                 refreshCmd->callback([&, state]() {
                     auto ctx = BacklogContext::resolve(
@@ -19729,7 +19820,7 @@ int main(int InArgc, char* InArgv[]) {
                 struct IndexStatusCommandState {
                     std::string product;
                 };
-                const auto state = std::make_shared<IndexStatusCommandState>();
+                const auto state = cli11_state.make_shared<IndexStatusCommandState>();
                 statusCmd->add_option("--product", state->product, "Product name");
                 statusCmd->callback([&, state]() {
                     auto ctx = BacklogContext::resolve(
@@ -19771,7 +19862,7 @@ int main(int InArgc, char* InArgv[]) {
                 std::string output;
                 std::string format = "markdown";
             };
-            const auto healthState = std::make_shared<InspectHealthCommandState>();
+            const auto healthState = cli11_state.make_shared<InspectHealthCommandState>();
             healthCmd->add_option("--item", healthState->item, "Specific item reference to scan");
             healthCmd->add_option("--backlog-root", healthState->backlog_root, "Path to _kano/backlog");
             healthCmd->add_option("-o,--output", healthState->output, "Output file path");
@@ -19850,7 +19941,7 @@ int main(int InArgc, char* InArgv[]) {
                 std::string as_of;
                 int stale_days = 90;
             };
-            const auto integrityState = std::make_shared<InspectIntegrityCommandState>();
+            const auto integrityState = cli11_state.make_shared<InspectIntegrityCommandState>();
             integrityCmd->add_option("--product", integrityState->products, "Product name; repeat to scan multiple products");
             integrityCmd->add_option("--backlog-root", integrityState->backlog_root, "Path to _kano/backlog");
             integrityCmd->add_option("--format", integrityState->format, "Output format: markdown|json");
@@ -19885,15 +19976,15 @@ int main(int InArgc, char* InArgv[]) {
         {
             auto* benchmarkCmd = app.add_subcommand("benchmark", "Deterministic benchmark harness");
             auto* runCmd = benchmarkCmd->add_subcommand("run", "Run native deterministic benchmark");
-            std::string bench_product;
-            std::string bench_agent;
-            std::string bench_profile;
-            std::string bench_item_id;
-            std::string bench_corpus;
-            std::string bench_queries;
-            std::string bench_out;
-            std::string bench_mode = "chunk-only";
-            int bench_top_k = 5;
+            auto& bench_product = cli11_state.keep<std::string>();
+            auto& bench_agent = cli11_state.keep<std::string>();
+            auto& bench_profile = cli11_state.keep<std::string>();
+            auto& bench_item_id = cli11_state.keep<std::string>();
+            auto& bench_corpus = cli11_state.keep<std::string>();
+            auto& bench_queries = cli11_state.keep<std::string>();
+            auto& bench_out = cli11_state.keep<std::string>();
+            auto& bench_mode = cli11_state.keep<std::string>("chunk-only");
+            auto& bench_top_k = cli11_state.keep<int>(5);
             runCmd->add_option("--product", bench_product, "Product name");
             runCmd->add_option("--agent", bench_agent, "Agent id")->required();
             runCmd->add_option("--profile", bench_profile, "Accepted for CLI parity; native benchmark uses resolved project config");
@@ -19924,11 +20015,11 @@ int main(int InArgc, char* InArgv[]) {
             auto* chunksCmd = app.add_subcommand("chunks", "Canonical chunks SQLite DB (FTS5)");
 
             auto* buildCmd = chunksCmd->add_subcommand("build", "Build per-product canonical chunks DB");
-            std::string chunks_product;
-            std::string chunks_backlog_root;
-            std::string chunks_cache_root;
-            std::string chunks_format = "markdown";
-            bool chunks_force = false;
+            auto& chunks_product = cli11_state.keep<std::string>();
+            auto& chunks_backlog_root = cli11_state.keep<std::string>();
+            auto& chunks_cache_root = cli11_state.keep<std::string>();
+            auto& chunks_format = cli11_state.keep<std::string>("markdown");
+            auto& chunks_force = cli11_state.keep<bool>(false);
             buildCmd->add_option("--product", chunks_product, "Product name");
             buildCmd->add_option("--backlog-root", chunks_backlog_root, "Backlog root (_kano/backlog)");
             buildCmd->add_option("--cache-root", chunks_cache_root, "Cache root override");
@@ -19955,12 +20046,12 @@ int main(int InArgc, char* InArgv[]) {
             });
 
             auto* queryCmd = chunksCmd->add_subcommand("query", "Keyword search over canonical chunks_fts");
-            std::string chunks_query;
-            std::string chunks_query_product;
-            std::string chunks_query_backlog_root;
-            std::string chunks_query_cache_root;
-            std::string chunks_query_format = "markdown";
-            int chunks_query_k = 10;
+            auto& chunks_query = cli11_state.keep<std::string>();
+            auto& chunks_query_product = cli11_state.keep<std::string>();
+            auto& chunks_query_backlog_root = cli11_state.keep<std::string>();
+            auto& chunks_query_cache_root = cli11_state.keep<std::string>();
+            auto& chunks_query_format = cli11_state.keep<std::string>("markdown");
+            auto& chunks_query_k = cli11_state.keep<int>(10);
             queryCmd->add_option("query", chunks_query, "FTS query")->required();
             queryCmd->add_option("--product", chunks_query_product, "Product name");
             queryCmd->add_option("--backlog-root", chunks_query_backlog_root, "Backlog root (_kano/backlog)");
@@ -20008,15 +20099,15 @@ int main(int InArgc, char* InArgv[]) {
             });
 
             auto* buildRepoCmd = chunksCmd->add_subcommand("build-repo", "Build repo corpus chunks DB");
-            std::string repo_project_root;
-            std::string repo_backlog_root;
-            std::vector<std::string> repo_includes;
-            std::vector<std::string> repo_excludes;
-            bool repo_force = false;
-            bool repo_sync = false;
-            int repo_max_workers = 4;
-            int repo_batch_size = 50;
-            std::string repo_format = "markdown";
+            auto& repo_project_root = cli11_state.keep<std::string>();
+            auto& repo_backlog_root = cli11_state.keep<std::string>();
+            auto& repo_includes = cli11_state.keep<std::vector<std::string>>();
+            auto& repo_excludes = cli11_state.keep<std::vector<std::string>>();
+            auto& repo_force = cli11_state.keep<bool>(false);
+            auto& repo_sync = cli11_state.keep<bool>(false);
+            auto& repo_max_workers = cli11_state.keep<int>(4);
+            auto& repo_batch_size = cli11_state.keep<int>(50);
+            auto& repo_format = cli11_state.keep<std::string>("markdown");
             buildRepoCmd->add_option("--project-root", repo_project_root, "Project root");
             buildRepoCmd->add_option("--backlog-root", repo_backlog_root, "Backlog root (_kano/backlog)");
             buildRepoCmd->add_option("--include", repo_includes, "Include patterns")->expected(1);
@@ -20048,11 +20139,11 @@ int main(int InArgc, char* InArgv[]) {
             });
 
             auto* queryRepoCmd = chunksCmd->add_subcommand("query-repo", "Keyword search over repo corpus chunks_fts");
-            std::string repo_query;
-            std::string repo_query_project_root;
-            std::string repo_query_backlog_root;
-            int repo_query_k = 10;
-            std::string repo_query_format = "markdown";
+            auto& repo_query = cli11_state.keep<std::string>();
+            auto& repo_query_project_root = cli11_state.keep<std::string>();
+            auto& repo_query_backlog_root = cli11_state.keep<std::string>();
+            auto& repo_query_k = cli11_state.keep<int>(10);
+            auto& repo_query_format = cli11_state.keep<std::string>("markdown");
             queryRepoCmd->add_option("query", repo_query, "FTS query")->required();
             queryRepoCmd->add_option("--project-root", repo_query_project_root, "Project root");
             queryRepoCmd->add_option("--backlog-root", repo_query_backlog_root, "Backlog root (_kano/backlog)");
@@ -20099,11 +20190,11 @@ int main(int InArgc, char* InArgv[]) {
             });
 
             auto* buildRepoVectorsCmd = chunksCmd->add_subcommand("build-repo-vectors", "Build repo vector index (native noop provider)");
-            std::string brv_project_root;
-            std::string brv_backlog_root;
-            bool brv_force = false;
-            std::string brv_storage = "binary";
-            std::string brv_format = "markdown";
+            auto& brv_project_root = cli11_state.keep<std::string>();
+            auto& brv_backlog_root = cli11_state.keep<std::string>();
+            auto& brv_force = cli11_state.keep<bool>(false);
+            auto& brv_storage = cli11_state.keep<std::string>("binary");
+            auto& brv_format = cli11_state.keep<std::string>("markdown");
             buildRepoVectorsCmd->add_option("--project-root", brv_project_root, "Project root");
             buildRepoVectorsCmd->add_option("--backlog-root", brv_backlog_root, "Backlog root (_kano/backlog)");
             buildRepoVectorsCmd->add_flag("--force", brv_force, "Force rebuild");
@@ -20134,8 +20225,8 @@ int main(int InArgc, char* InArgv[]) {
             });
 
             auto* buildStatusCmd = chunksCmd->add_subcommand("build-status", "Check repo chunks DB build progress");
-            std::string bs_project_root;
-            std::string bs_format = "markdown";
+            auto& bs_project_root = cli11_state.keep<std::string>();
+            auto& bs_format = cli11_state.keep<std::string>("markdown");
             buildStatusCmd->add_option("--project-root", bs_project_root, "Project root");
             buildStatusCmd->add_option("--format", bs_format, "Output format: markdown|json");
             buildStatusCmd->callback([&]() {
@@ -20166,10 +20257,10 @@ int main(int InArgc, char* InArgv[]) {
 
             auto addTokenizerTest = [&](CLI::App* parent, const std::string& name) {
                 auto* cmd = parent->add_subcommand(name, "Count tokens with the native heuristic tokenizer");
-                auto text = std::make_shared<std::string>("Sample text");
-                auto adapter = std::make_shared<std::string>("heuristic");
-                auto model = std::make_shared<std::string>("text-embedding-3-small");
-                auto format = std::make_shared<std::string>("markdown");
+                auto text = cli11_state.make_shared<std::string>("Sample text");
+                auto adapter = cli11_state.make_shared<std::string>("heuristic");
+                auto model = cli11_state.make_shared<std::string>("text-embedding-3-small");
+                auto format = cli11_state.make_shared<std::string>("markdown");
                 cmd->add_option("--text", *text, "Text to tokenize");
                 cmd->add_option("--adapter", *adapter, "Tokenizer adapter");
                 cmd->add_option("--model", *model, "Model name");
@@ -20202,8 +20293,8 @@ int main(int InArgc, char* InArgv[]) {
             addTokenizerTest(tokenizerCmd, "benchmark");
 
             auto* statusCmd = tokenizerCmd->add_subcommand("status", "Show native tokenizer system status");
-            std::string tokenizer_status_format = "markdown";
-            bool tokenizer_verbose = false;
+            auto& tokenizer_status_format = cli11_state.keep<std::string>("markdown");
+            auto& tokenizer_verbose = cli11_state.keep<bool>(false);
             statusCmd->add_option("--format", tokenizer_status_format, "Output format: markdown|json");
             statusCmd->add_flag("--verbose", tokenizer_verbose, "Show detailed status");
             statusCmd->callback([&]() {
@@ -20239,7 +20330,7 @@ int main(int InArgc, char* InArgv[]) {
             });
 
             auto* recommendCmd = tokenizerCmd->add_subcommand("recommend", "Recommend a native tokenizer adapter");
-            std::string recommend_model = "text-embedding-3-small";
+            auto& recommend_model = cli11_state.keep<std::string>("text-embedding-3-small");
             recommendCmd->add_option("--model", recommend_model, "Model name");
             recommendCmd->callback([&]() {
                 std::cout << "heuristic\n";
@@ -20277,8 +20368,8 @@ int main(int InArgc, char* InArgv[]) {
             });
 
             auto* configCmd = tokenizerCmd->add_subcommand("config", "Show native tokenizer configuration");
-            std::string tok_config_format = "json";
-            std::string tok_config_path;
+            auto& tok_config_format = cli11_state.keep<std::string>("json");
+            auto& tok_config_path = cli11_state.keep<std::string>();
             configCmd->add_option("--config", tok_config_path, "Tokenizer config path");
             configCmd->add_option("--format", tok_config_format, "Output format: json|toml");
             configCmd->callback([&]() {
@@ -20299,8 +20390,8 @@ int main(int InArgc, char* InArgv[]) {
             });
 
             auto* createExampleCmd = tokenizerCmd->add_subcommand("create-example", "Create an example native tokenizer configuration");
-            std::string tok_example_output = "tokenizer_config.toml";
-            bool tok_example_force = false;
+            auto& tok_example_output = cli11_state.keep<std::string>("tokenizer_config.toml");
+            auto& tok_example_force = cli11_state.keep<bool>(false);
             createExampleCmd->add_option("--output", tok_example_output, "Output path for example configuration file");
             createExampleCmd->add_flag("--force", tok_example_force, "Overwrite existing file");
             createExampleCmd->callback([&]() {
@@ -20366,10 +20457,10 @@ int main(int InArgc, char* InArgv[]) {
             };
 
             auto* diagnoseCmd = tokenizerCmd->add_subcommand("diagnose", "Diagnose native tokenizer configuration");
-            std::string diagnose_config_path;
-            std::string diagnose_model = "text-embedding-3-small";
-            std::string diagnose_format = "markdown";
-            bool diagnose_verbose = false;
+            auto& diagnose_config_path = cli11_state.keep<std::string>();
+            auto& diagnose_model = cli11_state.keep<std::string>("text-embedding-3-small");
+            auto& diagnose_format = cli11_state.keep<std::string>("markdown");
+            auto& diagnose_verbose = cli11_state.keep<bool>(false);
             diagnoseCmd->add_option("--config", diagnose_config_path, "Tokenizer config path");
             diagnoseCmd->add_option("--model", diagnose_model, "Model name");
             diagnoseCmd->add_option("--format", diagnose_format, "Output format: markdown|json");
@@ -20408,7 +20499,7 @@ int main(int InArgc, char* InArgv[]) {
             });
 
             auto* cacheStatsCmd = tokenizerCmd->add_subcommand("cache-stats", "Show native tokenizer cache stats");
-            std::string cache_stats_format = "markdown";
+            auto& cache_stats_format = cli11_state.keep<std::string>("markdown");
             cacheStatsCmd->add_option("--format", cache_stats_format, "Output format: markdown|json");
             cacheStatsCmd->callback([&]() {
                 Json::Value payload(Json::objectValue);
@@ -20437,11 +20528,11 @@ int main(int InArgc, char* InArgv[]) {
             });
 
             auto* accuracyCmd = tokenizerCmd->add_subcommand("accuracy", "Run native tokenizer accuracy smoke");
-            std::string accuracy_adapter = "heuristic";
-            std::string accuracy_model = "text-embedding-3-small";
-            std::string accuracy_output;
-            std::string accuracy_format = "markdown";
-            bool accuracy_verbose = false;
+            auto& accuracy_adapter = cli11_state.keep<std::string>("heuristic");
+            auto& accuracy_model = cli11_state.keep<std::string>("text-embedding-3-small");
+            auto& accuracy_output = cli11_state.keep<std::string>();
+            auto& accuracy_format = cli11_state.keep<std::string>("markdown");
+            auto& accuracy_verbose = cli11_state.keep<bool>(false);
             accuracyCmd->add_option("--adapter", accuracy_adapter, "Tokenizer adapter");
             accuracyCmd->add_option("--model", accuracy_model, "Model name");
             accuracyCmd->add_option("--output", accuracy_output, "Output JSON report path");
@@ -20505,8 +20596,8 @@ int main(int InArgc, char* InArgv[]) {
             });
 
             auto* cacheClearCmd = tokenizerCmd->add_subcommand("cache-clear", "Clear native tokenizer cache");
-            std::string cache_clear_format = "markdown";
-            bool cache_clear_confirm = false;
+            auto& cache_clear_format = cli11_state.keep<std::string>("markdown");
+            auto& cache_clear_confirm = cli11_state.keep<bool>(false);
             cacheClearCmd->add_option("--format", cache_clear_format, "Output format: markdown|json");
             cacheClearCmd->add_flag("--confirm", cache_clear_confirm, "Accepted for compatibility; no prompt is needed");
             cacheClearCmd->callback([&]() {
@@ -20528,7 +20619,7 @@ int main(int InArgc, char* InArgv[]) {
             });
 
             auto* installGuideCmd = tokenizerCmd->add_subcommand("install-guide", "Show native tokenizer install guidance");
-            std::string install_guide_format = "markdown";
+            auto& install_guide_format = cli11_state.keep<std::string>("markdown");
             installGuideCmd->add_option("--format", install_guide_format, "Output format: markdown|json");
             installGuideCmd->callback([&]() {
                 Json::Value payload(Json::objectValue);
@@ -20551,8 +20642,8 @@ int main(int InArgc, char* InArgv[]) {
             });
 
             auto* adapterStatusCmd = tokenizerCmd->add_subcommand("adapter-status", "Show tokenizer adapter status");
-            std::string adapter_status_adapter;
-            std::string adapter_status_format = "markdown";
+            auto& adapter_status_adapter = cli11_state.keep<std::string>();
+            auto& adapter_status_format = cli11_state.keep<std::string>("markdown");
             adapterStatusCmd->add_option("--adapter", adapter_status_adapter, "Show status for a specific adapter");
             adapterStatusCmd->add_option("--format", adapter_status_format, "Output format: markdown|json");
             adapterStatusCmd->callback([&]() {
@@ -20572,10 +20663,10 @@ int main(int InArgc, char* InArgv[]) {
             });
 
             auto* installCmd = tokenizerCmd->add_subcommand("install", "Report native tokenizer provider installation policy");
-            std::string install_dependency = "heuristic";
-            std::string install_method = "external";
-            std::string install_format = "markdown";
-            bool install_upgrade = false;
+            auto& install_dependency = cli11_state.keep<std::string>("heuristic");
+            auto& install_method = cli11_state.keep<std::string>("external");
+            auto& install_format = cli11_state.keep<std::string>("markdown");
+            auto& install_upgrade = cli11_state.keep<bool>(false);
             installCmd->add_option("dependency", install_dependency, "Dependency name");
             installCmd->add_option("--method", install_method, "Installation method requested");
             installCmd->add_option("--format", install_format, "Output format: markdown|json");
@@ -20608,11 +20699,11 @@ int main(int InArgc, char* InArgv[]) {
             });
 
             auto* compareCmd = tokenizerCmd->add_subcommand("compare", "Compare native tokenizer adapters");
-            std::string compare_text = "Sample text";
-            std::string compare_adapters = "heuristic";
-            std::string compare_model = "text-embedding-3-small";
-            std::string compare_format = "markdown";
-            bool compare_show_tokens = false;
+            auto& compare_text = cli11_state.keep<std::string>("Sample text");
+            auto& compare_adapters = cli11_state.keep<std::string>("heuristic");
+            auto& compare_model = cli11_state.keep<std::string>("text-embedding-3-small");
+            auto& compare_format = cli11_state.keep<std::string>("markdown");
+            auto& compare_show_tokens = cli11_state.keep<bool>(false);
             compareCmd->add_option("text", compare_text, "Text to tokenize and compare");
             compareCmd->add_option("--adapters", compare_adapters, "Comma-separated adapter list");
             compareCmd->add_option("--model", compare_model, "Model name");
@@ -20673,10 +20764,10 @@ int main(int InArgc, char* InArgv[]) {
             });
 
             auto* migrateCmd = tokenizerCmd->add_subcommand("migrate", "Migrate tokenizer configuration to native TOML defaults");
-            std::string migrate_input_path;
-            std::string migrate_output_path;
-            std::string migrate_format = "markdown";
-            bool migrate_force = false;
+            auto& migrate_input_path = cli11_state.keep<std::string>();
+            auto& migrate_output_path = cli11_state.keep<std::string>();
+            auto& migrate_format = cli11_state.keep<std::string>("markdown");
+            auto& migrate_force = cli11_state.keep<bool>(false);
             migrateCmd->add_option("input", migrate_input_path, "Input JSON or TOML configuration file");
             migrateCmd->add_option("--output", migrate_output_path, "Output TOML path");
             migrateCmd->add_option("--format", migrate_format, "Output format: markdown|json");
@@ -20796,8 +20887,8 @@ int main(int InArgc, char* InArgv[]) {
             };
 
             auto* telemetryCmd = tokenizerCmd->add_subcommand("telemetry", "Show tokenizer telemetry status");
-            std::string telemetry_format = "markdown";
-            int telemetry_window = 24;
+            auto& telemetry_format = cli11_state.keep<std::string>("markdown");
+            auto& telemetry_window = cli11_state.keep<int>(24);
             telemetryCmd->add_option("--format", telemetry_format, "Output format: markdown|json");
             telemetryCmd->add_option("--window", telemetry_window, "Time window in hours");
             telemetryCmd->callback([&]() {
@@ -20806,9 +20897,9 @@ int main(int InArgc, char* InArgv[]) {
             });
 
             auto* telemetryExportCmd = tokenizerCmd->add_subcommand("telemetry-export", "Export tokenizer telemetry");
-            std::string telemetry_export_output;
-            std::string telemetry_export_format = "json";
-            bool telemetry_export_force = false;
+            auto& telemetry_export_output = cli11_state.keep<std::string>();
+            auto& telemetry_export_format = cli11_state.keep<std::string>("json");
+            auto& telemetry_export_force = cli11_state.keep<bool>(false);
             telemetryExportCmd->add_option("output", telemetry_export_output, "Output file path for telemetry export");
             telemetryExportCmd->add_option("--format", telemetry_export_format, "Export/report format: json|markdown");
             telemetryExportCmd->add_flag("--force", telemetry_export_force, "Overwrite existing file");
@@ -20841,8 +20932,8 @@ int main(int InArgc, char* InArgv[]) {
             });
 
             auto* telemetryClearCmd = tokenizerCmd->add_subcommand("telemetry-clear", "Clear tokenizer telemetry");
-            std::string telemetry_clear_format = "markdown";
-            bool telemetry_clear_confirm = false;
+            auto& telemetry_clear_format = cli11_state.keep<std::string>("markdown");
+            auto& telemetry_clear_confirm = cli11_state.keep<bool>(false);
             telemetryClearCmd->add_option("--format", telemetry_clear_format, "Output format: markdown|json");
             telemetryClearCmd->add_flag("--confirm", telemetry_clear_confirm, "Confirm clearing telemetry data");
             telemetryClearCmd->callback([&]() {
@@ -20851,9 +20942,9 @@ int main(int InArgc, char* InArgv[]) {
             });
 
             auto* monitorCmd = tokenizerCmd->add_subcommand("monitor", "Run tokenizer monitor check");
-            std::string monitor_format = "markdown";
-            int monitor_window = 5;
-            bool monitor_alerts = true;
+            auto& monitor_format = cli11_state.keep<std::string>("markdown");
+            auto& monitor_window = cli11_state.keep<int>(5);
+            auto& monitor_alerts = cli11_state.keep<bool>(true);
             monitorCmd->add_option("--format", monitor_format, "Output format: markdown|json");
             monitorCmd->add_option("--window", monitor_window, "Time window in minutes");
             monitorCmd->add_flag("--alerts", monitor_alerts, "Check alert conditions");
@@ -20877,7 +20968,7 @@ int main(int InArgc, char* InArgv[]) {
             });
 
             auto* alertsCmd = tokenizerCmd->add_subcommand("alerts", "Show tokenizer alerts");
-            std::string alerts_format = "markdown";
+            auto& alerts_format = cli11_state.keep<std::string>("markdown");
             alertsCmd->add_option("--format", alerts_format, "Output format: markdown|json");
             alertsCmd->callback([&]() {
                 Json::Value payload(Json::objectValue);
@@ -20919,19 +21010,19 @@ int main(int InArgc, char* InArgv[]) {
             auto* embeddingCmd = app.add_subcommand("embedding", "Embedding pipeline operations");
 
             auto* buildCmd = embeddingCmd->add_subcommand("build", "Build native noop/heuristic embedding index");
-            std::string embed_file;
-            std::string embed_text;
-            std::string embed_source_id;
-            std::string embed_product;
-            std::string embed_backlog_root;
-            std::string embed_cache_root;
-            std::string embed_format = "markdown";
-            std::string embed_tokenizer_adapter;
-            std::string embed_tokenizer_model;
-            int embed_tokenizer_max_tokens = 0;
-            std::string embed_tokenizer_config;
-            std::string embed_profile;
-            bool embed_force = false;
+            auto& embed_file = cli11_state.keep<std::string>();
+            auto& embed_text = cli11_state.keep<std::string>();
+            auto& embed_source_id = cli11_state.keep<std::string>();
+            auto& embed_product = cli11_state.keep<std::string>();
+            auto& embed_backlog_root = cli11_state.keep<std::string>();
+            auto& embed_cache_root = cli11_state.keep<std::string>();
+            auto& embed_format = cli11_state.keep<std::string>("markdown");
+            auto& embed_tokenizer_adapter = cli11_state.keep<std::string>();
+            auto& embed_tokenizer_model = cli11_state.keep<std::string>();
+            auto& embed_tokenizer_max_tokens = cli11_state.keep<int>(0);
+            auto& embed_tokenizer_config = cli11_state.keep<std::string>();
+            auto& embed_profile = cli11_state.keep<std::string>();
+            auto& embed_force = cli11_state.keep<bool>(false);
             buildCmd->add_option("file_path", embed_file, "File path to index");
             buildCmd->add_option("--text", embed_text, "Raw text to index instead of file");
             buildCmd->add_option("--source-id", embed_source_id, "Source ID for text input");
@@ -21010,12 +21101,12 @@ int main(int InArgc, char* InArgv[]) {
             });
 
             auto* queryCmd = embeddingCmd->add_subcommand("query", "Query native local FTS candidates");
-            std::string embed_query_text;
-            std::string embed_query_product;
-            std::string embed_query_backlog_root;
-            std::string embed_query_format = "markdown";
-            std::string embed_query_cache_root;
-            int embed_query_k = 5;
+            auto& embed_query_text = cli11_state.keep<std::string>();
+            auto& embed_query_product = cli11_state.keep<std::string>();
+            auto& embed_query_backlog_root = cli11_state.keep<std::string>();
+            auto& embed_query_format = cli11_state.keep<std::string>("markdown");
+            auto& embed_query_cache_root = cli11_state.keep<std::string>();
+            auto& embed_query_k = cli11_state.keep<int>(5);
             queryCmd->add_option("query_text", embed_query_text, "Query text")->required();
             queryCmd->add_option("--k", embed_query_k, "Number of results");
             queryCmd->add_option("--product", embed_query_product, "Product name");
@@ -21059,11 +21150,11 @@ int main(int InArgc, char* InArgv[]) {
             });
 
             auto* statusCmd = embeddingCmd->add_subcommand("status", "Show native embedding index status and metadata");
-            std::string embed_status_product;
-            std::string embed_status_backlog_root;
-            std::string embed_status_format = "markdown";
-            std::string embed_status_cache_root;
-            std::string embed_status_profile;
+            auto& embed_status_product = cli11_state.keep<std::string>();
+            auto& embed_status_backlog_root = cli11_state.keep<std::string>();
+            auto& embed_status_format = cli11_state.keep<std::string>("markdown");
+            auto& embed_status_cache_root = cli11_state.keep<std::string>();
+            auto& embed_status_profile = cli11_state.keep<std::string>();
             statusCmd->add_option("--product", embed_status_product, "Product name");
             statusCmd->add_option("--backlog-root", embed_status_backlog_root, "Backlog root (_kano/backlog)");
             statusCmd->add_option("--format", embed_status_format, "Output format: markdown|json");
@@ -21104,14 +21195,14 @@ int main(int InArgc, char* InArgv[]) {
 
             auto addSearchCommand = [&](const std::string& name) {
                 auto* cmd = searchCmd->add_subcommand(name, "Search backlog or repo corpus");
-                auto query_text = std::make_shared<std::string>();
-                auto corpus = std::make_shared<std::string>("backlog");
-                auto product = std::make_shared<std::string>();
-                auto backlog_root = std::make_shared<std::string>();
-                auto project_root = std::make_shared<std::string>();
-                auto format = std::make_shared<std::string>("markdown");
-                auto k = std::make_shared<int>(10);
-                auto fts_k = std::make_shared<int>(200);
+                auto query_text = cli11_state.make_shared<std::string>();
+                auto corpus = cli11_state.make_shared<std::string>("backlog");
+                auto product = cli11_state.make_shared<std::string>();
+                auto backlog_root = cli11_state.make_shared<std::string>();
+                auto project_root = cli11_state.make_shared<std::string>();
+                auto format = cli11_state.make_shared<std::string>("markdown");
+                auto k = cli11_state.make_shared<int>(10);
+                auto fts_k = cli11_state.make_shared<int>(200);
                 cmd->add_option("query", *query_text, "Search query")->required();
                 cmd->add_option("--corpus", *corpus, "Corpus: backlog|repo");
                 cmd->add_option("--product", *product, "Product name");
@@ -21224,8 +21315,8 @@ int main(int InArgc, char* InArgv[]) {
             auto* webviewCmd = app.add_subcommand("webview", "Launch local webview server");
             webviewCmd->require_subcommand(0);
             auto* serveCmd = webviewCmd->add_subcommand("serve", "Start the webview HTTP server");
-            std::string backlog_root_opt;
-            std::string port_opt;
+            auto& backlog_root_opt = cli11_state.keep<std::string>();
+            auto& port_opt = cli11_state.keep<std::string>();
             serveCmd->add_option("--backlog-root", backlog_root_opt, "Backlog products root");
             serveCmd->add_option("--port", port_opt, "HTTP port (default: 8787)");
 
@@ -21272,7 +21363,7 @@ int main(int InArgc, char* InArgv[]) {
                     std::string product;
                     std::string backlog_root;
                 };
-                const auto state = std::make_shared<SchemaCheckCommandState>();
+                const auto state = cli11_state.make_shared<SchemaCheckCommandState>();
                 checkCmd->add_option("--product", state->product, "Product name (check all if omitted)");
                 checkCmd->add_option("--backlog-root", state->backlog_root, "Backlog root path");
                 checkCmd->callback([&, state]() {
@@ -21371,7 +21462,7 @@ int main(int InArgc, char* InArgv[]) {
                     std::string model;
                     bool apply = false;
                 };
-                const auto state = std::make_shared<SchemaFixCommandState>();
+                const auto state = cli11_state.make_shared<SchemaFixCommandState>();
                 fixCmd->add_option("--product", state->product, "Product name (fix all if omitted)");
                 fixCmd->add_option("--backlog-root", state->backlog_root, "Backlog root path");
                 fixCmd->add_option("--agent", state->agent, "Agent name for worklog")->required();
@@ -21471,7 +21562,7 @@ int main(int InArgc, char* InArgv[]) {
                     bool fix = false;
                     bool apply = false;
                 };
-                const auto state = std::make_shared<ValidateUidsCommandState>();
+                const auto state = cli11_state.make_shared<ValidateUidsCommandState>();
                 uidsCmd->add_option("--product", state->product, "Product name (validate all if omitted)");
                 uidsCmd->add_option("--backlog-root", state->backlog_root, "Backlog root path");
                 uidsCmd->add_option("--agent", state->agent, "Agent identifier required when applying repairs");
@@ -21702,7 +21793,7 @@ int main(int InArgc, char* InArgv[]) {
                     std::string backlog_root;
                     bool include_views = false;
                 };
-                const auto state = std::make_shared<ValidateLinksCommandState>();
+                const auto state = cli11_state.make_shared<ValidateLinksCommandState>();
                 linksCmd->add_option("--product", state->product, "Product name (validate all if omitted)");
                 linksCmd->add_option("--backlog-root", state->backlog_root, "Backlog root path");
                 linksCmd->add_flag("--include-views", state->include_views, "Scan views/ markdown (derived output)");
@@ -21886,13 +21977,14 @@ int main(int InArgc, char* InArgv[]) {
             // links fix
             {
                 auto* fixLinksCmd = linksGroupCmd->add_subcommand("fix", "Fix markdown links and wikilinks across backlog");
-                std::string lf_product, lf_backlog_root_str;
-                std::string lf_format = "markdown";
-                std::vector<std::string> lf_ignore_targets;
-                std::vector<std::string> lf_remap_roots;
-                bool lf_include_views = false;
-                bool lf_apply = false;
-                bool lf_resolve_id = false;
+                auto& lf_product = cli11_state.keep<std::string>();
+                auto& lf_backlog_root_str = cli11_state.keep<std::string>();
+                auto& lf_format = cli11_state.keep<std::string>("markdown");
+                auto& lf_ignore_targets = cli11_state.keep<std::vector<std::string>>();
+                auto& lf_remap_roots = cli11_state.keep<std::vector<std::string>>();
+                auto& lf_include_views = cli11_state.keep<bool>(false);
+                auto& lf_apply = cli11_state.keep<bool>(false);
+                auto& lf_resolve_id = cli11_state.keep<bool>(false);
                 fixLinksCmd->add_option("--product", lf_product, "Product name");
                 fixLinksCmd->add_option("--backlog-root", lf_backlog_root_str, "Backlog root path");
                 fixLinksCmd->add_flag("--include-views", lf_include_views, "Scan views/ markdown");
@@ -21955,7 +22047,7 @@ int main(int InArgc, char* InArgv[]) {
                     bool update_refs = true;
                     bool apply = false;
                 };
-                auto state = std::make_shared<LinksRemapIdCommandState>();
+                auto state = cli11_state.make_shared<LinksRemapIdCommandState>();
                 lriCmd->add_option("ref", state->ref, "Current item ID or UID")->required();
                 lriCmd->add_option("--to", state->new_id, "New ID")->required();
                 lriCmd->add_option("--agent", state->agent, "Agent identifier")->required();
@@ -21995,14 +22087,14 @@ int main(int InArgc, char* InArgv[]) {
             // links remap-ref
             {
                 auto* remapRefCmd = linksGroupCmd->add_subcommand("remap-ref", "Remap a reference ID and update links across the product");
-                std::string rr_path;
-                std::string rr_prefix = "ADR";
-                std::string rr_product;
-                std::string rr_backlog_root_str;
-                std::string rr_format = "markdown";
-                bool rr_update_refs = true;
-                bool rr_no_update_refs = false;
-                bool rr_apply = false;
+                auto& rr_path = cli11_state.keep<std::string>();
+                auto& rr_prefix = cli11_state.keep<std::string>("ADR");
+                auto& rr_product = cli11_state.keep<std::string>();
+                auto& rr_backlog_root_str = cli11_state.keep<std::string>();
+                auto& rr_format = cli11_state.keep<std::string>("markdown");
+                auto& rr_update_refs = cli11_state.keep<bool>(true);
+                auto& rr_no_update_refs = cli11_state.keep<bool>(false);
+                auto& rr_apply = cli11_state.keep<bool>(false);
                 remapRefCmd->add_option("ref_file", rr_path, "Path to reference file to remap")->required();
                 remapRefCmd->add_option("--prefix", rr_prefix, "Reference prefix");
                 remapRefCmd->add_option("--product", rr_product, "Product name");
@@ -22051,8 +22143,10 @@ int main(int InArgc, char* InArgv[]) {
             // links normalize-ids (standalone)
             {
                 auto* normCmd = linksGroupCmd->add_subcommand("normalize-ids", "Normalize duplicate IDs");
-                std::string norm_product, norm_agent, norm_backlog_root_str;
-                bool norm_apply = false;
+                auto& norm_product = cli11_state.keep<std::string>();
+                auto& norm_agent = cli11_state.keep<std::string>();
+                auto& norm_backlog_root_str = cli11_state.keep<std::string>();
+                auto& norm_apply = cli11_state.keep<bool>(false);
                 normCmd->add_option("--product", norm_product, "Product name");
                 normCmd->add_option("--backlog-root", norm_backlog_root_str, "Backlog root path");
                 normCmd->add_option("--agent", norm_agent, "Agent identifier")->required();
@@ -22114,12 +22208,15 @@ int main(int InArgc, char* InArgv[]) {
             // links replace-id
             {
                 auto* replaceCmd = linksGroupCmd->add_subcommand("replace-id", "Replace ID token in specific files");
-                std::string old_id, new_id, old_id_opt, new_id_opt;
-                std::string replace_format = "markdown";
+                auto& old_id = cli11_state.keep<std::string>();
+                auto& new_id = cli11_state.keep<std::string>();
+                auto& old_id_opt = cli11_state.keep<std::string>();
+                auto& new_id_opt = cli11_state.keep<std::string>();
+                auto& replace_format = cli11_state.keep<std::string>("markdown");
                 std::vector<std::string> replace_path_args;
-                bool replace_apply = false;
-                bool replace_skip_worklog = true;
-                bool replace_no_skip_worklog = false;
+                auto& replace_apply = cli11_state.keep<bool>(false);
+                auto& replace_skip_worklog = cli11_state.keep<bool>(true);
+                auto& replace_no_skip_worklog = cli11_state.keep<bool>(false);
                 replaceCmd->add_option("old_id", old_id, "Old ID to replace");
                 replaceCmd->add_option("new_id", new_id, "New ID to insert");
                 replaceCmd->add_option("--old", old_id_opt, "Old ID (compatibility alias)");
@@ -22168,10 +22265,13 @@ int main(int InArgc, char* InArgv[]) {
             // links replace-target
             {
                 auto* rtCmd = linksGroupCmd->add_subcommand("replace-target", "Replace link targets for an ID");
-                std::string rt_old_id, rt_new_path, rt_old_id_opt, rt_new_path_opt;
-                std::string rt_format = "markdown";
+                auto& rt_old_id = cli11_state.keep<std::string>();
+                auto& rt_new_path = cli11_state.keep<std::string>();
+                auto& rt_old_id_opt = cli11_state.keep<std::string>();
+                auto& rt_new_path_opt = cli11_state.keep<std::string>();
+                auto& rt_format = cli11_state.keep<std::string>("markdown");
                 std::vector<std::string> rt_path_args;
-                bool rt_apply = false;
+                auto& rt_apply = cli11_state.keep<bool>(false);
                 rtCmd->add_option("old_id", rt_old_id, "Old ID to replace in link targets");
                 rtCmd->add_option("new_path", rt_new_path, "New target path to link to");
                 rtCmd->add_option("--old-id", rt_old_id_opt, "Old ID (compatibility alias)");
@@ -22215,12 +22315,13 @@ int main(int InArgc, char* InArgv[]) {
             // links restore-from-vcs
             {
                 auto* rfvCmd = linksGroupCmd->add_subcommand("restore-from-vcs", "Restore missing link targets from VCS history");
-                std::string rfv_product, rfv_backlog_root_str;
-                std::string rfv_format = "markdown";
-                std::vector<std::string> rfv_ignore_targets;
-                std::vector<std::string> rfv_remap_roots;
-                bool rfv_include_views = false;
-                bool rfv_apply = false;
+                auto& rfv_product = cli11_state.keep<std::string>();
+                auto& rfv_backlog_root_str = cli11_state.keep<std::string>();
+                auto& rfv_format = cli11_state.keep<std::string>("markdown");
+                auto& rfv_ignore_targets = cli11_state.keep<std::vector<std::string>>();
+                auto& rfv_remap_roots = cli11_state.keep<std::vector<std::string>>();
+                auto& rfv_include_views = cli11_state.keep<bool>(false);
+                auto& rfv_apply = cli11_state.keep<bool>(false);
                 rfvCmd->add_option("--product", rfv_product, "Product name");
                 rfvCmd->add_option("--backlog-root", rfv_backlog_root_str, "Backlog root path");
                 rfvCmd->add_flag("--include-views", rfv_include_views, "Scan views");
@@ -22281,11 +22382,11 @@ int main(int InArgc, char* InArgv[]) {
             // adr create
             {
                 auto* createCmd = adrCmd->add_subcommand("create", "Create a new ADR");
-                std::string adr_title;
-                std::string adr_product;
-                std::string adr_agent;
-                std::string adr_status = "Proposed";
-                std::string adr_backlog_root_str;
+                auto& adr_title = cli11_state.keep<std::string>();
+                auto& adr_product = cli11_state.keep<std::string>();
+                auto& adr_agent = cli11_state.keep<std::string>();
+                auto& adr_status = cli11_state.keep<std::string>("Proposed");
+                auto& adr_backlog_root_str = cli11_state.keep<std::string>();
                 createCmd->add_option("--title", adr_title, "ADR title")->required();
                 createCmd->add_option("--product", adr_product, "Product name")->required();
                 createCmd->add_option("--agent", adr_agent, "Agent identifier")->required();
@@ -22356,10 +22457,10 @@ int main(int InArgc, char* InArgv[]) {
             // adr fix-uids
             {
                 auto* fixUidsCmd = adrCmd->add_subcommand("fix-uids", "Backfill missing/invalid ADR UIDs (UUIDv7)");
-                std::string fu_product;
-                std::string fu_backlog_root_str;
-                std::string fu_agent;
-                bool fu_apply = false;
+                auto& fu_product = cli11_state.keep<std::string>();
+                auto& fu_backlog_root_str = cli11_state.keep<std::string>();
+                auto& fu_agent = cli11_state.keep<std::string>();
+                auto& fu_apply = cli11_state.keep<bool>(false);
                 fixUidsCmd->add_option("--product", fu_product, "Product name");
                 fixUidsCmd->add_option("--backlog-root", fu_backlog_root_str, "Backlog root path");
                 fixUidsCmd->add_option("--agent", fu_agent, "Agent identifier")->required();
@@ -22465,11 +22566,11 @@ int main(int InArgc, char* InArgv[]) {
             // changelog generate
             {
                 auto* genCmd = changelogCmd->add_subcommand("generate", "Generate changelog from Done backlog items");
-                std::string cg_version;
-                std::string cg_product;
-                std::string cg_backlog_root_str;
-                std::string cg_output_str;
-                std::string cg_date_str;
+                auto& cg_version = cli11_state.keep<std::string>();
+                auto& cg_product = cli11_state.keep<std::string>();
+                auto& cg_backlog_root_str = cli11_state.keep<std::string>();
+                auto& cg_output_str = cli11_state.keep<std::string>();
+                auto& cg_date_str = cli11_state.keep<std::string>();
                 genCmd->add_option("--version", cg_version, "Version string (e.g., 0.0.1)")->required();
                 genCmd->add_option("--product", cg_product, "Product name");
                 genCmd->add_option("--backlog-root", cg_backlog_root_str, "Backlog root path");
@@ -22563,10 +22664,10 @@ int main(int InArgc, char* InArgv[]) {
             // changelog merge-unreleased
             {
                 auto* mergeCmd = changelogCmd->add_subcommand("merge-unreleased", "Merge [Unreleased] section into specified version");
-                std::string mu_version;
-                std::string mu_changelog_str = "CHANGELOG.md";
-                std::string mu_date_str;
-                bool mu_dry_run = false;
+                auto& mu_version = cli11_state.keep<std::string>();
+                auto& mu_changelog_str = cli11_state.keep<std::string>("CHANGELOG.md");
+                auto& mu_date_str = cli11_state.keep<std::string>();
+                auto& mu_dry_run = cli11_state.keep<bool>(false);
                 mergeCmd->add_option("--version", mu_version, "Version to merge into (e.g., 0.0.1)")->required();
                 mergeCmd->add_option("--changelog", mu_changelog_str, "Path to CHANGELOG.md");
                 mergeCmd->add_option("--date", mu_date_str, "Release date (YYYY-MM-DD, default: today)");
@@ -22683,9 +22784,10 @@ int main(int InArgc, char* InArgv[]) {
         {
             auto* demoCmd = app.add_subcommand("demo", "Demo data operations");
             auto* seedCmd = demoCmd->add_subcommand("seed", "Seed a product with reproducible demo items");
-            std::string seed_product, seed_agent;
-            int seed_count = 5;
-            bool seed_force = false;
+            auto& seed_product = cli11_state.keep<std::string>();
+            auto& seed_agent = cli11_state.keep<std::string>();
+            auto& seed_count = cli11_state.keep<int>(5);
+            auto& seed_force = cli11_state.keep<bool>(false);
             seedCmd->add_option("--product", seed_product, "Product name to seed")->required();
             seedCmd->add_option("--agent", seed_agent, "Agent identifier")->required();
             seedCmd->add_option("--count", seed_count, "Number of demo items to create");
@@ -22769,9 +22871,9 @@ int main(int InArgc, char* InArgv[]) {
             // orphan check
             {
                 auto* checkCmd = orphanCmd->add_subcommand("check", "Check for orphan commits");
-                int check_days = 7;
-                bool show_all = false;
-                std::string check_format = "table";
+                auto& check_days = cli11_state.keep<int>(7);
+                auto& show_all = cli11_state.keep<bool>(false);
+                auto& check_format = cli11_state.keep<std::string>("table");
                 checkCmd->add_option("-d,--days", check_days, "Check commits from last N days");
                 checkCmd->add_flag("-a,--all", show_all, "Show all commits including trivial");
                 checkCmd->add_option("-f,--format", check_format, "Output format: table|json|plain");
@@ -22893,7 +22995,7 @@ int main(int InArgc, char* InArgv[]) {
             // orphan suggest
             {
                 auto* suggestCmd = orphanCmd->add_subcommand("suggest", "Suggest ticket type and title for a commit");
-                std::string suggest_hash;
+                auto& suggest_hash = cli11_state.keep<std::string>();
                 suggestCmd->add_option("commit_hash", suggest_hash, "Commit hash to analyze")->required();
 
                 suggestCmd->callback([&]() {
@@ -22980,7 +23082,7 @@ int main(int InArgc, char* InArgv[]) {
         // ============================================================
         {
             auto* repoHygieneCmd = app.add_subcommand("repo-hygiene", "Detect and fix Git-index executable bits and CRLF/LF issues");
-            auto hygiene_state = std::make_shared<RepoHygieneCommandState>();
+            auto hygiene_state = cli11_state.make_shared<RepoHygieneCommandState>();
             repoHygieneCmd->add_option("--repo", hygiene_state->repo, "Target repository root path");
             repoHygieneCmd->add_option("command", hygiene_state->command, "Legacy hygiene subcommand")->expected(0, 1);
             repoHygieneCmd->add_flag("--archive-safe", hygiene_state->archive_safe, "Run strict archive-safe checks");
@@ -23031,7 +23133,7 @@ int main(int InArgc, char* InArgv[]) {
 
         {
             auto* exportCmd = app.add_subcommand("export", "Create a native Git release archive");
-            auto export_state = std::make_shared<ExportCommandState>();
+            auto export_state = cli11_state.make_shared<ExportCommandState>();
             exportCmd->add_flag("--single", export_state->single, "Compatibility flag for legacy callsites; native export currently writes one archive");
             exportCmd->add_flag("--validate-release-archive", export_state->validate_release_archive, "Run archive-safe repo hygiene before archive creation");
             exportCmd->add_flag("--no-validate-release-archive", export_state->no_validate_release_archive, "Skip archive-safe repo hygiene before archive creation");
@@ -23058,11 +23160,12 @@ int main(int InArgc, char* InArgv[]) {
         {
             auto* metaCmd = app.add_subcommand("meta", "Meta file helpers");
             auto* tgCmd = metaCmd->add_subcommand("add-ticketing-guidance", "Append ticketing guidance to _meta/conventions.md");
-            std::string tg_product, tg_agent;
-            std::string tg_backlog_root;
-            std::string tg_model;
-            std::string tg_format = "markdown";
-            bool tg_apply = false;
+            auto& tg_product = cli11_state.keep<std::string>();
+            auto& tg_agent = cli11_state.keep<std::string>();
+            auto& tg_backlog_root = cli11_state.keep<std::string>();
+            auto& tg_model = cli11_state.keep<std::string>();
+            auto& tg_format = cli11_state.keep<std::string>("markdown");
+            auto& tg_apply = cli11_state.keep<bool>(false);
             tgCmd->add_option("--product", tg_product, "Product name")->required();
             tgCmd->add_option("--backlog-root", tg_backlog_root, "Backlog root (_kano/backlog)");
             tgCmd->add_option("--agent", tg_agent, "Agent identifier")->required();
@@ -23262,12 +23365,12 @@ int main(int InArgc, char* InArgv[]) {
             };
 
             auto* createCmd = snapshotCmd->add_subcommand("create", "Generate a deterministic snapshot evidence pack");
-            std::string view_arg = "all";
-            std::string snapshot_scope = "repo";
-            std::string snapshot_format = "md";
-            bool snapshot_write = false;
-            std::string snapshot_out;
-            std::string snapshot_meta_mode = "min";
+            auto& view_arg = cli11_state.keep<std::string>("all");
+            auto& snapshot_scope = cli11_state.keep<std::string>("repo");
+            auto& snapshot_format = cli11_state.keep<std::string>("md");
+            auto& snapshot_write = cli11_state.keep<bool>(false);
+            auto& snapshot_out = cli11_state.keep<std::string>();
+            auto& snapshot_meta_mode = cli11_state.keep<std::string>("min");
             createCmd->add_option("view", view_arg, "View to capture: all|stubs|cli|health|capabilities");
             createCmd->add_option("--scope", snapshot_scope, "Scope: repo|product:<name>");
             createCmd->add_option("-f,--format", snapshot_format, "Output format: json|md");
@@ -23296,11 +23399,11 @@ int main(int InArgc, char* InArgv[]) {
             });
 
             auto* reportCmd = snapshotCmd->add_subcommand("report", "Generate a persona-targeted report from a fresh snapshot");
-            std::string report_persona;
-            std::string report_scope = "repo";
-            bool report_write = false;
-            std::string report_out;
-            std::string report_meta_mode = "min";
+            auto& report_persona = cli11_state.keep<std::string>();
+            auto& report_scope = cli11_state.keep<std::string>("repo");
+            auto& report_write = cli11_state.keep<bool>(false);
+            auto& report_out = cli11_state.keep<std::string>();
+            auto& report_meta_mode = cli11_state.keep<std::string>("min");
             reportCmd->add_option("persona", report_persona, "Target persona: developer|pm|qa")->required();
             reportCmd->add_option("--scope", report_scope, "Scope: repo|product:<name>");
             reportCmd->add_flag("-w,--write", report_write, "Write report to file");
