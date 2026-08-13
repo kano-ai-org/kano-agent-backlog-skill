@@ -95,6 +95,15 @@ std::string line_value(const std::string& text, const std::string& marker) {
     return value;
 }
 
+bool paths_equivalent_for_test(
+    const std::filesystem::path& left,
+    const std::filesystem::path& right
+) {
+    std::error_code ec;
+    const bool equivalent = std::filesystem::equivalent(left, right, ec);
+    return !ec && equivalent;
+}
+
 std::vector<std::string> with_duplicate_admission(std::vector<std::string> args, const std::string& query) {
     args.push_back("--duplicate-search-query");
     args.push_back(query);
@@ -672,8 +681,9 @@ int main(int argc, char** argv) {
         expect_command_capture_success(
             run_command_capture(binary, {
                 "-p", standalone_backlog_root.string(),
-                "-P", "horizon-unreal-pipeline",
-                "index", "build", "--force"
+                "index", "build",
+                "--product", "horizon-unreal-pipeline",
+                "--force"
             }, standalone_index_build_output),
             standalone_index_build_output,
             "standalone shared index build failed"
@@ -682,23 +692,43 @@ int main(int argc, char** argv) {
             read_text(standalone_index_build_output),
             "Built index: "
         );
-        expect(standalone_built_index_path.find("standalone-backlog\\.cache\\index\\backlog.db") != std::string::npos,
+        const auto standalone_expected_index_path =
+            (standalone_backlog_root / ".cache" / "index" / "backlog.db").lexically_normal();
+        expect(paths_equivalent_for_test(standalone_built_index_path, standalone_expected_index_path),
             "standalone build did not use the repository-level shared index");
-        expect(standalone_built_index_path.find("products\\horizon-unreal-pipeline\\.cache") == std::string::npos,
-            "standalone build incorrectly used a product-local index");
+
+        const auto standalone_index_refresh_output = temp_root / "standalone-index-refresh.txt";
+        expect_command_capture_success(
+            run_command_capture(binary, {
+                "-p", standalone_backlog_root.string(),
+                "index", "refresh",
+                "--product", "horizon-unreal-pipeline"
+            }, standalone_index_refresh_output),
+            standalone_index_refresh_output,
+            "standalone shared index refresh failed"
+        );
+        expect(
+            paths_equivalent_for_test(line_value(
+                read_text(standalone_index_refresh_output),
+                "Refreshed index: "
+            ), standalone_expected_index_path),
+            "standalone refresh did not use the repository-level shared index"
+        );
 
         const auto standalone_index_status_output = temp_root / "standalone-index-status.txt";
         expect_command_capture_success(
             run_command_capture(binary, {
                 "-p", standalone_backlog_root.string(),
-                "-P", "horizon-unreal-pipeline",
-                "index", "status"
+                "index", "status",
+                "--product", "horizon-unreal-pipeline"
             }, standalone_index_status_output),
             standalone_index_status_output,
             "standalone shared index status failed"
         );
         const auto standalone_status_text = read_text(standalone_index_status_output);
-        expect(line_value(standalone_status_text, "  Path: ") == standalone_built_index_path,
+        expect(paths_equivalent_for_test(
+                line_value(standalone_status_text, "  Path: "),
+                standalone_expected_index_path),
             "standalone index status did not report the build path");
         expect(standalone_status_text.find("Status: Exists") != std::string::npos,
             "standalone index status did not find the shared index after build");
@@ -834,7 +864,8 @@ int main(int argc, char** argv) {
         );
         const auto index_build_text = read_text(index_build_output);
         const auto built_index_path = line_value(index_build_text, "Built index: ");
-        expect(built_index_path.find("_kano\\backlog\\.cache\\index\\backlog.db") != std::string::npos,
+        const auto expected_index_path = (backlog_root / ".cache" / "index" / "backlog.db").lexically_normal();
+        expect(paths_equivalent_for_test(built_index_path, expected_index_path),
             "index build did not use the shared index path");
 
         const auto index_status_output = temp_root / "index-status.txt";
@@ -847,7 +878,7 @@ int main(int argc, char** argv) {
         );
         const auto index_status_text = read_text(index_status_output);
         const auto status_index_path = line_value(index_status_text, "  Path: ");
-        expect(status_index_path == built_index_path,
+        expect(paths_equivalent_for_test(status_index_path, expected_index_path),
             "index status did not report the exact path emitted by index build");
         expect(index_status_text.find("Status: Exists") != std::string::npos,
             "index status did not find the shared index after build");

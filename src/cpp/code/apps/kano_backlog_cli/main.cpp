@@ -19674,20 +19674,23 @@ int main(int InArgc, char* InArgv[]) {
             // index build
             {
                 auto* buildCmd = indexCmd->add_subcommand("build", "Build the SQLite index from markdown items");
-                std::string idx_product;
-                bool force = false;
-                buildCmd->add_option("--product", idx_product, "Product name");
-                buildCmd->add_flag("--force", force, "Rebuild even if index exists");
-                buildCmd->callback([&]() {
+                struct IndexBuildCommandState {
+                    std::string product;
+                    bool force = false;
+                };
+                const auto state = std::make_shared<IndexBuildCommandState>();
+                buildCmd->add_option("--product", state->product, "Product name");
+                buildCmd->add_flag("--force", state->force, "Rebuild even if index exists");
+                buildCmd->callback([&, state]() {
                     auto ctx = BacklogContext::resolve(
                         path_str,
-                        idx_product.empty()
+                        state->product.empty()
                             ? (product_name_opt.empty() ? std::nullopt : std::optional<std::string>(product_name_opt))
-                            : std::optional<std::string>(idx_product),
+                            : std::optional<std::string>(state->product),
                         sandbox_name_opt.empty() ? std::nullopt : std::optional<std::string>(sandbox_name_opt)
                     );
                     auto idx_path = ctx.backlog_root / ".cache" / "index" / "backlog.db";
-                    auto result = build_index(ctx.product_root, idx_path, force);
+                    auto result = build_index(ctx.product_root, idx_path, state->force);
                     std::cout << "Built index: " << result.index_path.string() << "\n";
                     std::cout << "  Items: " << result.items_indexed << "\n";
                     std::cout << "  Time: " << std::fixed << std::setprecision(1) << result.build_time_ms << " ms\n";
@@ -19697,14 +19700,17 @@ int main(int InArgc, char* InArgv[]) {
             // index refresh
             {
                 auto* refreshCmd = indexCmd->add_subcommand("refresh", "Refresh the SQLite index (MVP: full rebuild)");
-                std::string idx_product;
-                refreshCmd->add_option("--product", idx_product, "Product name");
-                refreshCmd->callback([&]() {
+                struct IndexRefreshCommandState {
+                    std::string product;
+                };
+                const auto state = std::make_shared<IndexRefreshCommandState>();
+                refreshCmd->add_option("--product", state->product, "Product name");
+                refreshCmd->callback([&, state]() {
                     auto ctx = BacklogContext::resolve(
                         path_str,
-                        idx_product.empty()
+                        state->product.empty()
                             ? (product_name_opt.empty() ? std::nullopt : std::optional<std::string>(product_name_opt))
-                            : std::optional<std::string>(idx_product),
+                            : std::optional<std::string>(state->product),
                         sandbox_name_opt.empty() ? std::nullopt : std::optional<std::string>(sandbox_name_opt)
                     );
                     auto idx_path = ctx.backlog_root / ".cache" / "index" / "backlog.db";
@@ -19718,14 +19724,17 @@ int main(int InArgc, char* InArgv[]) {
             // index status
             {
                 auto* statusCmd = indexCmd->add_subcommand("status", "Show SQLite index status and statistics");
-                std::string idx_product;
-                statusCmd->add_option("--product", idx_product, "Product name");
-                statusCmd->callback([&]() {
+                struct IndexStatusCommandState {
+                    std::string product;
+                };
+                const auto state = std::make_shared<IndexStatusCommandState>();
+                statusCmd->add_option("--product", state->product, "Product name");
+                statusCmd->callback([&, state]() {
                     auto ctx = BacklogContext::resolve(
                         path_str,
-                        idx_product.empty()
+                        state->product.empty()
                             ? (product_name_opt.empty() ? std::nullopt : std::optional<std::string>(product_name_opt))
-                            : std::optional<std::string>(idx_product),
+                            : std::optional<std::string>(state->product),
                         sandbox_name_opt.empty() ? std::nullopt : std::optional<std::string>(sandbox_name_opt)
                     );
                     auto result = get_index_status(ctx.backlog_root, ctx.product_name);
