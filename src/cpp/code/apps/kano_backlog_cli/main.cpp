@@ -21945,26 +21945,32 @@ int main(int InArgc, char* InArgv[]) {
             // links remap-id
             {
                 auto* lriCmd = linksGroupCmd->add_subcommand("remap-id", "Remap item ID and update references");
-                std::string lri_ref, lri_new_id, lri_agent, lri_format = "markdown";
-                bool lri_update_refs = true;
-                bool lri_apply = false;
-                lriCmd->add_option("ref", lri_ref, "Current item ID or UID")->required();
-                lriCmd->add_option("--to", lri_new_id, "New ID")->required();
-                lriCmd->add_option("--agent", lri_agent, "Agent identifier")->required();
-                lriCmd->add_flag("--update-refs", lri_update_refs, "Update references across backlog");
-                lriCmd->add_flag("--apply", lri_apply, "Apply changes");
-                lriCmd->add_option("--format", lri_format, "Output format: markdown|json");
-                lriCmd->callback([&]() {
-                    const auto format_norm = lower_copy(trim_copy(lri_format));
+                struct LinksRemapIdCommandState {
+                    std::string ref;
+                    std::string new_id;
+                    std::string agent;
+                    std::string format = "markdown";
+                    bool update_refs = true;
+                    bool apply = false;
+                };
+                auto state = std::make_shared<LinksRemapIdCommandState>();
+                lriCmd->add_option("ref", state->ref, "Current item ID or UID")->required();
+                lriCmd->add_option("--to", state->new_id, "New ID")->required();
+                lriCmd->add_option("--agent", state->agent, "Agent identifier")->required();
+                lriCmd->add_flag("--update-refs", state->update_refs, "Update references across backlog");
+                lriCmd->add_flag("--apply", state->apply, "Apply changes");
+                lriCmd->add_option("--format", state->format, "Output format: markdown|json");
+                lriCmd->callback([&, state]() {
+                    const auto format_norm = lower_copy(trim_copy(state->format));
                     if (format_norm != "markdown" && format_norm != "json") {
                         throw std::runtime_error("format must be markdown or json");
                     }
-                    if (!lri_update_refs) {
+                    if (!state->update_refs) {
                         throw std::runtime_error("links remap-id requires --update-refs; partial ID remaps are not supported");
                     }
                     auto ctx = resolve_ctx();
-                    if (!lri_apply) {
-                        const auto plan = plan_remap_id_cli(ctx.product_root, lri_ref, lri_new_id);
+                    if (!state->apply) {
+                        const auto plan = plan_remap_id_cli(ctx.product_root, state->ref, state->new_id);
                         if (format_norm == "json") {
                             std::cout << json_to_string(remap_plan_to_json(plan, "dry-run"), true) << "\n";
                         } else {
@@ -21974,7 +21980,7 @@ int main(int InArgc, char* InArgv[]) {
                     }
 
                     BacklogIndex index(ctx.backlog_root / ".cache" / "index" / "backlog.db");
-                    auto result = WorkitemOps::remap_id(index, ctx.product_root, lri_ref, lri_new_id, lri_agent);
+                    auto result = WorkitemOps::remap_id(index, ctx.product_root, state->ref, state->new_id, state->agent);
                     if (format_norm == "json") {
                         std::cout << json_to_string(remap_result_to_json(result, "applied"), true) << "\n";
                     } else {
