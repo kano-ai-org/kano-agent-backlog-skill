@@ -83,10 +83,19 @@ bash scripts/kob admin init --product <product-name> --agent <agent-id>
 bash scripts/kob admin init --product my-app --agent kiro
 ```
 
-Use an explicit `--prefix` for Kano products whose derived prefix would collide
-in a shared backlog root. `kano-agent-ark-skill` should be initialized with
-`--prefix KOA`; `kano-ai-3d-asset-skill` should use a distinct prefix such as
-`KA3D` or `K3DA`, not the ambiguous derived `KA`.
+Without `--prefix`, KOB deterministically selects the first unused derived
+candidate and reports the selection source and considered candidates in dry-run
+JSON. Use an explicit prefix when the product has a canonical abbreviation:
+`kano-agent-ark-skill` should use `--prefix KOA`, while
+`kano-ai-3d-asset-skill` can use `KA3D` or `K3DA`.
+
+KOB never changes an existing product prefix implicitly. If the registry is
+already colliding, use an unaffected product's exact canonical slug for repair
+tracking. Prefix aliases and products participating in the collision remain
+blocked until the config is unique. A participating product may be repaired
+with an explicit unique prefix even if another independent collision remains;
+unrelated registration stays blocked. After an explicit repair, run `schema check`
+to find canonical item IDs that still use the old product prefix.
 
 **What this creates:**
 ```

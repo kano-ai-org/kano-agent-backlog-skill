@@ -5468,18 +5468,20 @@ std::vector<std::string> collect_repo_python_artifacts(const std::filesystem::pa
     while (!ec && it != end) {
         const auto path = it->path();
         const auto filename = path.filename().string();
-        const auto generic = path.generic_string();
+        std::error_code rel_ec;
+        const auto relative_path = std::filesystem::relative(path, repo_root, rel_ec);
+        const auto relative = rel_ec ? path.generic_string() : relative_path.lexically_normal().generic_string();
         if (it->is_directory(ec)) {
             if (filename == ".git" || filename == ".kano" || filename == ".pixi" ||
-                generic.find("/src/cpp/out") != std::string::npos) {
+                filename == "node_modules" || relative == "_ws" || relative == "src/cpp/out" ||
+                relative == "src/wix/out") {
                 it.disable_recursion_pending();
             }
         } else if (it->is_regular_file(ec)) {
             const auto ext = path.extension().string();
-            if (ext == ".py" || ext == ".pyi") {
-                std::error_code rel_ec;
-                auto relative = std::filesystem::relative(path, repo_root, rel_ec);
-                artifacts.push_back(rel_ec ? path.generic_string() : relative.generic_string());
+            if ((ext == ".py" || ext == ".pyi") &&
+                relative != "src/shell/release/post_release_verify.py") {
+                artifacts.push_back(relative);
                 if (artifacts.size() >= 20) {
                     break;
                 }
@@ -5637,6 +5639,12 @@ Json::Value admin_init_result_to_json(const OrchestrationOps::InitResult& result
     payload["product"] = result.product;
     payload["product_name"] = result.product_name;
     payload["prefix"] = result.prefix;
+    payload["prefix_source"] = result.prefix_source;
+    Json::Value prefix_candidates(Json::arrayValue);
+    for (const auto& candidate : result.prefix_candidates) {
+        prefix_candidates.append(candidate);
+    }
+    payload["prefix_candidates"] = prefix_candidates;
     payload["project_root"] = result.project_root.string();
     payload["backlog_root"] = result.backlog_root.string();
     payload["product_root"] = result.product_root.string();
@@ -5667,6 +5675,7 @@ void print_admin_init_result(const OrchestrationOps::InitResult& result) {
     std::cout << "Backlog root: " << result.backlog_root.string() << "\n";
     std::cout << "Product root: " << result.product_root.string() << "\n";
     std::cout << "Config: " << result.config_path.string() << "\n";
+    std::cout << "Prefix: " << result.prefix << " (" << result.prefix_source << ")\n";
     std::cout << "Created paths: " << result.created_paths.size() << "\n";
     std::cout << "Refreshed dashboards: " << result.views_refreshed.size() << "\n";
 }
@@ -19667,20 +19676,23 @@ int main(int InArgc, char* InArgv[]) {
             // index build
             {
                 auto* buildCmd = indexCmd->add_subcommand("build", "Build the SQLite index from markdown items");
-                std::string idx_product;
-                bool force = false;
-                buildCmd->add_option("--product", idx_product, "Product name");
-                buildCmd->add_flag("--force", force, "Rebuild even if index exists");
-                buildCmd->callback([&]() {
+                struct IndexBuildCommandState {
+                    std::string product;
+                    bool force = false;
+                };
+                const auto state = std::make_shared<IndexBuildCommandState>();
+                buildCmd->add_option("--product", state->product, "Product name");
+                buildCmd->add_flag("--force", state->force, "Rebuild even if index exists");
+                buildCmd->callback([&, state]() {
                     auto ctx = BacklogContext::resolve(
                         path_str,
-                        idx_product.empty()
+                        state->product.empty()
                             ? (product_name_opt.empty() ? std::nullopt : std::optional<std::string>(product_name_opt))
-                            : std::optional<std::string>(idx_product),
+                            : std::optional<std::string>(state->product),
                         sandbox_name_opt.empty() ? std::nullopt : std::optional<std::string>(sandbox_name_opt)
                     );
                     auto idx_path = ctx.backlog_root / ".cache" / "index" / "backlog.db";
-                    auto result = build_index(ctx.product_root, idx_path, force);
+                    auto result = build_index(ctx.product_root, idx_path, state->force);
                     std::cout << "Built index: " << result.index_path.string() << "\n";
                     std::cout << "  Items: " << result.items_indexed << "\n";
                     std::cout << "  Time: " << std::fixed << std::setprecision(1) << result.build_time_ms << " ms\n";
@@ -19690,14 +19702,17 @@ int main(int InArgc, char* InArgv[]) {
             // index refresh
             {
                 auto* refreshCmd = indexCmd->add_subcommand("refresh", "Refresh the SQLite index (MVP: full rebuild)");
-                std::string idx_product;
-                refreshCmd->add_option("--product", idx_product, "Product name");
-                refreshCmd->callback([&]() {
+                struct IndexRefreshCommandState {
+                    std::string product;
+                };
+                const auto state = std::make_shared<IndexRefreshCommandState>();
+                refreshCmd->add_option("--product", state->product, "Product name");
+                refreshCmd->callback([&, state]() {
                     auto ctx = BacklogContext::resolve(
                         path_str,
-                        idx_product.empty()
+                        state->product.empty()
                             ? (product_name_opt.empty() ? std::nullopt : std::optional<std::string>(product_name_opt))
-                            : std::optional<std::string>(idx_product),
+                            : std::optional<std::string>(state->product),
                         sandbox_name_opt.empty() ? std::nullopt : std::optional<std::string>(sandbox_name_opt)
                     );
                     auto idx_path = ctx.backlog_root / ".cache" / "index" / "backlog.db";
@@ -19711,17 +19726,20 @@ int main(int InArgc, char* InArgv[]) {
             // index status
             {
                 auto* statusCmd = indexCmd->add_subcommand("status", "Show SQLite index status and statistics");
-                std::string idx_product;
-                statusCmd->add_option("--product", idx_product, "Product name");
-                statusCmd->callback([&]() {
+                struct IndexStatusCommandState {
+                    std::string product;
+                };
+                const auto state = std::make_shared<IndexStatusCommandState>();
+                statusCmd->add_option("--product", state->product, "Product name");
+                statusCmd->callback([&, state]() {
                     auto ctx = BacklogContext::resolve(
                         path_str,
-                        idx_product.empty()
+                        state->product.empty()
                             ? (product_name_opt.empty() ? std::nullopt : std::optional<std::string>(product_name_opt))
-                            : std::optional<std::string>(idx_product),
+                            : std::optional<std::string>(state->product),
                         sandbox_name_opt.empty() ? std::nullopt : std::optional<std::string>(sandbox_name_opt)
                     );
-                    auto result = get_index_status(ctx.product_root, ctx.product_name);
+                    auto result = get_index_status(ctx.backlog_root, ctx.product_name);
                     if (result.indexes.empty()) {
                         std::cout << "No indexes found.\n";
                         return;
@@ -21260,6 +21278,11 @@ int main(int InArgc, char* InArgv[]) {
                 checkCmd->callback([&, state]() {
                     const auto backlog_root = resolve_backlog_root_arg(state->backlog_root);
 
+                    std::optional<ProjectConfig> project_config;
+                    if (const auto config_path = ConfigLoader::find_project_config(backlog_root)) {
+                        project_config = ProjectConfig::load_from_toml(*config_path);
+                    }
+
                     int total_checked = 0;
                     int total_issues = 0;
 
@@ -21278,6 +21301,18 @@ int main(int InArgc, char* InArgv[]) {
                         auto product_root = entry.path();
                         CanonicalStore store(product_root);
                         auto item_paths = store.list_items();
+                        std::optional<std::string> expected_prefix;
+                        if (project_config) {
+                            if (const auto definition = project_config->get_product(product_name)) {
+                                expected_prefix = trim_copy(definition->prefix);
+                                std::transform(
+                                    expected_prefix->begin(),
+                                    expected_prefix->end(),
+                                    expected_prefix->begin(),
+                                    [](unsigned char ch) { return static_cast<char>(std::toupper(ch)); }
+                                );
+                            }
+                        }
                         int product_checked = 0;
                         int product_issues = 0;
 
@@ -21285,6 +21320,15 @@ int main(int InArgc, char* InArgv[]) {
                             try {
                                 auto item = store.read(item_path);
                                 auto errors = Validator::validate_schema(item);
+                                if (expected_prefix && !expected_prefix->empty()) {
+                                    if (const auto parsed = RefParser::parse_display_id(item.id);
+                                        parsed && parsed->product != *expected_prefix) {
+                                        errors.push_back(
+                                            "display ID prefix " + parsed->product +
+                                            " does not match configured product prefix " + *expected_prefix
+                                        );
+                                    }
+                                }
                                 ++product_checked;
                                 if (!errors.empty()) {
                                     ++product_issues;
@@ -21306,7 +21350,7 @@ int main(int InArgc, char* InArgv[]) {
                         if (product_issues == 0 && product_checked > 0) {
                             std::cout << "OK " << product_name << ": all " << product_checked << " items have required fields\n";
                         } else if (product_issues > 0) {
-                            std::cout << "FAIL " << product_name << ": " << product_issues << " items with missing fields\n";
+                            std::cout << "FAIL " << product_name << ": " << product_issues << " items with schema issues\n";
                         }
                     }
 
@@ -21903,26 +21947,32 @@ int main(int InArgc, char* InArgv[]) {
             // links remap-id
             {
                 auto* lriCmd = linksGroupCmd->add_subcommand("remap-id", "Remap item ID and update references");
-                std::string lri_ref, lri_new_id, lri_agent, lri_format = "markdown";
-                bool lri_update_refs = true;
-                bool lri_apply = false;
-                lriCmd->add_option("ref", lri_ref, "Current item ID or UID")->required();
-                lriCmd->add_option("--to", lri_new_id, "New ID")->required();
-                lriCmd->add_option("--agent", lri_agent, "Agent identifier")->required();
-                lriCmd->add_flag("--update-refs", lri_update_refs, "Update references across backlog");
-                lriCmd->add_flag("--apply", lri_apply, "Apply changes");
-                lriCmd->add_option("--format", lri_format, "Output format: markdown|json");
-                lriCmd->callback([&]() {
-                    const auto format_norm = lower_copy(trim_copy(lri_format));
+                struct LinksRemapIdCommandState {
+                    std::string ref;
+                    std::string new_id;
+                    std::string agent;
+                    std::string format = "markdown";
+                    bool update_refs = true;
+                    bool apply = false;
+                };
+                auto state = std::make_shared<LinksRemapIdCommandState>();
+                lriCmd->add_option("ref", state->ref, "Current item ID or UID")->required();
+                lriCmd->add_option("--to", state->new_id, "New ID")->required();
+                lriCmd->add_option("--agent", state->agent, "Agent identifier")->required();
+                lriCmd->add_flag("--update-refs", state->update_refs, "Update references across backlog");
+                lriCmd->add_flag("--apply", state->apply, "Apply changes");
+                lriCmd->add_option("--format", state->format, "Output format: markdown|json");
+                lriCmd->callback([&, state]() {
+                    const auto format_norm = lower_copy(trim_copy(state->format));
                     if (format_norm != "markdown" && format_norm != "json") {
                         throw std::runtime_error("format must be markdown or json");
                     }
-                    if (!lri_update_refs) {
+                    if (!state->update_refs) {
                         throw std::runtime_error("links remap-id requires --update-refs; partial ID remaps are not supported");
                     }
                     auto ctx = resolve_ctx();
-                    if (!lri_apply) {
-                        const auto plan = plan_remap_id_cli(ctx.product_root, lri_ref, lri_new_id);
+                    if (!state->apply) {
+                        const auto plan = plan_remap_id_cli(ctx.product_root, state->ref, state->new_id);
                         if (format_norm == "json") {
                             std::cout << json_to_string(remap_plan_to_json(plan, "dry-run"), true) << "\n";
                         } else {
@@ -21932,7 +21982,7 @@ int main(int InArgc, char* InArgv[]) {
                     }
 
                     BacklogIndex index(ctx.backlog_root / ".cache" / "index" / "backlog.db");
-                    auto result = WorkitemOps::remap_id(index, ctx.product_root, lri_ref, lri_new_id, lri_agent);
+                    auto result = WorkitemOps::remap_id(index, ctx.product_root, state->ref, state->new_id, state->agent);
                     if (format_norm == "json") {
                         std::cout << json_to_string(remap_result_to_json(result, "applied"), true) << "\n";
                     } else {

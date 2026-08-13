@@ -154,7 +154,7 @@ RefreshIndexResult refresh_index(
  * Get index status and statistics.
  */
 GetIndexStatusResult get_index_status(
-    const std::filesystem::path& product_root,
+    const std::filesystem::path& backlog_root,
     const std::optional<std::string>& product_name = std::nullopt
 );
 

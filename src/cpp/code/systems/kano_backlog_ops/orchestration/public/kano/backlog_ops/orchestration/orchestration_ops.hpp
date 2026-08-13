@@ -31,6 +31,8 @@ public:
         std::string product;
         std::string product_name;
         std::string prefix;
+        std::string prefix_source;
+        std::vector<std::string> prefix_candidates;
         bool dry_run = false;
         std::filesystem::path project_root;
         std::filesystem::path backlog_root;

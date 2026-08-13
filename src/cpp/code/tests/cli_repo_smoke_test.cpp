@@ -81,6 +81,29 @@ std::string read_text(const std::filesystem::path& path) {
     return buffer.str();
 }
 
+std::string line_value(const std::string& text, const std::string& marker) {
+    const auto start = text.find(marker);
+    if (start == std::string::npos) {
+        throw std::runtime_error("missing output marker: " + marker);
+    }
+    const auto value_start = start + marker.size();
+    const auto line_end = text.find('\n', value_start);
+    auto value = text.substr(value_start, line_end - value_start);
+    if (!value.empty() && value.back() == '\r') {
+        value.pop_back();
+    }
+    return value;
+}
+
+bool paths_equivalent_for_test(
+    const std::filesystem::path& left,
+    const std::filesystem::path& right
+) {
+    std::error_code ec;
+    const bool equivalent = std::filesystem::equivalent(left, right, ec);
+    return !ec && equivalent;
+}
+
 std::vector<std::string> with_duplicate_admission(std::vector<std::string> args, const std::string& query) {
     args.push_back("--duplicate-search-query");
     args.push_back(query);
@@ -305,6 +328,8 @@ int main(int argc, char** argv) {
         expect(kfg_dry_run_text.find("\"dry_run\" : true") != std::string::npos, "admin init dry-run did not report dry_run=true");
         expect(kfg_dry_run_text.find("kano-forge-skill") != std::string::npos, "admin init dry-run did not plan kano-forge-skill paths");
         expect(kfg_dry_run_text.find("KFG") != std::string::npos, "admin init dry-run did not normalize KFG prefix");
+        expect(kfg_dry_run_text.find("\"prefix_source\" : \"explicit\"") != std::string::npos, "admin init dry-run did not report explicit prefix source");
+        expect(kfg_dry_run_text.find("\"prefix_candidates\"") != std::string::npos, "admin init dry-run did not report prefix candidates");
         expect(kfg_dry_run_text.find("planned_paths") != std::string::npos, "admin init dry-run did not emit planned paths");
         expect(!std::filesystem::exists(temp_root / "_kano"), "admin init dry-run created _kano");
         expect(!std::filesystem::exists(temp_root / ".kano"), "admin init dry-run created .kano");
@@ -392,23 +417,34 @@ int main(int argc, char** argv) {
             "--product-name", "Kano Agent Ark Skill",
             "--skip-refresh-views"
         }) == 0, "admin init derived KA product failed");
-        const auto derived_collision_output = derived_collision_root / "admin-init-derived-collision.txt";
-        expect_command_capture_failure(
+        const auto derived_collision_output = derived_collision_root / "admin-init-derived-collision.json";
+        expect_command_capture_success(
             run_command_capture(binary, {
                 "admin", "init",
                 "--product", "kano-ai-3d-asset-skill",
                 "--agent", "tester",
                 "--product-name", "Kano AI 3D Asset Skill",
+                "--dry-run",
                 "--skip-refresh-views"
             }, derived_collision_output),
             derived_collision_output,
-            "admin init should reject derived product prefix collision",
-            "Product prefix collision"
+            "admin init should select a collision-free derived prefix"
         );
         const auto derived_collision_text = read_text(derived_collision_output);
-        expect(derived_collision_text.find("normalized prefix KA") != std::string::npos, "derived prefix collision did not report normalized KA prefix");
-        expect(derived_collision_text.find("kano-agent-ark-skill") != std::string::npos, "derived prefix collision did not list existing product");
-        expect(derived_collision_text.find("kano-ai-3d-asset-skill") != std::string::npos, "derived prefix collision did not list requested product");
+        expect(derived_collision_text.find("\"prefix\" : \"KA3AS\"") != std::string::npos, "derived prefix selection did not choose deterministic KA3AS candidate");
+        expect(derived_collision_text.find("\"prefix_source\" : \"derived_collision_free\"") != std::string::npos, "derived prefix selection did not report collision-free source");
+        expect(derived_collision_text.find("\"KA\"") != std::string::npos &&
+               derived_collision_text.find("\"KA3AS\"") != std::string::npos,
+            "derived prefix selection did not report ordered considered candidates");
+        expect(run_command(binary, {
+            "admin", "init",
+            "--product", "kano-ai-3d-asset-skill",
+            "--agent", "tester",
+            "--product-name", "Kano AI 3D Asset Skill",
+            "--skip-refresh-views"
+        }) == 0, "admin init should persist the collision-free derived prefix");
+        expect(read_text(derived_collision_root / ".kano" / "backlog_config.toml").find("prefix = \"KA3AS\"") != std::string::npos,
+            "admin init did not persist deterministic collision-free derived prefix");
         std::filesystem::current_path(temp_root);
 
         const auto duplicate_prefix_root = temp_root / "duplicate-prefix-config";
@@ -428,11 +464,35 @@ int main(int argc, char** argv) {
             "--prefix", "UNQ",
             "--skip-refresh-views"
         }) == 0, "admin init second duplicate-prefix fixture failed");
+        expect(run_command(binary, {
+            "admin", "init",
+            "--product", "recovery-product",
+            "--agent", "tester",
+            "--prefix", "RCV",
+            "--skip-refresh-views"
+        }) == 0, "admin init unaffected recovery product fixture failed");
+        expect(run_command(binary, {
+            "admin", "init",
+            "--product", "duplicate-prefix-three",
+            "--agent", "tester",
+            "--prefix", "TRI",
+            "--skip-refresh-views"
+        }) == 0, "admin init third duplicate-prefix fixture failed");
+        expect(run_command(binary, {
+            "admin", "init",
+            "--product", "duplicate-prefix-four",
+            "--agent", "tester",
+            "--prefix", "QUA",
+            "--skip-refresh-views"
+        }) == 0, "admin init fourth duplicate-prefix fixture failed");
         const auto duplicate_config_path = duplicate_prefix_root / ".kano" / "backlog_config.toml";
         auto duplicate_config_text = read_text(duplicate_config_path);
         const auto unq_pos = duplicate_config_text.find("prefix = \"UNQ\"");
         expect(unq_pos != std::string::npos, "duplicate-prefix fixture missing UNQ prefix");
         duplicate_config_text.replace(unq_pos, std::string("prefix = \"UNQ\"").size(), "prefix = \"DUP\"");
+        const auto qua_pos = duplicate_config_text.find("prefix = \"QUA\"");
+        expect(qua_pos != std::string::npos, "duplicate-prefix fixture missing QUA prefix");
+        duplicate_config_text.replace(qua_pos, std::string("prefix = \"QUA\"").size(), "prefix = \"TRI\"");
         write_text(duplicate_config_path, duplicate_config_text);
 
         const auto duplicate_doctor_output = duplicate_prefix_root / "doctor-duplicate-prefix.txt";
@@ -441,6 +501,20 @@ int main(int argc, char** argv) {
         expect(duplicate_doctor_text.find("[FAIL] Product Prefix Uniqueness") != std::string::npos, "doctor did not fail duplicate prefix check");
         expect(duplicate_doctor_text.find("duplicate-prefix-one") != std::string::npos, "doctor duplicate prefix did not list first product");
         expect(duplicate_doctor_text.find("duplicate-prefix-two") != std::string::npos, "doctor duplicate prefix did not list second product");
+
+        const auto blocked_registration_output = duplicate_prefix_root / "admin-init-blocked-unaffected-product.txt";
+        expect_command_capture_failure(
+            run_command_capture(binary, {
+                "admin", "init",
+                "--product", "blocked-unaffected-product",
+                "--agent", "tester",
+                "--prefix", "BLK",
+                "--skip-refresh-views"
+            }, blocked_registration_output),
+            blocked_registration_output,
+            "new product registration should not proceed while the registry is colliding",
+            "must be repaired before registering or updating an unaffected product"
+        );
 
         const auto duplicate_validate_output = duplicate_prefix_root / "config-validate-duplicate-prefix.txt";
         expect_command_capture_failure(
@@ -466,6 +540,78 @@ int main(int argc, char** argv) {
             duplicate_create_output,
             "workitem create should reject ambiguous duplicate prefixes",
             "Product prefix collision"
+        );
+
+        const auto duplicate_alias_output = duplicate_prefix_root / "workitem-list-duplicate-prefix-alias.txt";
+        expect_command_capture_failure(
+            run_command_capture(binary, {
+                "-P", "DUP",
+                "workitem", "list"
+            }, duplicate_alias_output),
+            duplicate_alias_output,
+            "ambiguous prefix alias should remain blocked during recovery",
+            "requires an exact canonical product slug"
+        );
+
+        expect(run_command(binary, with_duplicate_admission({
+            "-P", "recovery-product",
+            "workitem", "create",
+            "-t", "task",
+            "--title", "Registry repair tracking smoke",
+            "--agent", "tester"
+        }, "Registry repair tracking smoke")) == 0,
+            "unaffected exact product slug should remain usable during another product collision");
+
+        expect(run_command(binary, {
+            "admin", "init",
+            "--product", "duplicate-prefix-two",
+            "--agent", "tester",
+            "--prefix", "UNQ",
+            "--force",
+            "--skip-refresh-views"
+        }) == 0, "forced admin init should repair a participating product prefix");
+        const auto partially_repaired_doctor_output = duplicate_prefix_root / "doctor-partially-repaired-prefix.txt";
+        expect(run_command_capture(binary, {"doctor"}, partially_repaired_doctor_output) == 0, "doctor should run after partial prefix repair");
+        expect(read_text(partially_repaired_doctor_output).find("[FAIL] Product Prefix Uniqueness") != std::string::npos,
+            "doctor should retain the independent collision after one pair is repaired");
+        expect(run_command(binary, {
+            "admin", "init",
+            "--product", "duplicate-prefix-four",
+            "--agent", "tester",
+            "--prefix", "QUA",
+            "--force",
+            "--skip-refresh-views"
+        }) == 0, "forced admin init should repair a second independent collision");
+        const auto repaired_doctor_output = duplicate_prefix_root / "doctor-repaired-prefix.txt";
+        expect(run_command_capture(binary, {"doctor"}, repaired_doctor_output) == 0, "doctor should run after all prefix repairs");
+        expect(read_text(repaired_doctor_output).find("[PASS] Product Prefix Uniqueness") != std::string::npos,
+            "doctor did not report repaired global prefix uniqueness");
+
+        expect(run_command(binary, with_duplicate_admission({
+            "-P", "duplicate-prefix-two",
+            "workitem", "create",
+            "-t", "task",
+            "--title", "Prefix drift smoke",
+            "--agent", "tester"
+        }, "Prefix drift smoke")) == 0, "prefix drift fixture item creation failed");
+        expect(run_command(binary, {
+            "admin", "init",
+            "--product", "duplicate-prefix-two",
+            "--agent", "tester",
+            "--prefix", "NEW",
+            "--force",
+            "--skip-refresh-views"
+        }) == 0, "explicit prefix rebind fixture failed");
+        const auto prefix_drift_output = duplicate_prefix_root / "schema-check-prefix-drift.txt";
+        expect_command_capture_failure(
+            run_command_capture(binary, {
+                "schema", "check",
+                "--backlog-root", (duplicate_prefix_root / "_kano" / "backlog").string(),
+                "--product", "duplicate-prefix-two"
+            }, prefix_drift_output),
+            prefix_drift_output,
+            "schema check should reject canonical item prefix drift",
+            "display ID prefix UNQ does not match configured product prefix NEW"
         );
         std::filesystem::current_path(temp_root);
 
@@ -530,6 +676,62 @@ int main(int argc, char** argv) {
             standalone_config_show_output,
             "independent backlog config should resolve through actual KOB create path"
         );
+
+        const auto standalone_index_build_output = temp_root / "standalone-index-build.txt";
+        expect_command_capture_success(
+            run_command_capture(binary, {
+                "-p", standalone_backlog_root.string(),
+                "index", "build",
+                "--product", "horizon-unreal-pipeline",
+                "--force"
+            }, standalone_index_build_output),
+            standalone_index_build_output,
+            "standalone shared index build failed"
+        );
+        const auto standalone_built_index_path = line_value(
+            read_text(standalone_index_build_output),
+            "Built index: "
+        );
+        const auto standalone_expected_index_path =
+            (standalone_backlog_root / ".cache" / "index" / "backlog.db").lexically_normal();
+        expect(paths_equivalent_for_test(standalone_built_index_path, standalone_expected_index_path),
+            "standalone build did not use the repository-level shared index");
+
+        const auto standalone_index_refresh_output = temp_root / "standalone-index-refresh.txt";
+        expect_command_capture_success(
+            run_command_capture(binary, {
+                "-p", standalone_backlog_root.string(),
+                "index", "refresh",
+                "--product", "horizon-unreal-pipeline"
+            }, standalone_index_refresh_output),
+            standalone_index_refresh_output,
+            "standalone shared index refresh failed"
+        );
+        expect(
+            paths_equivalent_for_test(line_value(
+                read_text(standalone_index_refresh_output),
+                "Refreshed index: "
+            ), standalone_expected_index_path),
+            "standalone refresh did not use the repository-level shared index"
+        );
+
+        const auto standalone_index_status_output = temp_root / "standalone-index-status.txt";
+        expect_command_capture_success(
+            run_command_capture(binary, {
+                "-p", standalone_backlog_root.string(),
+                "index", "status",
+                "--product", "horizon-unreal-pipeline"
+            }, standalone_index_status_output),
+            standalone_index_status_output,
+            "standalone shared index status failed"
+        );
+        const auto standalone_status_text = read_text(standalone_index_status_output);
+        expect(paths_equivalent_for_test(
+                line_value(standalone_status_text, "  Path: "),
+                standalone_expected_index_path),
+            "standalone index status did not report the build path");
+        expect(standalone_status_text.find("Status: Exists") != std::string::npos,
+            "standalone index status did not find the shared index after build");
 
         const auto short_path_backlog_root = temp_root / "standalone-short-path-backlog";
         std::filesystem::create_directories(short_path_backlog_root / ".git");
@@ -651,6 +853,37 @@ int main(int argc, char** argv) {
         expect(run_command(binary, with_duplicate_admission({"-P", "kano-ai-3d-asset-skill", "workitem", "create", "-t", "task", "--title", "Long text input smoke", "--agent", "tester"}, "Long text input smoke")) == 0, "workitem create failed");
         const auto long_text_item_path = product_root / "items" / "task" / "0000" / "KAI-TSK-0001_long-text-input-smoke.md";
         expect(std::filesystem::exists(long_text_item_path), "workitem create did not create expected task file");
+
+        const auto index_build_output = temp_root / "index-build.txt";
+        expect_command_capture_success(
+            run_command_capture(binary, {
+                "-P", "kano-ai-3d-asset-skill", "index", "build", "--force"
+            }, index_build_output),
+            index_build_output,
+            "shared index build failed"
+        );
+        const auto index_build_text = read_text(index_build_output);
+        const auto built_index_path = line_value(index_build_text, "Built index: ");
+        const auto expected_index_path = (backlog_root / ".cache" / "index" / "backlog.db").lexically_normal();
+        expect(paths_equivalent_for_test(built_index_path, expected_index_path),
+            "index build did not use the shared index path");
+
+        const auto index_status_output = temp_root / "index-status.txt";
+        expect_command_capture_success(
+            run_command_capture(binary, {
+                "-P", "kano-ai-3d-asset-skill", "index", "status"
+            }, index_status_output),
+            index_status_output,
+            "shared index status failed"
+        );
+        const auto index_status_text = read_text(index_status_output);
+        const auto status_index_path = line_value(index_status_text, "  Path: ");
+        expect(paths_equivalent_for_test(status_index_path, expected_index_path),
+            "index status did not report the exact path emitted by index build");
+        expect(index_status_text.find("Status: Exists") != std::string::npos,
+            "index status did not find the shared index after build");
+        expect(index_status_text.find("Items: 1") != std::string::npos,
+            "index status did not report shared index cardinality");
 
         expect(run_command(binary, with_duplicate_admission({"-P", "kano-ai-3d-asset-skill", "workitem", "create", "-t", "epic", "--title", "Parent smoke", "--agent", "tester"}, "Parent smoke")) == 0, "workitem create parent epic failed");
         const auto set_parent_dry_run_output = temp_root / "admin-set-parent-dry-run.json";
@@ -2068,6 +2301,44 @@ int main(int argc, char** argv) {
             "--backlog-root", backlog_root.string()
         }) == 0, "admin release phase2 check failed");
         expect(std::filesystem::exists(backlog_root / "topics" / "native-release-smoke" / "publish" / "release_check_0.0.4_phase2.md"), "admin release phase2 did not write report");
+
+        const auto phase1_repo = temp_root / "release-phase1-policy-repo";
+        const auto phase1_backlog = temp_root / "release-phase1-policy-backlog";
+        write_text(phase1_repo / "VERSION", "0.0.5\n");
+        write_text(phase1_repo / "CHANGELOG.md", "# Changelog\n\n## [0.0.5] - Unreleased\n");
+        write_text(phase1_repo / "src" / "shell" / "core" / "kano-backlog", "#!/usr/bin/env bash\n");
+        write_text(phase1_repo / "src" / "shell" / "release" / "post_release_verify.py", "# bounded release-only verifier\n");
+        write_text(phase1_repo / "_ws" / "generated.py", "# generated workspace fixture\n");
+        write_text(phase1_repo / "src" / "wix" / "out" / "payload" / "generated.py", "# generated package fixture\n");
+        write_text(phase1_repo / "node_modules" / "vendor.py", "# third-party fixture\n");
+        std::filesystem::create_directories(phase1_repo / "src" / "cpp");
+
+        expect(run_command(binary, {
+            "-p", phase1_repo.string(),
+            "admin", "release", "check",
+            "--version", "0.0.5",
+            "--topic", "phase1-policy-pass",
+            "--agent", "tester",
+            "--phase", "phase1",
+            "--backlog-root", phase1_backlog.string()
+        }) == 0, "admin release phase1 rejected bounded verifier or generated outputs");
+        const auto phase1_pass_report = phase1_backlog / "topics" / "phase1-policy-pass" / "publish" / "release_check_0.0.5_phase1.md";
+        expect(read_text(phase1_pass_report).find("[PASS] runtime:no-python-source-or-stubs") != std::string::npos,
+               "admin release phase1 did not report the bounded Python source policy as passing");
+
+        write_text(phase1_repo / "src" / "runtime" / "rogue.py", "# unapproved runtime fixture\n");
+        expect(run_command(binary, {
+            "-p", phase1_repo.string(),
+            "admin", "release", "check",
+            "--version", "0.0.5",
+            "--topic", "phase1-policy-reject",
+            "--agent", "tester",
+            "--phase", "phase1",
+            "--backlog-root", phase1_backlog.string()
+        }) != 0, "admin release phase1 accepted an unapproved Python source");
+        const auto phase1_reject_report = phase1_backlog / "topics" / "phase1-policy-reject" / "publish" / "release_check_0.0.5_phase1.md";
+        expect(read_text(phase1_reject_report).find("src/runtime/rogue.py") != std::string::npos,
+               "admin release phase1 did not identify the unapproved Python source");
 
         expect(run_command(binary, {
             "-P", "kano-ai-3d-asset-skill",
