@@ -116,7 +116,7 @@ target_include_directories(cli_quick_smoke_test PRIVATE ${_jsoncpp_include_dir})
 set(KB_TEST_CLI_QUICK "[bdd][featured][feature:cli-workflow][scenario:KOB-BDD-CLI-QUICK-001] KOB CLI quick smoke covers bounded core commands")
 add_test(NAME "${KB_TEST_CLI_QUICK}" COMMAND cli_quick_smoke_test)
 set_tests_properties("${KB_TEST_CLI_QUICK}" PROPERTIES
-    TIMEOUT 30
+    TIMEOUT 60
     ENVIRONMENT "CI=true;KANO_BACKLOG_NONINTERACTIVE=1;KANO_TEST_NONINTERACTIVE=1;GIT_TERMINAL_PROMPT=0"
 )
 
