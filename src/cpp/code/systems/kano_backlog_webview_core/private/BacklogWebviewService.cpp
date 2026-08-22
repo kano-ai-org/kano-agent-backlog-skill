@@ -7938,7 +7938,6 @@ Json::Value BacklogWebviewService::SubmitReviewDecision(
       transition["attempted"] = false;
       transition["applied"] = false;
       transition["parent_synced"] = false;
-      transition["dashboards_refreshed"] = false;
       transition["outcome"] = "pending_confirmation";
       transition["diagnostics"] = Json::arrayValue;
       transition["diagnostics"].append("explicit confirmation is required before transition policy can run");
@@ -7958,7 +7957,6 @@ Json::Value BacklogWebviewService::SubmitReviewDecision(
     transition["attempted"] = false;
     transition["applied"] = false;
     transition["parent_synced"] = false;
-    transition["dashboards_refreshed"] = false;
     transition["outcome"] = "skipped";
     transition["diagnostics"] = Json::arrayValue;
     std::optional<kano::backlog_core::BacklogItem> transitionItem;

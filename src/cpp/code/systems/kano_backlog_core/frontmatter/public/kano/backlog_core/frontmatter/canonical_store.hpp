@@ -28,7 +28,7 @@ public:
 
     /**
      * Read only frontmatter-backed metadata from a markdown backlog item.
-     * Body sections are intentionally skipped for scans such as dashboard refresh.
+     * Body sections are intentionally skipped for metadata-only scans.
      */
     BacklogItem read_metadata(const std::filesystem::path& item_path) const;
 

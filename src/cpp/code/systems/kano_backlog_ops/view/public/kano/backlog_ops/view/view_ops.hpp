@@ -10,10 +10,6 @@
 
 namespace kano::backlog_ops {
 
-struct RefreshDashboardsResult {
-    std::vector<std::filesystem::path> views_refreshed;
-};
-
 struct ViewFilter {
     std::optional<kano::backlog_core::ItemType> type;
     std::optional<kano::backlog_core::ItemState> state;
@@ -119,13 +115,6 @@ public:
      */
     static std::string render_compact_table(const CompactListResult& result);
 
-    /**
-     * Refresh plain markdown dashboards from canonical files.
-     */
-    static RefreshDashboardsResult refresh_dashboards(
-        const std::filesystem::path& product_root,
-        const std::string& agent
-    );
 };
 
 } // namespace kano::backlog_ops

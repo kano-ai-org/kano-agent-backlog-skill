@@ -126,7 +126,6 @@ struct UpdateStateResult {
     ItemState new_state;
     bool worklog_appended;
     bool parent_synced = false;
-    bool dashboards_refreshed = false;
     std::vector<std::string> intent_diagnostics;
 };
 

@@ -1,7 +1,6 @@
 #include "kano/backlog_ops/orchestration/orchestration_ops.hpp"
 #include "kano/backlog_core/config/config.hpp"
 #include "kano/backlog_core/frontmatter/canonical_store.hpp"
-#include "kano/backlog_ops/view/view_ops.hpp"
 
 #include <algorithm>
 #include <chrono>
@@ -488,7 +487,6 @@ std::filesystem::path upsert_project_config(
             << "# Project-Level Backlog Configuration\n"
             << "# This file is source-of-truth and should be committed.\n\n"
             << "[defaults]\n"
-            << "auto_refresh = true\n"
             << "skill_developer = false\n\n"
             << "[shared.cache]\n"
             << "root = \".kano/cache/backlog\"\n\n"
@@ -639,10 +637,6 @@ OrchestrationOps::InitResult OrchestrationOps::initialize_backlog(const InitOpti
 
     if (const auto gitignore_path = upsert_project_gitignore(project_root)) {
         result.created_paths.push_back(*gitignore_path);
-    }
-
-    if (options.refresh_views) {
-        result.views_refreshed = ViewOps::refresh_dashboards(product_root, agent).views_refreshed;
     }
 
     return result;

@@ -4,7 +4,6 @@
 #include "kano/backlog_core/refs/ref_resolver.hpp"
 #include "kano/backlog_core/state/state_machine.hpp"
 #include "kano/backlog_core/validation/validator.hpp"
-#include "kano/backlog_ops/view/view_ops.hpp"
 #include "kano/backlog_ops/templates/template_ops.hpp"
 #include <algorithm>
 #include <fstream>
@@ -1439,7 +1438,6 @@ UpdateStateResult WorkitemOps::update_state(
     std::optional<std::string> message,
     std::optional<std::string> duplicate_of,
     bool force,
-    bool refresh_views,
     bool sync_parent
 ) {
     diagnostics::ScopedMutationSpan total_span("workitem.update_state.total", item_ref);
@@ -1455,7 +1453,7 @@ UpdateStateResult WorkitemOps::update_state(
     
     ItemState old_state = item.state;
     if (old_state == new_state) {
-        return {item.id, old_state, new_state, false, false, false, {}};
+        return {item.id, old_state, new_state, false, false, {}};
     }
 
     StateAction action;
@@ -1579,20 +1577,13 @@ UpdateStateResult WorkitemOps::update_state(
         store.write(item);
     }
 
-    bool dashboards_refreshed = false;
-    if (refresh_views) {
-        diagnostics::ScopedMutationSpan span("workitem.update_state.refresh_views", item.id);
-        auto refreshed = ViewOps::refresh_dashboards(backlog_root, agent);
-        dashboards_refreshed = !refreshed.views_refreshed.empty();
-    }
-    
     // 9. Update index
     {
         diagnostics::ScopedMutationSpan span("workitem.update_state.index_item", item.id);
         index.index_item(item);
     }
     
-    return {item.id, old_state, new_state, true, parent_synced, dashboards_refreshed, intent_diagnostics};
+    return {item.id, old_state, new_state, true, parent_synced, intent_diagnostics};
 }
 
 TrashItemResult WorkitemOps::trash_item(

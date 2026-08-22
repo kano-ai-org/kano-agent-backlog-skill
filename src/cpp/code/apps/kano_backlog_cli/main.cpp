@@ -2773,6 +2773,35 @@ std::string replace_id_tokens(const std::string& text, const std::string& old_id
     return out;
 }
 
+std::string replace_prefix_id_tokens(
+    const std::string& text,
+    const std::string& old_prefix,
+    const std::string& new_prefix,
+    bool& changed
+) {
+    static const std::regex cross_id_regex(
+        "[A-Z][A-Z0-9]{1,15}-(INIT|EPIC|FTR|USR|TSK|SUBTSK|BUG|ISS)-[0-9]{4}");
+    std::string output;
+    output.reserve(text.size());
+    std::size_t last_pos = 0;
+    changed = false;
+
+    for (std::sregex_iterator it(text.begin(), text.end(), cross_id_regex), end; it != end; ++it) {
+        const auto& match = *it;
+        output += text.substr(last_pos, static_cast<std::size_t>(match.position()) - last_pos);
+        const auto matched = match.str();
+        if (matched.starts_with(old_prefix + "-")) {
+            output += new_prefix + matched.substr(old_prefix.size());
+            changed = true;
+        } else {
+            output += matched;
+        }
+        last_pos = static_cast<std::size_t>(match.position() + match.length());
+    }
+    output += text.substr(last_pos);
+    return output;
+}
+
 std::string replace_id_tokens_excluding_worklog(const std::string& text, const std::string& old_id, const std::string& new_id) {
     auto lines = split_lines_for_rewrite(text);
     std::optional<std::size_t> worklog_index;
@@ -5691,7 +5720,6 @@ Json::Value admin_init_result_to_json(const OrchestrationOps::InitResult& result
     }
     payload["planned_paths"] = planned_paths;
     payload["created_paths"] = path_vector_to_json(result.created_paths);
-    payload["views_refreshed"] = path_vector_to_json(result.views_refreshed);
     return payload;
 }
 
@@ -5708,7 +5736,6 @@ void print_admin_init_result(const OrchestrationOps::InitResult& result) {
     std::cout << "Config: " << result.config_path.string() << "\n";
     std::cout << "Prefix: " << result.prefix << " (" << result.prefix_source << ")\n";
     std::cout << "Created paths: " << result.created_paths.size() << "\n";
-    std::cout << "Refreshed dashboards: " << result.views_refreshed.size() << "\n";
 }
 
 std::optional<int> try_run_admin_init_fast_path(int argc, char** argv) {
@@ -5736,7 +5763,6 @@ std::optional<int> try_run_admin_init_fast_path(int argc, char** argv) {
     std::string init_prefix;
     bool init_force = false;
     bool init_dry_run = false;
-    bool init_skip_refresh_views = false;
 
     const auto option_value = [&](int& index, const std::string& option) -> std::optional<std::string> {
         const std::string arg = argv[index];
@@ -5784,8 +5810,6 @@ std::optional<int> try_run_admin_init_fast_path(int argc, char** argv) {
             init_force = true;
         } else if (arg == "--dry-run") {
             init_dry_run = true;
-        } else if (arg == "--skip-refresh-views") {
-            init_skip_refresh_views = true;
         } else {
             return std::nullopt;
         }
@@ -5805,7 +5829,6 @@ std::optional<int> try_run_admin_init_fast_path(int argc, char** argv) {
     options.agent = init_agent;
     options.force = init_force;
     options.dry_run = init_dry_run;
-    options.refresh_views = !init_skip_refresh_views;
     if (!init_backlog_root.empty()) {
         options.backlog_root = std::filesystem::path(init_backlog_root);
     }
@@ -6418,7 +6441,6 @@ std::optional<int> try_run_workitem_update_state_fast_path(int argc, char** argv
     std::string duplicate_of;
     bool consume_input_files = false;
     bool force = false;
-    bool refresh_views = false;
     bool sync_parent = true;
 
     const auto option_value = [&](int& index, const std::string& option) -> std::optional<std::string> {
@@ -6508,10 +6530,6 @@ std::optional<int> try_run_workitem_update_state_fast_path(int argc, char** argv
             force = true;
             continue;
         }
-        if (arg == "--refresh-views") {
-            refresh_views = true;
-            continue;
-        }
         if (arg == "--no-sync-parent") {
             sync_parent = false;
             continue;
@@ -6563,7 +6581,6 @@ std::optional<int> try_run_workitem_update_state_fast_path(int argc, char** argv
         message.empty() ? std::nullopt : std::optional<std::string>(message),
         duplicate_of.empty() ? std::nullopt : std::optional<std::string>(duplicate_of),
         force,
-        refresh_views,
         sync_parent
     );
 
@@ -9111,7 +9128,6 @@ int main(int InArgc, char* InArgv[]) {
             auto& update_msg_file = cli11_state.keep<std::string>();
             auto& update_duplicate_of = cli11_state.keep<std::string>();
             auto& update_consume_input_files = cli11_state.keep<bool>(false);
-            auto& update_refresh_views = cli11_state.keep<bool>(false);
             auto& update_no_sync_parent = cli11_state.keep<bool>(false);
             updateStateCmd->add_option("ref", ref, "Item ID or UID")->required();
             updateStateCmd->add_option("state_arg", state_str, "New state (positional)");
@@ -9129,7 +9145,6 @@ int main(int InArgc, char* InArgv[]) {
                 "-f,--force",
                 update_force,
                 "Bypass Ready gate validation for InProgress; never bypasses reopen audit requirements");
-            updateStateCmd->add_flag("--refresh-views", update_refresh_views, "Synchronously refresh dashboards after the state update");
             updateStateCmd->add_flag(
                 "--no-sync-parent",
                 update_no_sync_parent,
@@ -9158,7 +9173,6 @@ int main(int InArgc, char* InArgv[]) {
                     update_msg.empty() ? std::nullopt : std::optional<std::string>(update_msg),
                     update_duplicate_of.empty() ? std::nullopt : std::optional<std::string>(update_duplicate_of),
                     update_force,
-                    update_refresh_views,
                     !update_no_sync_parent
                 );
 
@@ -10827,6 +10841,7 @@ int main(int InArgc, char* InArgv[]) {
                                         }
                                     } catch (...) {}
                                 }
+
                             }
                         }
                     }
@@ -10907,30 +10922,12 @@ int main(int InArgc, char* InArgv[]) {
                                     // Other products: update cross-references
                                     for (const auto& item_path : p_store2.list_items()) {
                                         try {
-                                            std::string content = read_text_file_path(item_path);
                                             bool changed = false;
-                                            // Replace all token-boundary old-prefix IDs with new prefix
-                                            // We scan for any token of form "OLD-TYPE-NNNN" and replace with "NEW-TYPE-NNNN"
-                                            std::string new_content = content;
-                                            static const std::regex cross_id_regex("[A-Z][A-Z0-9]{1,15}-(INIT|EPIC|FTR|USR|TSK|SUBTSK|BUG|ISS)-[0-9]{4}");
-                                            std::string result_text;
-                                            result_text.reserve(new_content.size());
-                                            std::sregex_iterator it(new_content.begin(), new_content.end(), cross_id_regex);
-                                            std::sregex_iterator end_it;
-                                            std::size_t last_pos = 0;
-                                            for (; it != end_it; ++it) {
-                                                const auto& match = *it;
-                                                result_text += new_content.substr(last_pos, match.position() - last_pos);
-                                                std::string matched = match.str();
-                                                if (matched.starts_with(resolved_old_prefix + "-")) {
-                                                    result_text += migpf_to + matched.substr(resolved_old_prefix.size());
-                                                    changed = true;
-                                                } else {
-                                                    result_text += matched;
-                                                }
-                                                last_pos = match.position() + match.length();
-                                            }
-                                            result_text += new_content.substr(last_pos);
+                                            const auto result_text = replace_prefix_id_tokens(
+                                                read_text_file_path(item_path),
+                                                resolved_old_prefix,
+                                                migpf_to,
+                                                changed);
                                             if (changed) {
                                                 write_text_file(item_path, result_text);
                                                 updated_files.push_back(item_path.generic_string());
@@ -10964,12 +10961,6 @@ int main(int InArgc, char* InArgv[]) {
                     receipt["duplicate_admissions_renamed"] = da_arr;
                     write_json_file(receipt_path, receipt);
 
-                    // 4. Refresh views
-                    try {
-                        ViewOps::refresh_dashboards(ctx.product_root, "kiro");
-                    } catch (...) {}
-
-                    // 5. Build applied response
                     response["status"] = "applied";
                     Json::Value applied_changes(Json::objectValue);
                     applied_changes["items_renamed"] = static_cast<int>(renamed_items.size());
@@ -11342,7 +11333,6 @@ int main(int InArgc, char* InArgv[]) {
             auto& init_prefix = cli11_state.keep<std::string>();
             auto& init_force = cli11_state.keep<bool>(false);
             auto& init_dry_run = cli11_state.keep<bool>(false);
-            auto& init_skip_refresh_views = cli11_state.keep<bool>(false);
             initCmd->add_option("--agent", init_agent, "Agent ID")->required();
             initCmd->add_option("--product", init_product, "Product name");
             initCmd->add_option("--backlog-root", init_backlog_root, "Backlog root path");
@@ -11350,7 +11340,6 @@ int main(int InArgc, char* InArgv[]) {
             initCmd->add_option("--prefix", init_prefix, "Display ID prefix");
             initCmd->add_flag("--force", init_force, "Update an existing product scaffold/config block");
             initCmd->add_flag("--dry-run", init_dry_run, "Plan backlog initialization without writing files");
-            initCmd->add_flag("--skip-refresh-views", init_skip_refresh_views, "Skip initial dashboard refresh");
             initCmd->callback([&]() {
                 const std::string effective_product = !init_product.empty() ? init_product : product_name_opt;
                 if (effective_product.empty()) {
@@ -11363,7 +11352,6 @@ int main(int InArgc, char* InArgv[]) {
                 options.agent = init_agent;
                 options.force = init_force;
                 options.dry_run = init_dry_run;
-                options.refresh_views = !init_skip_refresh_views;
                 if (!init_backlog_root.empty()) {
                     options.backlog_root = std::filesystem::path(init_backlog_root);
                 }
@@ -19714,11 +19702,11 @@ int main(int InArgc, char* InArgv[]) {
         // view group
         // ============================================================
         {
-            auto* viewCmd = app.add_subcommand("view", "Dashboard and view management");
+            auto* viewCmd = app.add_subcommand("view", "Custom view discovery");
 
             // view list
             {
-                auto* listCmd = viewCmd->add_subcommand("list", "List available views");
+                auto* listCmd = viewCmd->add_subcommand("list", "List hand-authored custom Markdown views");
                 listCmd->callback([&]() {
                     auto ctx = resolve_ctx();
                     std::filesystem::path views_dir = ctx.product_root / "views";
@@ -19726,7 +19714,7 @@ int main(int InArgc, char* InArgv[]) {
                         std::cout << "No views directory found.\n";
                         return;
                     }
-                    std::cout << "Available views in: " << views_dir.string() << "\n";
+                    std::cout << "Custom views in: " << views_dir.string() << "\n";
                     for (const auto& entry : std::filesystem::directory_iterator(views_dir)) {
                         if (entry.is_regular_file() && entry.path().extension() == ".md") {
                             std::cout << "  - " << entry.path().filename().string() << "\n";
@@ -19735,27 +19723,6 @@ int main(int InArgc, char* InArgv[]) {
                 });
             }
 
-            // view refresh
-            {
-                auto* refreshCmd = viewCmd->add_subcommand("refresh", "Refresh dashboards");
-                struct ViewRefreshCommandState {
-                    std::string product;
-                    std::string agent;
-                    std::string backlog_root;
-                };
-                const auto state = cli11_state.make_shared<ViewRefreshCommandState>();
-                refreshCmd->add_option("--product", state->product, "Product name");
-                refreshCmd->add_option("--backlog-root", state->backlog_root, "Backlog root path");
-                refreshCmd->add_option("--agent", state->agent, "Agent ID")->required();
-                refreshCmd->callback([&, state]() {
-                    const auto ctx = resolve_ctx_for_product_and_backlog(state->product, state->backlog_root);
-                    auto result = ViewOps::refresh_dashboards(ctx.product_root, state->agent);
-                    std::cout << "Refreshed " << result.views_refreshed.size() << " dashboards\n";
-                    for (const auto& path : result.views_refreshed) {
-                        std::cout << "- " << path.string() << "\n";
-                    }
-                });
-            }
         }
 
         // ============================================================
@@ -21796,7 +21763,7 @@ int main(int InArgc, char* InArgv[]) {
                 const auto state = cli11_state.make_shared<ValidateLinksCommandState>();
                 linksCmd->add_option("--product", state->product, "Product name (validate all if omitted)");
                 linksCmd->add_option("--backlog-root", state->backlog_root, "Backlog root path");
-                linksCmd->add_flag("--include-views", state->include_views, "Scan views/ markdown (derived output)");
+                linksCmd->add_flag("--include-views", state->include_views, "Scan custom views/ Markdown");
                 linksCmd->callback([&, state]() {
                     const auto backlog_root = resolve_backlog_root_arg(state->backlog_root);
 

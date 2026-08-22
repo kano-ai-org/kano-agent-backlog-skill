@@ -13,7 +13,6 @@
 #include "kano/backlog_core/refs/ref_resolver.hpp"
 #include "kano/backlog_core/validation/validator.hpp"
 #include "kano/backlog_ops/index/backlog_index.hpp"
-#include "kano/backlog_ops/view/view_ops.hpp"
 #include "kano/backlog_ops/workitem/workitem_ops.hpp"
 
 namespace {
@@ -267,7 +266,6 @@ int main() {
                 std::string("Manual replan keeps the parent Ready."),
                 std::nullopt,
                 false,
-                false,
                 false);
             expect(
                 subtask_review_without_parent_sync.worklog_appended,
@@ -283,25 +281,11 @@ int main() {
             expect(
                 subtask_after_no_sync.state == ItemState::Review,
                 "no-sync-parent update should not skip child persistence");
-            kano::backlog_ops::ViewOps::refresh_dashboards(root, "opencode");
-            const auto subtask_active_dashboard =
-                read_text(root / "views" / "Dashboard_PlainMarkdown_Active.md");
-            expect(subtask_active_dashboard.find(subtask_created.id) != std::string::npos,
-                "plain Markdown dashboard should include active subtask");
             expect(
-                subtask_active_dashboard.find("# Active Work") != std::string::npos &&
-                    subtask_active_dashboard.find("## Active") != std::string::npos &&
-                    subtask_active_dashboard.find("State: Review") != std::string::npos &&
-                    subtask_active_dashboard.find("\n## InProgress\n") == std::string::npos,
-                "active dashboard should use an aggregate label and preserve the exact Review state");
-            const auto backlog_dashboard =
-                read_text(root / "views" / "Dashboard_PlainMarkdown_New.md");
-            expect(
-                backlog_dashboard.find("# Backlog Work") != std::string::npos &&
-                    backlog_dashboard.find("## Backlog") != std::string::npos &&
-                    backlog_dashboard.find("State: Ready") != std::string::npos &&
-                    backlog_dashboard.find("\n## New\n") == std::string::npos,
-                "backlog dashboard should use an aggregate label and preserve the exact Ready state");
+                !std::filesystem::exists(root / "views" / "Dashboard_" "PlainMarkdown_Active.md") &&
+                    !std::filesystem::exists(root / "views" / "Dashboard_" "PlainMarkdown_New.md") &&
+                    !std::filesystem::exists(root / "views" / "Dashboard_" "PlainMarkdown_Done.md"),
+                "work item mutations should not generate plain Markdown dashboards");
 
             auto invalid_parent_feature = create_item_with_admission(
                 index,
@@ -380,7 +364,7 @@ int main() {
                 "ambiguous bare item id should fail closed");
             auto resolved_by_uid = duplicate_resolver.resolve(allocation_collision.uid);
             expect(resolved_by_uid.uid == allocation_collision.uid, "UID lookup should remain available for duplicate-id recovery");
-            auto uid_recovery_update = WorkitemOps::update_state(index, root, allocation_collision.uid, ItemState::InProgress, "opencode", std::string("UID recovery transition"), std::nullopt, true, false);
+            auto uid_recovery_update = WorkitemOps::update_state(index, root, allocation_collision.uid, ItemState::InProgress, "opencode", std::string("UID recovery transition"), std::nullopt, true, true);
             expect(uid_recovery_update.id == allocation_collision.id, "UID-based state update should preserve duplicated bare id while targeting one file");
             expect_throws_contains(
                 [&]() {
@@ -643,11 +627,10 @@ int main() {
                 },
                 "requires --duplicate-of",
                 "Duplicate transition should require duplicate_of");
-            auto duplicate_update = WorkitemOps::update_state(index, root, override_created.id, ItemState::Duplicate, "opencode", std::string("duplicate with canonical target"), created.id, false, true);
+            auto duplicate_update = WorkitemOps::update_state(index, root, override_created.id, ItemState::Duplicate, "opencode", std::string("duplicate with canonical target"), created.id, false);
             expect(duplicate_update.new_state == ItemState::Duplicate, "Duplicate transition should return Duplicate state");
             auto duplicate_after = store.read(override_created.path);
             expect(duplicate_after.duplicate_of && *duplicate_after.duplicate_of == created.id, "Duplicate transition should persist duplicate_of");
-            expect(read_text(root / "views" / "Dashboard_PlainMarkdown_Done.md").find("Duplicate of: " + created.id) != std::string::npos, "dashboard should show duplicate target");
 
             auto assigned_bug_created = create_item_with_admission(
                 index,
@@ -692,7 +675,6 @@ int main() {
                 "opencode",
                 std::string("Issue triage started"));
             expect(issue_update.worklog_appended, "issue state update should append worklog");
-            expect(!issue_update.dashboards_refreshed, "state update should defer dashboard refresh by default");
             auto issue_after_update = store.read(issue_created.path);
             expect(issue_after_update.state == ItemState::InProgress, "issue should transition to InProgress");
             expect(issue_after_update.worklog.back().find("Issue triage started") != std::string::npos, "issue worklog should preserve update message");
@@ -1038,18 +1020,6 @@ int main() {
                 missing_compliance_review,
                 "no Do Not Compliance Report evidence detected",
                 "Review transition without compliance evidence should retain the warning");
-
-            kano::backlog_ops::ViewOps::refresh_dashboards(root, "opencode");
-            const auto active_dashboard = read_text(root / "views" / "Dashboard_PlainMarkdown_Active.md");
-            expect(active_dashboard.find("Intent: investigation") != std::string::npos, "plain Markdown dashboard should show Work Intent indicator");
-            expect(active_dashboard.find("Result: decision-record") != std::string::npos, "plain Markdown dashboard should show result contract indicator");
-            const auto closed_dashboard = read_text(root / "views" / "Dashboard_PlainMarkdown_Done.md");
-            expect(
-                closed_dashboard.find("# Closed Work") != std::string::npos &&
-                    closed_dashboard.find("## Closed") != std::string::npos &&
-                    closed_dashboard.find("State: Duplicate") != std::string::npos &&
-                    closed_dashboard.find("\n## Done\n") == std::string::npos,
-                "closed dashboard should use an aggregate label and preserve the exact Duplicate state");
 
             const auto create_review_task = [&](const std::string& title,
                                                 const std::vector<std::string>& worklog,

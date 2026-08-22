@@ -317,8 +317,7 @@ int main(int argc, char** argv) {
                 "--agent", "tester",
                 "--product-name", "Kano Forge Skill",
                 "--prefix", " kfg ",
-                "--dry-run",
-                "--skip-refresh-views"
+                "--dry-run"
             }, kfg_dry_run_output),
             kfg_dry_run_output,
             "admin init dry-run failed"
@@ -340,8 +339,7 @@ int main(int argc, char** argv) {
             "--product", "kano-forge-skill",
             "--agent", "tester",
             "--product-name", "Kano Forge Skill",
-            "--prefix", "KFG",
-            "--skip-refresh-views"
+            "--prefix", "KFG"
         }) == 0, "admin init KFG registration failed");
         const auto kfg_product_root = temp_root / "_kano" / "backlog" / "products" / "kano-forge-skill";
         expect(std::filesystem::exists(kfg_product_root / "decisions"), "admin init KFG did not create decisions directory");
@@ -362,8 +360,7 @@ int main(int argc, char** argv) {
                 "--product", "another-forge-skill",
                 "--agent", "tester",
                 "--product-name", "Another Forge Skill",
-                "--prefix", "KFG",
-                "--skip-refresh-views"
+                "--prefix", "KFG"
             }, kfg_collision_output),
             kfg_collision_output,
             "admin init should reject colliding product prefix",
@@ -382,8 +379,7 @@ int main(int argc, char** argv) {
             "--product", "kano-forge-skill",
             "--agent", "tester",
             "--product-name", "Kano Forge Skill Updated",
-            "--force",
-            "--skip-refresh-views"
+            "--force"
         }) == 0, "forced admin init should preserve existing explicit product prefix");
         const auto kfg_force_text = read_text(temp_root / ".kano" / "backlog_config.toml");
         expect(kfg_force_text.find("name = \"Kano Forge Skill Updated\"") != std::string::npos, "force admin init did not update product display name");
@@ -397,8 +393,7 @@ int main(int argc, char** argv) {
                     "admin", "init",
                     "--product", "invalid-prefix-product",
                     "--agent", "tester",
-                    "--prefix", bad_prefix,
-                    "--skip-refresh-views"
+                    "--prefix", bad_prefix
                 }, invalid_prefix_output),
                 invalid_prefix_output,
                 "admin init should reject unsafe product prefix",
@@ -414,8 +409,7 @@ int main(int argc, char** argv) {
             "admin", "init",
             "--product", "kano-agent-ark-skill",
             "--agent", "tester",
-            "--product-name", "Kano Agent Ark Skill",
-            "--skip-refresh-views"
+            "--product-name", "Kano Agent Ark Skill"
         }) == 0, "admin init derived KA product failed");
         const auto derived_collision_output = derived_collision_root / "admin-init-derived-collision.json";
         expect_command_capture_success(
@@ -424,8 +418,7 @@ int main(int argc, char** argv) {
                 "--product", "kano-ai-3d-asset-skill",
                 "--agent", "tester",
                 "--product-name", "Kano AI 3D Asset Skill",
-                "--dry-run",
-                "--skip-refresh-views"
+                "--dry-run"
             }, derived_collision_output),
             derived_collision_output,
             "admin init should select a collision-free derived prefix"
@@ -440,8 +433,7 @@ int main(int argc, char** argv) {
             "admin", "init",
             "--product", "kano-ai-3d-asset-skill",
             "--agent", "tester",
-            "--product-name", "Kano AI 3D Asset Skill",
-            "--skip-refresh-views"
+            "--product-name", "Kano AI 3D Asset Skill"
         }) == 0, "admin init should persist the collision-free derived prefix");
         expect(read_text(derived_collision_root / ".kano" / "backlog_config.toml").find("prefix = \"KA3AS\"") != std::string::npos,
             "admin init did not persist deterministic collision-free derived prefix");
@@ -454,36 +446,31 @@ int main(int argc, char** argv) {
             "admin", "init",
             "--product", "duplicate-prefix-one",
             "--agent", "tester",
-            "--prefix", "DUP",
-            "--skip-refresh-views"
+            "--prefix", "DUP"
         }) == 0, "admin init first duplicate-prefix fixture failed");
         expect(run_command(binary, {
             "admin", "init",
             "--product", "duplicate-prefix-two",
             "--agent", "tester",
-            "--prefix", "UNQ",
-            "--skip-refresh-views"
+            "--prefix", "UNQ"
         }) == 0, "admin init second duplicate-prefix fixture failed");
         expect(run_command(binary, {
             "admin", "init",
             "--product", "recovery-product",
             "--agent", "tester",
-            "--prefix", "RCV",
-            "--skip-refresh-views"
+            "--prefix", "RCV"
         }) == 0, "admin init unaffected recovery product fixture failed");
         expect(run_command(binary, {
             "admin", "init",
             "--product", "duplicate-prefix-three",
             "--agent", "tester",
-            "--prefix", "TRI",
-            "--skip-refresh-views"
+            "--prefix", "TRI"
         }) == 0, "admin init third duplicate-prefix fixture failed");
         expect(run_command(binary, {
             "admin", "init",
             "--product", "duplicate-prefix-four",
             "--agent", "tester",
-            "--prefix", "QUA",
-            "--skip-refresh-views"
+            "--prefix", "QUA"
         }) == 0, "admin init fourth duplicate-prefix fixture failed");
         const auto duplicate_config_path = duplicate_prefix_root / ".kano" / "backlog_config.toml";
         auto duplicate_config_text = read_text(duplicate_config_path);
@@ -508,8 +495,7 @@ int main(int argc, char** argv) {
                 "admin", "init",
                 "--product", "blocked-unaffected-product",
                 "--agent", "tester",
-                "--prefix", "BLK",
-                "--skip-refresh-views"
+                "--prefix", "BLK"
             }, blocked_registration_output),
             blocked_registration_output,
             "new product registration should not proceed while the registry is colliding",
@@ -567,8 +553,7 @@ int main(int argc, char** argv) {
             "--product", "duplicate-prefix-two",
             "--agent", "tester",
             "--prefix", "UNQ",
-            "--force",
-            "--skip-refresh-views"
+            "--force"
         }) == 0, "forced admin init should repair a participating product prefix");
         const auto partially_repaired_doctor_output = duplicate_prefix_root / "doctor-partially-repaired-prefix.txt";
         expect(run_command_capture(binary, {"doctor"}, partially_repaired_doctor_output) == 0, "doctor should run after partial prefix repair");
@@ -579,8 +564,7 @@ int main(int argc, char** argv) {
             "--product", "duplicate-prefix-four",
             "--agent", "tester",
             "--prefix", "QUA",
-            "--force",
-            "--skip-refresh-views"
+            "--force"
         }) == 0, "forced admin init should repair a second independent collision");
         const auto repaired_doctor_output = duplicate_prefix_root / "doctor-repaired-prefix.txt";
         expect(run_command_capture(binary, {"doctor"}, repaired_doctor_output) == 0, "doctor should run after all prefix repairs");
@@ -599,8 +583,7 @@ int main(int argc, char** argv) {
             "--product", "duplicate-prefix-two",
             "--agent", "tester",
             "--prefix", "NEW",
-            "--force",
-            "--skip-refresh-views"
+            "--force"
         }) == 0, "explicit prefix rebind fixture failed");
         const auto prefix_drift_output = duplicate_prefix_root / "schema-check-prefix-drift.txt";
         expect_command_capture_failure(
@@ -615,15 +598,15 @@ int main(int argc, char** argv) {
         );
         std::filesystem::current_path(temp_root);
 
-        expect(run_command(binary, {"admin", "init", "--product", "kano-ai-3d-asset-skill", "--agent", "tester", "--skip-refresh-views"}) == 0, "admin init command failed");
+        expect(run_command(binary, {"admin", "init", "--product", "kano-ai-3d-asset-skill", "--agent", "tester"}) == 0, "admin init command failed");
         const auto duplicate_admin_init_output = temp_root / "admin-init-duplicate.txt";
         expect_command_capture_failure(
-            run_command_capture(binary, {"admin", "init", "--product", "kano-ai-3d-asset-skill", "--agent", "tester", "--skip-refresh-views"}, duplicate_admin_init_output),
+            run_command_capture(binary, {"admin", "init", "--product", "kano-ai-3d-asset-skill", "--agent", "tester"}, duplicate_admin_init_output),
             duplicate_admin_init_output,
             "duplicate admin init should fail without --force",
             "Product backlog already exists"
         );
-        expect(run_command(binary, {"admin", "init", "--product", "kano-ai-3d-asset-skill", "--agent", "tester", "--product-name", "Kano AI 3D Asset Skill", "--force", "--skip-refresh-views"}) == 0, "forced admin init with spaced product name failed");
+        expect(run_command(binary, {"admin", "init", "--product", "kano-ai-3d-asset-skill", "--agent", "tester", "--product-name", "Kano AI 3D Asset Skill", "--force"}) == 0, "forced admin init with spaced product name failed");
 
         const auto config_path = temp_root / ".kano" / "backlog_config.toml";
         const auto backlog_root = temp_root / "_kano" / "backlog";
@@ -631,6 +614,11 @@ int main(int argc, char** argv) {
         expect(std::filesystem::exists(config_path), "admin init did not create .kano/backlog_config.toml");
         expect(std::filesystem::exists(product_root / "decisions"), "admin init did not create decisions directory");
         expect(std::filesystem::exists(product_root / "views"), "admin init did not create views directory");
+        expect(
+            !std::filesystem::exists(product_root / "views" / "Dashboard_" "PlainMarkdown_Active.md") &&
+                !std::filesystem::exists(product_root / "views" / "Dashboard_" "PlainMarkdown_New.md") &&
+                !std::filesystem::exists(product_root / "views" / "Dashboard_" "PlainMarkdown_Done.md"),
+            "admin init should not generate plain Markdown dashboards");
         expect(std::filesystem::exists(product_root / "_meta"), "admin init did not create _meta directory");
         expect(std::filesystem::exists(product_root / "artifacts"), "admin init did not create artifacts directory");
         for (const std::string type : {"epic", "feature", "userstory", "task", "subtask", "bug", "issue"}) {
@@ -639,6 +627,7 @@ int main(int argc, char** argv) {
         expect(!std::filesystem::exists(temp_root / "items"), "admin init created stray root-level items directory");
 
         const std::string config_text = read_text(config_path);
+        expect(config_text.find("auto_" "refresh") == std::string::npos, "admin init should not emit retired generated-view configuration");
         expect(config_text.find("[products.kano-ai-3d-asset-skill]") != std::string::npos, "admin init did not register product in config");
         expect(config_text.find("backlog_root = \"_kano/backlog/products/kano-ai-3d-asset-skill\"") != std::string::npos, "admin init registered unexpected backlog_root");
         expect(config_text.find("name = \"Kano AI 3D Asset Skill\"") != std::string::npos, "admin init did not preserve spaced product display name");
@@ -656,8 +645,7 @@ int main(int argc, char** argv) {
             "--product", "horizon-unreal-pipeline",
             "--agent", "tester",
             "--product-name", "Horizon Unreal Pipeline",
-            "--prefix", "HUP",
-            "--skip-refresh-views"
+            "--prefix", "HUP"
         }) == 0, "admin init should register products inside an independent backlog repo");
         const auto standalone_config_path = standalone_backlog_root / ".kano" / "backlog_config.toml";
         expect(std::filesystem::exists(standalone_config_path), "independent backlog repo did not get local project config");
@@ -744,8 +732,7 @@ int main(int argc, char** argv) {
                 "--product", "short-path-config-smoke",
                 "--agent", "tester",
                 "--product-name", "Short Path Config Smoke",
-                "--prefix", "SPC",
-                "--skip-refresh-views"
+                "--prefix", "SPC"
             }) == 0, "admin init should treat Windows short and long paths as the same independent backlog repo");
             std::filesystem::current_path(temp_root);
             const auto short_path_config = short_path_backlog_root / ".kano" / "backlog_config.toml";
@@ -1055,22 +1042,14 @@ int main(int argc, char** argv) {
         expect(issue_text.find("type: Issue") != std::string::npos, "issue file did not preserve Issue type");
         expect(issue_text.find("state: InProgress") != std::string::npos, "issue state update did not persist");
         expect(issue_text.find("Issue worklog evidence") != std::string::npos, "issue worklog append did not persist");
-        const auto issue_view_refresh_output = temp_root / "issue-view-refresh.txt";
+        const auto custom_view_path = product_root / "views" / "Issue_Triage.md";
+        write_text(custom_view_path, "# Issue triage\n");
+        const auto issue_view_list_output = temp_root / "issue-view-list.txt";
         expect(run_command_capture(binary, {
-            "view", "refresh",
-            "--product", "kano-ai-3d-asset-skill",
-            "--backlog-root", backlog_root.string(),
-            "--agent", "tester"
-        }, issue_view_refresh_output) == 0, "view refresh after issue update failed");
-        expect(read_text(issue_view_refresh_output).find("Refreshed") != std::string::npos, "view refresh did not report refreshed dashboards");
-
-        const auto leaf_product_view_refresh_output = temp_root / "leaf-product-view-refresh.txt";
-        expect(run_command_capture(binary, {
-            "view", "refresh",
-            "--product", "kano-ai-3d-asset-skill",
-            "--agent", "tester"
-        }, leaf_product_view_refresh_output) == 0, "view refresh ignored leaf --product without --backlog-root");
-        expect(read_text(leaf_product_view_refresh_output).find("Refreshed") != std::string::npos, "leaf product view refresh did not report refreshed dashboards");
+            "-P", "kano-ai-3d-asset-skill",
+            "view", "list"
+        }, issue_view_list_output) == 0, "custom view list failed");
+        expect(read_text(issue_view_list_output).find("Issue_Triage.md") != std::string::npos, "view list did not report the custom view");
 
         const auto artifact_source = temp_root / "artifact-note.md";
         write_text(artifact_source, "# Artifact\n\nNative attach artifact smoke.\n");

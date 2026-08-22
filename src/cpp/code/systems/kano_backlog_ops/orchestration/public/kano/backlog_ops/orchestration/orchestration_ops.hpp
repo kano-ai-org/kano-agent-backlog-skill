@@ -23,7 +23,6 @@ public:
         std::optional<std::string> prefix;
         bool force = false;
         bool dry_run = false;
-        bool refresh_views = true;
     };
 
     struct InitResult {
@@ -41,7 +40,6 @@ public:
         std::vector<std::filesystem::path> planned_directories;
         std::vector<std::filesystem::path> planned_files;
         std::vector<std::filesystem::path> created_paths;
-        std::vector<std::filesystem::path> views_refreshed;
     };
 
     /**

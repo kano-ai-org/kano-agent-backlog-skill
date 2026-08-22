@@ -398,8 +398,30 @@ int main(int argc, char** argv) {
                migration_status_text.find("\"status\":\"unknown\"") != std::string::npos,
             "migration recovery CLI callback should retain its registered option builder");
 
-        expect(run_command(binary, {"admin", "init", "--product", "quick-smoke-product", "--agent", "tester", "--skip-refresh-views"}) == 0,
+        expect(run_command(binary, {"admin", "init", "--product", "quick-smoke-product", "--agent", "tester"}) == 0,
             "admin init command failed");
+        const auto quick_product_root = temp_root / "_kano" / "backlog" / "products" / "quick-smoke-product";
+        const auto quick_views_root = quick_product_root / "views";
+        expect(std::filesystem::exists(quick_views_root), "admin init should retain the views scaffold");
+        expect(
+            !std::filesystem::exists(quick_views_root / "Dashboard_" "PlainMarkdown_Active.md") &&
+                !std::filesystem::exists(quick_views_root / "Dashboard_" "PlainMarkdown_New.md") &&
+                !std::filesystem::exists(quick_views_root / "Dashboard_" "PlainMarkdown_Done.md"),
+            "admin init should not generate plain Markdown dashboards");
+        const auto custom_view_path = quick_views_root / "Team_Review.md";
+        write_text(custom_view_path, "# Team review\n\nTracks [[QS-TSK-0001]].\n");
+        const auto custom_view_list_output = temp_root / "custom-view-list.txt";
+        expect_command_capture_success(
+            run_command_capture(binary, {
+                "-P", "quick-smoke-product", "view", "list"
+            }, custom_view_list_output),
+            custom_view_list_output,
+            "custom view list failed");
+        expect(read_text(custom_view_list_output).find("Team_Review.md") != std::string::npos,
+            "view list should discover hand-authored custom views");
+        expect(run_command(binary, {
+            "-P", "quick-smoke-product", "view", std::string("re") + "fresh"
+        }) != 0, "retired generated-dashboard command should be rejected");
         expect(run_command(binary, {"-P", "quick-smoke-product", "admin", "sync-sequences"}) == 0,
             "sync-sequences failed");
         expect(run_command(binary, {"-P", "quick-smoke-product", "workitem", "create", "-t", "task", "--title", "Missing duplicate admission", "--agent", "tester"}) != 0,
@@ -438,7 +460,7 @@ int main(int argc, char** argv) {
                decision_task_text.find("Retain file decision text.") != std::string::npos,
             "decision command variants should persist their text");
 
-        expect(run_command(binary, {"admin", "init", "--product", "second-product", "--agent", "tester", "--skip-refresh-views"}) == 0,
+        expect(run_command(binary, {"admin", "init", "--product", "second-product", "--agent", "tester"}) == 0,
             "second product admin init failed");
         expect(run_command(binary, {"-P", "second-product", "admin", "sync-sequences"}) == 0,
             "second product sync-sequences failed");
@@ -1517,11 +1539,6 @@ int main(int argc, char** argv) {
         const auto subtask_admission_json = read_text(subtask_admission_output);
         expect(subtask_admission_json.find("\"admitted\" : true") != std::string::npos, "subtask implementation admission should be allowed");
         expect(subtask_admission_json.find("\"item_type\" : \"SubTask\"") != std::string::npos, "subtask admission should report SubTask item type");
-        expect(run_command(binary, {"-P", "quick-smoke-product", "view", "refresh", "--agent", "tester"}) == 0,
-            "view refresh after subtask failed");
-        expect(read_text(temp_root / "_kano" / "backlog" / "products" / "quick-smoke-product" / "views" / "Dashboard_PlainMarkdown_New.md").find("QS-SUBTSK-0001") != std::string::npos,
-            "dashboard should include created subtask");
-
         const auto intent_stack_json_output = temp_root / "intent-stack.json";
         expect_command_capture_success(
             run_command_capture(binary, {
@@ -1918,7 +1935,6 @@ int main(int argc, char** argv) {
         expect(migpf_ok_text.find("\"to_prefix\" : \"NEWQS\"") != std::string::npos, "migrate-prefix to_prefix should be NEWQS");
         expect(migpf_ok_text.find("QS-TSK-0001 -> NEWQS-TSK-0001") != std::string::npos, "migrate-prefix should update references");
         expect(migpf_ok_text.find("QS-TSK-0002 -> NEWQS-TSK-0002") != std::string::npos, "migrate-prefix should update child references");
-
         const auto migpf_fail_output = temp_root / "migpf_fail.json";
         expect(run_command_capture(binary, {
             "-P", "quick-smoke-product", "config", "migrate-prefix"
@@ -1958,6 +1974,11 @@ int main(int argc, char** argv) {
         expect(migpf_apply_text.find("\"from_prefix\" : \"QS\"") != std::string::npos, "apply from_prefix should be QS");
         expect(migpf_apply_text.find("\"to_prefix\" : \"NEWQS2\"") != std::string::npos, "apply to_prefix should be NEWQS2");
         expect(migpf_apply_text.find("\"items_renamed\"") != std::string::npos, "apply should report items_renamed count");
+        expect(
+            !std::filesystem::exists(quick_views_root / "Dashboard_" "PlainMarkdown_Active.md") &&
+                !std::filesystem::exists(quick_views_root / "Dashboard_" "PlainMarkdown_New.md") &&
+                !std::filesystem::exists(quick_views_root / "Dashboard_" "PlainMarkdown_Done.md"),
+            "migrate-prefix should not generate plain Markdown dashboards");
 
         // Step 68: verify --write blocked when --from mismatches (prefix was already changed to NEWQS2)
         const auto migpf_write_fail_output = temp_root / "migpf_write_fail.json";

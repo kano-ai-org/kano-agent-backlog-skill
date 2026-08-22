@@ -92,7 +92,6 @@ public:
         std::optional<std::string> message = std::nullopt,
         std::optional<std::string> duplicate_of = std::nullopt,
         bool force = false,
-        bool refresh_views = false,
         bool sync_parent = true
     );
 
