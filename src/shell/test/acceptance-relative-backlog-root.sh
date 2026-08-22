@@ -33,7 +33,7 @@ EOF
 chmod +x "$CASE_ROOT/skill/src/cpp/out/bin/$preset/release/kano-backlog"
 printf '[products.test]\nprefix = "TST"\nbacklog_root = "products/test"\n' > "$CASE_ROOT/workspace/_kano/backlog/.kano/backlog_config.toml"
 
-output="$(cd "$CASE_ROOT/workspace" && bash "$CASE_ROOT/skill/src/shell/core/kano-backlog" view refresh --backlog-root _kano/backlog --product test --agent codex)"
+output="$(cd "$CASE_ROOT/workspace" && bash "$CASE_ROOT/skill/src/shell/core/kano-backlog" doctor --backlog-root _kano/backlog)"
 grep -F "cwd=$CASE_ROOT/workspace/_kano/backlog" <<<"$output" >/dev/null
 grep -F "<--backlog-root><$CASE_ROOT/workspace/_kano/backlog>" <<<"$output" >/dev/null
 if grep -F "$CASE_ROOT/workspace/_kano/backlog/_kano/backlog" <<<"$output" >/dev/null; then

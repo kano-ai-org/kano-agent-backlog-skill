@@ -320,7 +320,6 @@ nested_command_specs=(
   "workset detect-adr|native covered"
   "state transition|native covered"
   "worklog append|native covered"
-  "view refresh|native covered"
   "orphan check|native covered"
   "orphan suggest|native covered"
   "benchmark run|native covered"
