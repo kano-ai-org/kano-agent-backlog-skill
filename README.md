@@ -44,7 +44,7 @@ It provides:
 - Done gate discipline through validation evidence and human review
 - append-only worklogs for execution history and handoff notes
 - ADR and decision links for durable technical rationale
-- worksets, topics, generated views, and release evidence that stay with the repo
+- worksets, topics, custom views, and release evidence that stay with the repo
 - a native C++ CLI exposed through repo-local launchers such as `scripts/kob`
 
 ## What this is not
@@ -142,6 +142,11 @@ pixi run webview-docker
 
 The CLI shortcut `kob gui` runs the same Docker path. Stop the container with
 `pixi run webview-docker-down`.
+
+Backboard is the maintained backlog review surface. The product `views/`
+directory remains available for hand-authored Markdown, Dataview, and Bases
+content. `kob view list --product <product>` discovers Markdown custom-view
+files only; it does not discover `.base` files.
 
 For bounded review evidence without browser dependencies, capture deterministic
 repo-local smoke artifacts with:

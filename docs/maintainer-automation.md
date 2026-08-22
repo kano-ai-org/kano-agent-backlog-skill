@@ -19,7 +19,7 @@ Based on the repo docs, maintainers can automate or standardize these workflows:
 - ADR creation and linkage
 - workset setup, refresh, promotion, and cleanup
 - topic creation, pinning, distillation, and export
-- view generation and refresh
+- custom-view discovery and Backboard review
 - optional indexing and search pipelines
 - doctor and validation style checks
 
@@ -42,7 +42,7 @@ Canonical, reviewable artifacts are the markdown files under the backlog structu
 - work items
 - worklogs
 - ADRs
-- generated views that your team decides to keep
+- custom views that your team decides to keep
 - stable topic briefs that humans maintain
 
 Worksets, cache directories, logs, and some topic materials are derived data and should be treated accordingly.

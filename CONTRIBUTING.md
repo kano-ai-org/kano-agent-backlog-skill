@@ -53,8 +53,8 @@ git diff --check
 ## Backlog Discipline
 
 Use backlog IDs directly in commits and worklogs. Create or update items before
-substantial code changes, meet the Ready gate before starting, and refresh views
-after backlog mutations.
+substantial code changes, meet the Ready gate before starting, and use Backboard
+when human review is needed.
 
 Examples:
 
@@ -62,7 +62,8 @@ Examples:
 scripts/kob item create --type task --title "Implement native flow" --agent <agent-id> --product kano-agent-backlog-skill \
   --duplicate-search-query "Implement native flow" --duplicate-search-scope kano-agent-backlog-skill --duplicate-decision create
 scripts/kob workitem update-state <item-id> --state InProgress --agent <agent-id> --product kano-agent-backlog-skill
-scripts/kob view refresh --agent <agent-id> --product kano-agent-backlog-skill
+scripts/kob view list --product kano-agent-backlog-skill
+pixi run webview
 ```
 
 ## Release Process

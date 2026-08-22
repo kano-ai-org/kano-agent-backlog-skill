@@ -32,7 +32,6 @@ Non-exhaustive examples:
 - Changing the canonical backlog root layout (`_kano/backlog/**`) or bucket rules
 - Removing/renaming CLI flags, or changing defaults that alter deterministic outputs
 - Renaming/removing config keys under `_kano/backlog/products/<product>/_config/config.toml`
-- Changing canonical dashboard filenames or their grouping semantics
 
 ## Release checklist (minimum)
 
@@ -52,6 +51,5 @@ Non-exhaustive examples:
   - Smoke topics are disposable and must be created under `_kano/backlog_sandbox/<sandbox>/...`.
   - If you see `release-<version-dashed>-smoke-a/b` under `_kano/backlog/topics/`, delete them and re-run Phase2.
 - Canonical CLI commands run end-to-end:
-  - `bash scripts/kob view refresh --agent <id>`
+  - `bash scripts/kob view list --product <product>`
   - `bash scripts/kob workitem update-state <item> --state Done --agent <id>`
-- Demo views are regenerated

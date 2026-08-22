@@ -38,7 +38,9 @@ From the repository where you want durable workflow memory:
 bash scripts/kob admin init --product my-app --agent my-agent
 ```
 
-This scaffolds local markdown artifacts under `_kano/backlog/`, including product config, backlog items, decisions, and generated views.
+This scaffolds local Markdown artifacts under `_kano/backlog/`, including
+product config, backlog items, decisions, and a `views/` directory for
+hand-authored custom views. Use Backboard for maintained backlog review.
 
 When `--prefix` is omitted, KOB tries a deterministic ordered set of candidates
 and persists the first unused prefix. Dry-run output reports `prefix_source` and

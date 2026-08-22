@@ -104,7 +104,7 @@ _kano/backlog/
 │   └── my-app/
 │       ├── items/          # Work items organized by type
 │       ├── decisions/      # Architecture Decision Records
-│       ├── views/          # Generated dashboards
+│       ├── views/          # Hand-authored custom views
 │       └── _meta/          # Metadata and sequences
 ```
 
@@ -419,7 +419,7 @@ After setup, guide the user through:
 2. **Understand the Ready gate** - Enforce required fields before starting work
 3. **Learn state transitions** - Move items through the workflow
 4. **Record decisions** - Use ADRs for significant technical choices
-5. **Explore views** - Generate dashboards with `view refresh`
+5. **Review the backlog** - Use Backboard; discover custom files with `view list`
 
 ## Additional Resources
 

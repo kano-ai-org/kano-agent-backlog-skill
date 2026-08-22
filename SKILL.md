@@ -1,6 +1,6 @@
 ---
 name: kano-agent-backlog-skill
-description: Local-first backlog workflow. Use when planning work, creating/updating backlog items, writing ADRs, enforcing Ready gate, generating views, or maintaining derived indexes (SQLite/FTS/embeddings).
+description: Local-first backlog workflow. Use when planning work, creating/updating backlog items, writing ADRs, enforcing Ready gate, discovering or maintaining hand-authored custom views, or maintaining derived indexes (SQLite/FTS/embeddings).
 metadata:
   short-description: Local backlog system
   version: pre-alpha
@@ -139,7 +139,7 @@ For any work that changes code, docs, scripts, views, configs, schemas, tests, b
    - If convergence is blocked, do not close as Done; record `Blocked convergence: branch=<branch>; reason=<reason>; next=<step>; blocker=<owner/item>`.
 4. If all acceptance criteria are complete, move the item to `Done`.
 5. If incomplete, leave it `InProgress`, `Review`, or `Blocked` with a clear Worklog entry.
-6. Refresh views after backlog changes: `kob view refresh --agent <id> --product <name> --backlog-root <path>`.
+6. Review current backlog state in Backboard when human review is needed.
 
 Do not open items for pure exploratory discussion unless it changes code or design direction. Record minor discussion in an existing Worklog instead.
 
@@ -303,9 +303,11 @@ Supported drift type labels include stale architecture, stale proposed fix, pare
 - File operations for backlog/skill artifacts must go through the supported local CLI surface (`kob` or repo-local wrappers under `scripts/core/`) so audit logs capture the action.
 - Skill scripts only operate on paths under `_kano/backlog/` or `_kano/backlog_sandbox/`;
   refuse other paths.
-- After modifying backlog items, refresh the plain Markdown views immediately using
-  `kob view refresh --agent <agent-id> --backlog-root <path>` so the dashboards stay current.
-  - Persona summaries/reports are available via `kob persona summary|report ...`.
+- Backboard is the maintained backlog review surface. Custom hand-authored
+  Markdown, Dataview, and Bases content remains supported under `views/`.
+  `kob view list --product <product>` discovers Markdown custom-view files only;
+  it does not discover `.base` files.
+- Persona summaries/reports are available via `kob persona summary|report ...`.
 - `kob workitem update-state ...` auto-syncs parent states forward-only by default; use `--no-sync-parent`
   for manual re-plans where parent state should stay put.
 - Add Obsidian `[[wikilink]]` references in the body (e.g., a `## Links` section) so Graph/backlinks work; frontmatter alone does not create graph edges.
@@ -375,7 +377,7 @@ available.
 
 Python and pip are not supported prerequisites for this skill.
 
-### Backlog initialization (file scaffold + config + dashboards)
+### Backlog initialization (file scaffold + config)
 
 Detect (multi-product / platform layout):
 - Product is initialized if:
@@ -384,7 +386,7 @@ Detect (multi-product / platform layout):
 
 Bootstrap:
 - Run `kob admin init --product <product> --agent <agent-id> [--backlog-root <path>]` to scaffold backlog directories and write/update `.kano/backlog_config.toml`.
-- Manual fallback (only if automation is unavailable): follow `_kano/backlog/README.md` to copy the template scaffold, then refresh views via `kob view refresh`.
+- Manual fallback (only if automation is unavailable): follow `_kano/backlog/README.md` to copy the template scaffold.
 
 ## Optional LLM analysis over deterministic reports
 
@@ -401,7 +403,6 @@ Enable by config (per product):
 Execution:
 - The **default workflow** is: generate the deterministic report → use it as SSOT → fill in the analysis template.
   - The skill generates a deterministic prompt file to guide the analysis, and a derived markdown file with placeholder headings.
-- Optional automation: when `analysis.llm.enabled = true` in config, view refresh generates `views/snapshots/_analysis/Report_<persona>_analysis_prompt.md` (deterministic prompt) and `Report_<persona>_LLM.md` (template or LLM output)
 - Never pass API keys as CLI args; keep secrets in env vars to avoid leaking into audit logs.
 
 ## ID prefix derivation
@@ -551,8 +552,8 @@ kob workitem remap-id KABSD-TSK-0001 --to KABSD-TSK-0042 \
 ```
 
 The remap keeps the item's UID and state, updates frontmatter `id`, renames the
-Markdown file, rewrites item ID references across the product, appends Worklog
-evidence, and refreshes derived views. Use this only for intentional display-ID
+Markdown file, rewrites item ID references across canonical items and custom
+views, and appends Worklog evidence. Use this only for intentional display-ID
 migrations; routine new work should still use normal item creation.
 
 ### Best practices
@@ -595,7 +596,7 @@ Within each backlog root:
 - `_meta/` (schema, conventions)
 - `items/<type>/<bucket>/` (work items)
 - `decisions/` (ADR files)
-- `views/` (dashboards / generated Markdown)
+- `views/` (hand-authored custom Markdown, Dataview, or Bases content)
 
 ## Item bucket folders (per 100)
 
@@ -765,7 +766,7 @@ Guideline: do not paste large `--help` output into chat; inspect it locally and 
   - `kob workitem check-ready <item-id> --product <name>`
   - `kob workitem update-state <item-ref> --state InProgress --product <name>`
   - `kob workitem attach-artifact <item-id> --path <file> --shared --agent <id> --product <name> [--note "..."]`
-  - `kob view refresh --agent <id> --product <name>`
+  - `kob view list --product <name>`
 - Backlog integrity checks:
   - `kob validate uids --product <name>`
 

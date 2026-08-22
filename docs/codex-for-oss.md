@@ -36,7 +36,9 @@ The authoritative procedure is in [../references/workflow.md](../references/work
 
 ## What is local first here
 
-The canonical record lives in repository files, especially markdown work items, ADRs, worklogs, and related generated views. The project does not depend on a hosted control plane to preserve planning state.
+The canonical record lives in repository files, especially Markdown work items,
+ADRs, worklogs, and related custom views. The project does not depend on a
+hosted control plane to preserve planning state.
 
 ## What is dogfooded
 
@@ -64,7 +66,7 @@ Reviewers should be able to open the repository and inspect:
 
 - item markdown
 - linked ADRs
-- generated views
+- custom views
 - topic briefs
 - promoted artifacts attached to the relevant item
 

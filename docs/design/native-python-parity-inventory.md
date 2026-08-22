@@ -28,7 +28,7 @@ migration history. The supported executable contract is now native C++ only.
 | --- | --- | --- |
 | `admin` | native covered | Native help gate plus smoke coverage for `init`, `sync-sequences`, sandbox, persona, release, items, ADR, schema, validate, links, demo, and meta routed commands. |
 | `workitem` / `item` | native covered | Native help gate plus smoke coverage for create, Ready fields, state update, worklog, trash, parent, decision, and artifact flows. |
-| `state`, `worklog`, `view`, `topic`, `workset` | native covered | Native help gate plus smoke coverage for state transitions, worklog append, view refresh, topic lifecycle/materials/snapshot/workset-state commands, and workset lifecycle commands. |
+| `state`, `worklog`, `view`, `topic`, `workset` | native covered | Native help gate plus smoke coverage for state transitions, worklog append, custom-view discovery, topic lifecycle/materials/snapshot/workset-state commands, and workset lifecycle commands. |
 | `evidence`, `assumptions` | native covered | Native file-backed evidence CRUD/summary and assumptions list/generate surfaces are covered by help gates and representative smoke workflows. |
 | `config`, `schema`, `validate`, `links`, `adr`, `changelog`, `demo`, `orphan`, `meta`, `snapshot` | native covered | Native help gate covers command surfaces; smoke coverage exercises representative config, validation, links, ADR, changelog, demo, orphan, meta, and snapshot behavior. |
 | `repo-hygiene` | native covered | Native Git-index hygiene check/fix covers executable bits, LF index issues, and archive-safe shell audit discovery. |

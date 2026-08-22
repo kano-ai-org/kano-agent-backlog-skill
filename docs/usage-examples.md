@@ -316,7 +316,7 @@ kob workitem remap-id MYAPP-TSK-0001 \
 - Renames the item Markdown file and updates frontmatter `id`.
 - Preserves the immutable `uid` and current `state`.
 - Rewrites references to the old display ID across the product.
-- Appends Worklog evidence and refreshes derived views.
+- Updates matching references in canonical items and custom views, then appends Worklog evidence.
 - Avoids creating deprecated, duplicate, or superseded items for a clean migration.
 
 ---
@@ -763,27 +763,21 @@ Found 4 expired worksets:
 
 ---
 
-## View Commands
+## Backboard and Custom Views
 
-Generate dashboards and reports.
-
-### Refresh Product Views
+Backboard is the maintained review surface. Run it from the skill repository:
 
 **Command:**
 ```bash
-kob view refresh --product my-app --agent kiro
+pixi run webview
 ```
 
-**Expected Output:**
-```
-Generating views for product: my-app
+The product `views/` directory remains available for hand-authored Markdown,
+Dataview, and Bases content. Discover Markdown custom-view files without
+changing them; `.base` files are not listed:
 
-✓ Generated: _kano/backlog/products/my-app/views/Dashboard.md
-✓ Generated: _kano/backlog/products/my-app/views/ByState.md
-✓ Generated: _kano/backlog/products/my-app/views/ByType.md
-✓ Generated: _kano/backlog/products/my-app/views/RecentActivity.md
-
-4 views generated
+```bash
+kob view list --product my-app
 ```
 
 ### Generate Snapshot Report
@@ -850,12 +844,6 @@ backlog:
 
 cache:
   root: .kano/cache/backlog
-
-views:
-  auto_refresh: true
-  formats:
-    - obsidian
-    - markdown
 
 tokenizer:
   default_adapter: openai
@@ -1136,9 +1124,6 @@ kob workitem update-state MYAPP-TSK-0001 --state Done \
   --agent kiro --product my-app
 # Output: State updated to Done
 
-# 14. Refresh views
-kob view refresh --product my-app --agent kiro
-# Output: Views regenerated
 ```
 
 
@@ -1450,20 +1435,13 @@ kob topic switch feature-x --agent kiro
 # Context scattered, hard to maintain focus
 ```
 
-### 7. Refresh Views Regularly
+### 7. Review Backlog State
 
 **Good:**
 ```bash
-# After completing work, refresh views
+# After completing work, update canonical state and review it in Backboard
 kob workitem update-state MYAPP-TSK-0001 --state Done --agent kiro --product my-app
-kob view refresh --product my-app --agent kiro
-```
-
-**Automatic refresh:**
-```toml
-# In config file: .kano/backlog_config.toml
-[views]
-auto_refresh = true  # Views refresh after item changes
+pixi run webview
 ```
 
 ### 8. Clean Up Regularly

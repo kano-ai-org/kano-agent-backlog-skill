@@ -7,7 +7,7 @@ The `references/` folder is intentionally split into multiple small files so an 
 - `schema.md`: item types, states, naming rules, Ready gate
 - `templates.md`: work item + ADR templates
 - `workflow.md`: SOP for planning/decisions/worklog
-- `views.md`: view patterns (Dataview + plain Markdown generators)
+- `views.md`: custom Obsidian Markdown and Dataview patterns
 - `bases.md`: Obsidian Bases notes (plugin-free table-style views)
 - `logging.md`: audit log schema, redaction, rotation defaults
 - `processes.md`: process profile schema and examples
@@ -18,18 +18,19 @@ The `references/` folder is intentionally split into multiple small files so an 
 
 ## Kano CLI (automation surface)
 
-`scripts/` now ships a single entrypoint (`scripts/kano`). Subcommands map 1:1 to the ops layer:
+`scripts/kob` is the native CLI entrypoint. Subcommands map to the ops layer:
 
 ### Core commands
-- `kano doctor`: verify Python prerequisites and backlog initialization
-- `kano backlog init`: scaffold a product backlog (directories, `_config/config.json`, dashboards)
-- `kano view refresh`: regenerate dashboards (Active/New/Done)
+- `kob doctor`: verify native prerequisites and backlog initialization
+- `kob admin init`: scaffold product directories and project configuration
+- `kob view list`: discover hand-authored custom Markdown views
+- `kob gui`: open Backboard, the maintained backlog review surface
 
 ### Item operations
-- `kano item read|validate`: inspect canonical records
-- `kano item create`: create items
-- `kano item set-ready`: set Ready-gate body sections (Context/Goal/Approach/Acceptance/Risks)
-- `kano item update-state`: state transitions + worklog append + optional dashboard refresh
+- `kob item read|validate`: inspect canonical records
+- `kob item create`: create items
+- `kob item set-ready`: set Ready-gate body sections (Context/Goal/Approach/Acceptance/Risks)
+- `kob item update-state`: state transitions and worklog append
 
 ### State and worklog
 - `kano state transition`: declarative workflow actions (`start`, `ready`, `review`, `done`, `block`, `drop`)
