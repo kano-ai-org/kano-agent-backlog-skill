@@ -113,12 +113,9 @@ kano-backlog embedding status --product <product-name>
 
 ## Obsidian views (file-first mode)
 
-File-first dashboards continue to work normally (Dataview or generated Markdown views), because items remain Markdown files.
-
-Optional (planned): generate Markdown dashboards from DB queries to reduce dependence on Obsidian plugins.
-
-If you enable `index.enabled=true`, `kano-backlog view refresh --source auto` can use the SQLite index
-when present, and falls back to file scan when the DB is missing.
+Hand-authored Dataview and Bases content can continue to query canonical Markdown
+items directly. The optional index does not replace those files or generate
+product views.
 
 ## Context graph (Graph-assisted retrieval)
 

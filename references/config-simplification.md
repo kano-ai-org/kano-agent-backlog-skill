@@ -22,7 +22,6 @@ Introduce `.kano/backlog_config.toml` at the project root that can define multip
 [defaults]
 skill_developer = true
 persona = "developer"
-auto_refresh = true
 
 # Product definitions
 [products.kano-agent-backlog-skill]

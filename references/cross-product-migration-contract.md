@@ -12,7 +12,10 @@ Reference discovery streams eligible product entries, sorts the complete bounded
 
 Canonical source and target inventory scans use `max_source_inventory_items` and `max_target_inventory_items` before parsing item metadata. Inventory file sizes are checked against the 16 MiB per-file reference ceiling and the aggregate `max_reference_bytes` budget before metadata parsing. Owned artifact traversal uses `max_artifacts` as its file-count ceiling and the same derived entry ceiling, while `max_artifact_bytes` caps aggregate artifact reads; artifact, snapshot, retained-output, and staged-file hashes stream through fixed-size buffers, and reference-only `.cache`, `views`, and `.git` exclusions do not hide owned artifacts. Target display-ID allocation fails closed before the signed canonical number range can overflow. Apply reuses the exact hashed request, bounds any derived-index inventory rebuild, applies the same per-file and aggregate byte ceilings before bootstrap item reads, prechecks an existing index against remaining capacity, and caps the aggregate in-memory mutation outputs retained for staging with `max_materialization_bytes` without duplicating retained output buffers. These guards run before canonical publication; exceeding them fails closed with no partial migration success.
 
-Planning is mutation-free: it does not allocate target sequences, create items, write receipts, refresh views, or touch indexes. Result, verification, status, and rollback receipts have separate schemas so an interrupted operation can be resumed or recovered without treating partial state as success.
+Planning is mutation-free: it does not allocate target sequences, create items,
+write receipts, modify custom views, or touch indexes. Result, verification,
+status, and rollback receipts have separate schemas so an interrupted operation
+can be resumed or recovered without treating partial state as success.
 
 ## Apply and recovery lifecycle
 

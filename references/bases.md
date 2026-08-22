@@ -1,6 +1,8 @@
 # Obsidian Bases (plugin-free views)
 
-This skill currently ships Dataview examples and a plugin-free view generator. If you want to reduce plugin dependencies, Obsidian **Bases** can replace many Dataview table-style dashboards.
+This skill ships Dataview examples and preserves space for custom Obsidian views.
+If you want to reduce plugin dependencies, Obsidian **Bases** can cover many
+table-style review needs.
 
 Note: Bases is an Obsidian core feature, but it is newer than Dataview and may have limitations depending on your Obsidian version and platform.
 
@@ -38,11 +40,3 @@ In Obsidian:
    - `state` is one of: `Proposed`, `Planned`, `Ready`, `InProgress`, `Review`, `Blocked`
    - (Optionally hide `Done` and `Dropped`)
 5) Save the Base in your vault
-
-## Keep a zero-plugin fallback
-
-Even if you adopt Bases, keep these generator commands as a no-plugin fallback for sharing/CI artifacts:
-
-- `python skills/kano-agent-backlog-skill/scripts/backlog/view_generate.py --groups "New,InProgress" --title "InProgress Work" --output _kano/backlog/views/Dashboard_PlainMarkdown_Active.md`
-- `python skills/kano-agent-backlog-skill/scripts/backlog/view_generate.py --groups "New" --title "New Work" --output _kano/backlog/views/Dashboard_PlainMarkdown_New.md`
-- `python skills/kano-agent-backlog-skill/scripts/backlog/view_generate.py --groups "Done" --title "Done Work" --output _kano/backlog/views/Dashboard_PlainMarkdown_Done.md`

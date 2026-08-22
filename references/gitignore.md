@@ -10,7 +10,7 @@ The Kano Backlog skill follows a **source-of-truth vs derived data** approach to
 - Work items: `items/**/*.md`
 - ADRs: `decisions/**/*.md` 
 - Configuration: `_config/config.toml`
-- Views/dashboards: `views/*.md` (deterministic reports)
+- Custom views: `views/*.md` (hand-authored Markdown, Dataview, or Bases content)
 - Topic briefs: `topics/*/brief.md` (human-maintained)
 - Artifacts: `artifacts/**/*` (when explicitly attached)
 
@@ -95,9 +95,11 @@ After updating `.gitignore`:
 # Initialize with gitignore update
 kano-backlog admin init --product myproject --agent myagent
 
-# Regenerate derived data (should work after clone)
+# Rebuild derived indexes (should work after clone)
 kano-backlog embedding build --product myproject --force
-kano-backlog view refresh --product myproject --agent myagent
+
+# Discover custom views
+kano-backlog view list --product myproject
 
 # Validate gitignore effectiveness
 git status  # Should not show cache/derived files

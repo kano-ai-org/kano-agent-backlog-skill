@@ -36,7 +36,7 @@ _kano/backlog/products/<product>/
 │   ├── subtask/
 │   ├── bug/
 │   └── issue/
-└── views/            # Generated dashboards and reports
+└── views/            # Hand-authored custom Markdown, Dataview, or Bases content
 ```
 
 ## Process-defined types and states
@@ -191,7 +191,7 @@ elsewhere and this item should preserve traceability.
 
 When an item moves to `Duplicate`, frontmatter must include `duplicate_of` with
 `duplicate_of` and rejects self-references against the item's `id` or `uid`.
-List and dashboard views surface `duplicate_of` so reviewers can follow the
+List output and Backboard surface `duplicate_of` so reviewers can follow the
 canonical target.
 
 ## Ready gate (required, non-empty)
