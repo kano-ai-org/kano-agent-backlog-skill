@@ -7,10 +7,6 @@ name = "{{PRODUCT_NAME}}"
 # Required: stable ID prefix for items (recommended to keep short and uppercase)
 prefix = "{{PRODUCT_PREFIX}}"
 
-[views]
-# Auto-refresh dashboards after operations
-auto_refresh = true
-
 [log]
 # verbosity: debug|info|warning|error
 verbosity = "warning"
