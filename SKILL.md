@@ -66,6 +66,12 @@ Use this skill to:
 
 ## Non-negotiables
 
+- Shared backlog checkout invariant:
+  - Treat a configured shared backlog root as one canonical mutable checkout.
+  - Never create or use a Git worktree for the shared backlog repository. Source repositories may use worktrees, but every `kob` read, mutation, and ID allocation must still target the canonical shared backlog checkout.
+  - Backlog worktrees can carry stale branch state and independent derived sequence databases, causing duplicate Display IDs and large collision sets when branches are later converged.
+  - Before creating items, converge the canonical shared backlog checkout and run `kob admin sync-sequences --product <product>`. If it cannot be converged safely, stop and record the blocker instead of switching the backlog to a worktree.
+  - Use `kob sandbox` for isolated backlog experiments; do not use a Git worktree as a production-backlog sandbox.
 - Planning before coding: create/update items and meet the Ready gate before making code changes.
 - Worklog is append-only; never rewrite history.
 - Update Worklog whenever:
