@@ -7,6 +7,9 @@
   "windowsAgentLabel": "windows && lightweight",
   "linuxAgentLabel": "linux && lightweight",
   "macAgentLabel": "mac && lightweight",
+  "platformSharedWorkspaceRoots": {
+    "mac": "/Users/Shared/KanoHorizonia/Jenkins/workspaces/KanoAgentSkills"
+  },
   "bRunReleasePhase": false,
   "bUseReleasePlatformMatrix": true,
   "bNormalizePlatformPackages": true,
