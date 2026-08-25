@@ -9,6 +9,7 @@
 #include "kano/backlog_ops/integrity/integrity_ops.hpp"
 #include "kano/backlog_ops/relation/relation_ops.hpp"
 #include "kano/backlog_ops/migration/migration_ops.hpp"
+#include "kano/backlog_ops/prefix_migration/prefix_migration_ops.hpp"
 #include "kano/backlog_ops/topic/topic_ops.hpp"
 #include "kano/backlog_ops/workset/workset_ops.hpp"
 #include "kano/backlog_core/diagnostics/mutation_timing.hpp"
@@ -10756,334 +10757,175 @@ int main(int InArgc, char* InArgv[]) {
                 std::cout << json_to_string(response, true) << "\n";
             });
 
-            // migrate-prefix subcommand (dry-run planner)
-            auto* migratePrefixCmd = configCmd->add_subcommand("migrate-prefix", "Plan product prefix migration");
+            // migrate-prefix subcommand
+            auto* migratePrefixCmd = configCmd->add_subcommand(
+                "migrate-prefix",
+                "Plan, apply, verify, or roll back a product prefix migration");
             struct MigratePrefixCommandState {
                 std::string path = ".";
+                std::string backlog_root;
                 std::string product;
                 std::string to;
                 std::string from;
-                bool write = false;
+                std::string plan_hash;
+                std::size_t max_files = kDefaultPrefixMigrationMaxFiles;
+                std::uintmax_t max_bytes = kDefaultPrefixMigrationMaxBytes;
+                bool apply = false;
+                bool verify = false;
+                bool status = false;
+                bool rollback = false;
+                bool confirm = false;
+                bool compact = false;
             };
             const auto migratePrefixState = cli11_state.make_shared<MigratePrefixCommandState>();
-            auto& migpf_path = migratePrefixState->path;
-            auto& migpf_product = migratePrefixState->product;
-            auto& migpf_to = migratePrefixState->to;
-            auto& migpf_from = migratePrefixState->from;
-            auto& migpf_write = migratePrefixState->write;
-            migratePrefixCmd->add_option("--path", migpf_path, "Resource path to resolve config from");
-            migratePrefixCmd->add_option("--product", migpf_product, "Product name/slug");
-            migratePrefixCmd->add_option("--to", migpf_to, "Target new product prefix");
-            migratePrefixCmd->add_option("--from", migpf_from, "Expected current prefix");
-            migratePrefixCmd->add_flag("--write", migpf_write, "Apply migration");
-            migratePrefixCmd->callback([&, migratePrefixState]() {
-
-                Json::Value response(Json::objectValue);
-                response["command"] = "config migrate-prefix";
-                response["status"] = "dry-run";
-                response["product"] = migpf_product.empty() ? product_name_opt : migpf_product;
-                response["to_prefix"] = migpf_to;
-                response["valid"] = true;
-                response["conflicts"] = Json::Value(Json::arrayValue);
-                response["blocked_reasons"] = Json::Value(Json::arrayValue);
-
-                if (migpf_to.empty()) {
-                    response["valid"] = false;
-                    response["blocked_reasons"].append("Target prefix (--to) is required");
-                    std::cout << json_to_string(response, true) << "\n";
-                    throw std::runtime_error("Target prefix (--to) is required");
+            migratePrefixCmd->add_option(
+                "--path", migratePrefixState->path,
+                "Resource path used to resolve the shared backlog");
+            migratePrefixCmd->add_option(
+                "--backlog-root", migratePrefixState->backlog_root,
+                "Explicit shared backlog root");
+            migratePrefixCmd->add_option(
+                "--product", migratePrefixState->product,
+                "Registered product slug or current prefix");
+            migratePrefixCmd->add_option(
+                "--to", migratePrefixState->to,
+                "Target product prefix");
+            migratePrefixCmd->add_option(
+                "--from", migratePrefixState->from,
+                "Expected current product prefix");
+            migratePrefixCmd->add_option(
+                "--plan-hash", migratePrefixState->plan_hash,
+                "Exact reviewed plan SHA-256");
+            migratePrefixCmd->add_option(
+                "--max-files", migratePrefixState->max_files,
+                "Maximum files included in the source snapshot");
+            migratePrefixCmd->add_option(
+                "--max-bytes", migratePrefixState->max_bytes,
+                "Maximum aggregate bytes included in the source snapshot");
+            migratePrefixCmd->add_flag(
+                "--apply", migratePrefixState->apply,
+                "Apply the exact reviewed plan");
+            migratePrefixCmd->add_flag(
+                "--write", migratePrefixState->apply,
+                "Deprecated alias for --apply; still requires plan hash and confirmation");
+            migratePrefixCmd->add_flag(
+                "--verify", migratePrefixState->verify,
+                "Verify a persisted migration transaction");
+            migratePrefixCmd->add_flag(
+                "--status", migratePrefixState->status,
+                "Inspect a persisted migration transaction");
+            migratePrefixCmd->add_flag(
+                "--rollback", migratePrefixState->rollback,
+                "Restore the exact pre-migration file state");
+            migratePrefixCmd->add_flag(
+                "--confirm", migratePrefixState->confirm,
+                "Confirm apply or rollback mutation");
+            migratePrefixCmd->add_flag(
+                "--compact", migratePrefixState->compact,
+                "Emit compact JSON");
+            migratePrefixCmd->callback([migratePrefixState, &product_name_opt]() {
+                const auto operation_count =
+                    static_cast<int>(migratePrefixState->apply) +
+                    static_cast<int>(migratePrefixState->verify) +
+                    static_cast<int>(migratePrefixState->status) +
+                    static_cast<int>(migratePrefixState->rollback);
+                if (operation_count > 1) {
+                    throw std::runtime_error(
+                        "Choose only one of --apply, --verify, --status, or --rollback");
                 }
 
-                // Grammar check
-                static const std::regex prefix_regex("^[A-Z][A-Z0-9]{1,15}$");
-                if (!std::regex_match(migpf_to, prefix_regex)) {
-                    response["valid"] = false;
-                    response["blocked_reasons"].append("New prefix does not match grammar: length 2-16, starts with A-Z, containing A-Z and 0-9");
-                }
-
-                // Resolve BacklogContext
-                BacklogContext ctx;
-                try {
-                    ctx = BacklogContext::resolve(
-                        migpf_path,
-                        migpf_product.empty()
-                            ? (product_name_opt.empty() ? std::nullopt : std::optional<std::string>(product_name_opt))
-                            : std::optional<std::string>(migpf_product),
-                        std::nullopt
-                    );
-                } catch (const std::exception& e) {
-                    response["valid"] = false;
-                    response["blocked_reasons"].append("Failed to resolve product configuration context: " + std::string(e.what()));
-                    std::cout << json_to_string(response, true) << "\n";
-                    throw std::runtime_error("Failed to resolve product configuration context");
-                }
-
-                if (response["product"].asString().empty()) {
-                    response["product"] = ctx.product_name;
-                }
-
-                std::string resolved_old_prefix = ctx.product_def.prefix;
-                response["from_prefix"] = resolved_old_prefix;
-
-                if (!migpf_from.empty() && migpf_from != resolved_old_prefix) {
-                    response["valid"] = false;
-                    response["blocked_reasons"].append("Specified current prefix '" + migpf_from + "' does not match resolved prefix '" + resolved_old_prefix + "'");
-                }
-
-                // Collision detection in the project config
-                auto mp_config_path = ConfigLoader::find_project_config(std::filesystem::absolute(migpf_path));
-                if (mp_config_path) {
-                    auto project_config = ProjectConfig::load_from_toml(*mp_config_path);
-                    if (project_config) {
-                        for (const auto& [name, def] : project_config->products) {
-                            if (name != response["product"].asString() && def.prefix == migpf_to) {
-                                response["valid"] = false;
-                                response["conflicts"].append("Prefix collision: target prefix '" + migpf_to + "' is already used by product '" + name + "'");
-                            }
+                const auto make_recovery = [&]() {
+                    PrefixMigrationOps::RecoveryOptions recovery;
+                    recovery.start_path = migratePrefixState->path;
+                    if (!migratePrefixState->backlog_root.empty()) {
+                        recovery.backlog_root =
+                            std::filesystem::path(migratePrefixState->backlog_root);
+                    }
+                    recovery.plan_hash = migratePrefixState->plan_hash;
+                    recovery.confirm = migratePrefixState->confirm;
+                    return recovery;
+                };
+                if (migratePrefixState->verify ||
+                    migratePrefixState->status ||
+                    migratePrefixState->rollback) {
+                    if (migratePrefixState->plan_hash.empty()) {
+                        throw std::runtime_error(
+                            "--plan-hash is required for recovery operations");
+                    }
+                    if (migratePrefixState->verify) {
+                        const auto result =
+                            PrefixMigrationOps::verify(make_recovery());
+                        std::cout << result.to_json(!migratePrefixState->compact)
+                                  << "\n";
+                        if (result.status != "verified") {
+                            throw std::runtime_error(
+                                "Prefix migration verification failed");
                         }
+                        return;
                     }
+                    if (migratePrefixState->status) {
+                        const auto result =
+                            PrefixMigrationOps::status(make_recovery());
+                        std::cout << result.to_json(!migratePrefixState->compact)
+                                  << "\n";
+                        return;
+                    }
+                    const auto result =
+                        PrefixMigrationOps::rollback(make_recovery());
+                    std::cout << result.to_json(!migratePrefixState->compact)
+                              << "\n";
+                    if (result.status != "rolled_back") {
+                        throw std::runtime_error(
+                            "Prefix migration rollback failed");
+                    }
+                    return;
                 }
 
-                // Planning proposed changes
-                Json::Value proposed_changes(Json::objectValue);
-                proposed_changes["config_files"] = Json::Value(Json::arrayValue);
-                proposed_changes["item_renames"] = Json::Value(Json::arrayValue);
-                proposed_changes["item_content_updates"] = Json::Value(Json::arrayValue);
-                proposed_changes["duplicate_admissions"] = Json::Value(Json::arrayValue);
-                proposed_changes["other_references"] = Json::Value(Json::arrayValue);
+                PrefixMigrationOps::PlanOptions plan_options;
+                plan_options.start_path = migratePrefixState->path;
+                if (!migratePrefixState->backlog_root.empty()) {
+                    plan_options.backlog_root =
+                        std::filesystem::path(migratePrefixState->backlog_root);
+                }
+                plan_options.request.product =
+                    migratePrefixState->product.empty()
+                        ? product_name_opt
+                        : migratePrefixState->product;
+                if (!migratePrefixState->from.empty()) {
+                    plan_options.request.expected_from_prefix =
+                        migratePrefixState->from;
+                }
+                plan_options.request.to_prefix = migratePrefixState->to;
+                plan_options.request.max_files = migratePrefixState->max_files;
+                plan_options.request.max_bytes = migratePrefixState->max_bytes;
 
-                if (response["valid"].asBool()) {
-                    // 1. Proposed config file modification
-                    if (mp_config_path) {
-                        Json::Value cf(Json::objectValue);
-                        cf["path"] = mp_config_path->generic_string();
-                        cf["action"] = "modify";
-                        cf["description"] = "Change prefix for products." + response["product"].asString() + " from '" + resolved_old_prefix + "' to '" + migpf_to + "'";
-                        proposed_changes["config_files"].append(cf);
+                if (migratePrefixState->apply) {
+                    PrefixMigrationOps::ApplyOptions apply_options;
+                    apply_options.plan = plan_options;
+                    apply_options.expected_plan_hash =
+                        migratePrefixState->plan_hash;
+                    apply_options.confirm = migratePrefixState->confirm;
+                    const auto result =
+                        PrefixMigrationOps::apply(apply_options);
+                    std::cout << result.to_json(!migratePrefixState->compact)
+                              << "\n";
+                    if (result.status != "applied") {
+                        throw std::runtime_error(
+                            "Prefix migration apply did not complete");
                     }
-
-                    // 2. Scan items & references across all products
-                    if (mp_config_path) {
-                        auto project_config = ProjectConfig::load_from_toml(*mp_config_path);
-                        if (project_config) {
-                            for (const auto& [name, def] : project_config->products) {
-                                auto p_root = project_config->resolve_backlog_root(name, *mp_config_path);
-                                if (!p_root) continue;
-                                CanonicalStore p_store(*p_root);
-                                for (const auto& item_path : p_store.list_items()) {
-                                    try {
-                                        auto item = p_store.read(item_path);
-                                        
-                                        // A. Target product: item renames and ID updates
-                                        if (name == response["product"].asString()) {
-                                            if (item.id.starts_with(resolved_old_prefix + "-")) {
-                                                std::string new_id = migpf_to + item.id.substr(resolved_old_prefix.size());
-                                                std::string old_filename = item_path.filename().generic_string();
-                                                std::string new_filename = new_id + old_filename.substr(item.id.size());
-                                                std::filesystem::path new_path = item_path.parent_path() / new_filename;
-
-                                                Json::Value rename_op(Json::objectValue);
-                                                rename_op["old_path"] = item_path.generic_string();
-                                                rename_op["new_path"] = new_path.generic_string();
-                                                rename_op["old_id"] = item.id;
-                                                rename_op["new_id"] = new_id;
-                                                proposed_changes["item_renames"].append(rename_op);
-
-                                                Json::Value update_op(Json::objectValue);
-                                                update_op["path"] = item_path.generic_string();
-                                                update_op["action"] = "modify_frontmatter_and_content";
-                                                Json::Value ref_list(Json::arrayValue);
-                                                ref_list.append(item.id + " -> " + new_id);
-                                                update_op["references_updated"] = ref_list;
-                                                proposed_changes["item_content_updates"].append(update_op);
-
-                                                // Check for duplicate admission json file
-                                                std::filesystem::path dup_json = *p_root / "_meta" / "duplicate-admission" / (item.id + ".json");
-                                                if (std::filesystem::exists(dup_json)) {
-                                                    std::filesystem::path new_dup_json = *p_root / "_meta" / "duplicate-admission" / (new_id + ".json");
-                                                    Json::Value dup_op(Json::objectValue);
-                                                    dup_op["old_path"] = dup_json.generic_string();
-                                                    dup_op["new_path"] = new_dup_json.generic_string();
-                                                    proposed_changes["duplicate_admissions"].append(dup_op);
-                                                }
-                                            }
-                                        } else {
-                                            // B. Other products: check if they refer to the old prefix IDs
-                                            auto refs = RefResolver::get_references(item);
-                                            std::vector<std::string> matching_refs;
-                                            for (const auto& ref : refs) {
-                                                if (ref.starts_with(resolved_old_prefix + "-")) {
-                                                    std::string target_new_ref = migpf_to + ref.substr(resolved_old_prefix.size());
-                                                    matching_refs.push_back(ref + " -> " + target_new_ref);
-                                                }
-                                            }
-                                            if (!matching_refs.empty()) {
-                                                Json::Value other_ref_op(Json::objectValue);
-                                                other_ref_op["path"] = item_path.generic_string();
-                                                other_ref_op["action"] = "update_body_text";
-                                                std::string details = "Update reference(s):";
-                                                for (const auto& r : matching_refs) {
-                                                    details += " " + r;
-                                                }
-                                                other_ref_op["details"] = details;
-                                                proposed_changes["other_references"].append(other_ref_op);
-                                            }
-                                        }
-                                    } catch (...) {}
-                                }
-
-                            }
-                        }
-                    }
+                    return;
                 }
 
-                response["proposed_changes"] = proposed_changes;
-
-                // ---- Apply mode ----
-                if (migpf_write) {
-                    if (!response["valid"].asBool()) {
-                        response["status"] = "apply-blocked";
-                        response["rollback_notes"] = "Plan is invalid. No files were mutated.";
-                        std::cout << json_to_string(response, true) << "\n";
-                        throw std::runtime_error("Prefix migration plan is invalid or blocked; apply aborted");
-                    }
-
-                    std::vector<std::string> renamed_items;
-                    std::vector<std::string> updated_files;
-                    std::vector<std::string> dup_admissions_renamed;
-
-                    // 1. Update backlog_config.toml prefix line
-                    if (mp_config_path && std::filesystem::exists(*mp_config_path)) {
-                        std::string toml_text = read_text_file_path(*mp_config_path);
-                        // Find the product section header, then replace the first prefix = "OLD" after it
-                        const std::string section_header = "[products." + response["product"].asString() + "]";
-                        const std::string old_prefix_line = "prefix = \"" + resolved_old_prefix + "\"";
-                        const std::string new_prefix_line = "prefix = \"" + migpf_to + "\"";
-                        auto sec_pos = toml_text.find(section_header);
-                        if (sec_pos != std::string::npos) {
-                            auto prefix_pos = toml_text.find(old_prefix_line, sec_pos);
-                            if (prefix_pos != std::string::npos) {
-                                toml_text.replace(prefix_pos, old_prefix_line.size(), new_prefix_line);
-                                write_text_file(*mp_config_path, toml_text);
-                                updated_files.push_back(mp_config_path->generic_string());
-                            }
-                        }
-                    }
-
-                    // 2. Rename + rewrite items in the target product
-                    if (mp_config_path) {
-                        auto project_config2 = ProjectConfig::load_from_toml(*mp_config_path);
-                        if (project_config2) {
-                            for (const auto& [pname, pdef] : project_config2->products) {
-                                auto p_root2 = project_config2->resolve_backlog_root(pname, *mp_config_path);
-                                if (!p_root2) continue;
-                                CanonicalStore p_store2(*p_root2);
-
-                                if (pname == response["product"].asString()) {
-                                    // Target product: rename + rewrite items
-                                    for (const auto& item_path : p_store2.list_items()) {
-                                        try {
-                                            auto item2 = p_store2.read(item_path);
-                                            if (!item2.id.starts_with(resolved_old_prefix + "-")) continue;
-                                            std::string new_id2 = migpf_to + item2.id.substr(resolved_old_prefix.size());
-                                            std::string old_fn = item_path.filename().generic_string();
-                                            std::string new_fn = new_id2 + old_fn.substr(item2.id.size());
-                                            std::filesystem::path new_item_path = item_path.parent_path() / new_fn;
-
-                                            // Rewrite content: replace all token-boundary occurrences of old_id -> new_id
-                                            std::string content = read_text_file_path(item_path);
-                                            content = replace_id_tokens(content, item2.id, new_id2);
-                                            write_text_file(new_item_path, content);
-                                            std::filesystem::remove(item_path);
-
-                                            renamed_items.push_back(item2.id + " -> " + new_id2);
-                                            updated_files.push_back(new_item_path.generic_string());
-
-                                            // Rename duplicate admission receipt
-                                            std::filesystem::path dup_src = *p_root2 / "_meta" / "duplicate-admission" / (item2.id + ".json");
-                                            std::filesystem::path dup_dst = *p_root2 / "_meta" / "duplicate-admission" / (new_id2 + ".json");
-                                            if (std::filesystem::exists(dup_src)) {
-                                                std::filesystem::rename(dup_src, dup_dst);
-                                                dup_admissions_renamed.push_back(item2.id + " -> " + new_id2);
-                                            }
-                                        } catch (...) {}
-                                    }
-                                } else {
-                                    // Other products: update cross-references
-                                    for (const auto& item_path : p_store2.list_items()) {
-                                        try {
-                                            bool changed = false;
-                                            const auto result_text = replace_prefix_id_tokens(
-                                                read_text_file_path(item_path),
-                                                resolved_old_prefix,
-                                                migpf_to,
-                                                changed);
-                                            if (changed) {
-                                                write_text_file(item_path, result_text);
-                                                updated_files.push_back(item_path.generic_string());
-                                            }
-                                        } catch (...) {}
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    // 3. Write migration receipt
-                    const auto receipt_dir = ctx.product_root / "_meta" / "receipts";
-                    std::filesystem::create_directories(receipt_dir);
-                    std::string ts_safe = current_utc_timestamp();
-                    std::replace(ts_safe.begin(), ts_safe.end(), ':', '-');
-                    const auto receipt_path = receipt_dir / ("migrate_prefix_" + ts_safe + ".json");
-                    Json::Value receipt(Json::objectValue);
-                    receipt["from_prefix"] = resolved_old_prefix;
-                    receipt["to_prefix"] = migpf_to;
-                    receipt["product"] = response["product"].asString();
-                    receipt["timestamp"] = current_utc_timestamp();
-                    Json::Value ri_arr(Json::arrayValue);
-                    for (const auto& s : renamed_items) ri_arr.append(s);
-                    receipt["renamed_items"] = ri_arr;
-                    Json::Value uf_arr(Json::arrayValue);
-                    for (const auto& s : updated_files) uf_arr.append(s);
-                    receipt["updated_files"] = uf_arr;
-                    Json::Value da_arr(Json::arrayValue);
-                    for (const auto& s : dup_admissions_renamed) da_arr.append(s);
-                    receipt["duplicate_admissions_renamed"] = da_arr;
-                    write_json_file(receipt_path, receipt);
-
-                    response["status"] = "applied";
-                    Json::Value applied_changes(Json::objectValue);
-                    applied_changes["items_renamed"] = static_cast<int>(renamed_items.size());
-                    applied_changes["files_updated"] = static_cast<int>(updated_files.size());
-                    applied_changes["duplicate_admissions_renamed"] = static_cast<int>(dup_admissions_renamed.size());
-                    response["applied_changes"] = applied_changes;
-                    response["receipt_path"] = receipt_path.generic_string();
-                    response["rollback_notes"] = "Migration applied. Use git reset --hard to rollback if needed.";
-                    std::cout << json_to_string(response, true) << "\n";
-                    return; // skip the dry-run output below
-                }
-                // ---- End apply mode ----
-
-                Json::Value val_cmds(Json::arrayValue);
-                val_cmds.append("pixi run test");
-                val_cmds.append("kano-backlog config validate");
-                response["validation_commands"] = val_cmds;
-
-                Json::Value aliases(Json::objectValue);
-                aliases["policy"] = "legacy-compatibility";
-                Json::Value mappings(Json::objectValue);
-                mappings[resolved_old_prefix] = migpf_to;
-                aliases["mappings"] = mappings;
-                response["aliases"] = aliases;
-
-                response["rollback_notes"] = "Since this is a dry-run, no files have been mutated. No rollback is required.";
-
-                std::cout << json_to_string(response, true) << "\n";
-                if (!response["valid"].asBool()) {
-                    throw std::runtime_error("Prefix migration plan is invalid or blocked");
+                const auto result = PrefixMigrationOps::plan(plan_options);
+                std::cout << result.to_json(!migratePrefixState->compact)
+                          << "\n";
+                if (!result.ready()) {
+                    throw std::runtime_error(
+                        "Prefix migration plan is invalid or blocked");
                 }
             });
         }
+
 
         // ============================================================
         // migration group

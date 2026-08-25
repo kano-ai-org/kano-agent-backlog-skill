@@ -1984,74 +1984,146 @@ int main(int argc, char** argv) {
         expect(read_text(topic_output).find("\"builtin_count\"") != std::string::npos,
             "topic create --list-templates did not emit builtin_count");
 
-        // Test config migrate-prefix (dry-run planner)
+        // Test guarded config migrate-prefix lifecycle.
         const auto migpf_ok_output = temp_root / "migpf_ok.json";
         expect_command_capture_success(
             run_command_capture(binary, {
-                "-P", "quick-smoke-product", "config", "migrate-prefix", "--to", "NEWQS"
+                "-P", "quick-smoke-product", "config", "migrate-prefix",
+                "--from", "QS", "--to", "NEWQS", "--compact"
             }, migpf_ok_output),
             migpf_ok_output,
-            "config migrate-prefix failed"
+            "config migrate-prefix plan failed"
         );
-        const auto migpf_ok_text = read_text(migpf_ok_output);
-        expect(migpf_ok_text.find("\"valid\" : true") != std::string::npos, "migrate-prefix should be valid");
-        expect(migpf_ok_text.find("\"from_prefix\" : \"QS\"") != std::string::npos, "migrate-prefix from_prefix should be QS");
-        expect(migpf_ok_text.find("\"to_prefix\" : \"NEWQS\"") != std::string::npos, "migrate-prefix to_prefix should be NEWQS");
-        expect(migpf_ok_text.find("QS-TSK-0001 -> NEWQS-TSK-0001") != std::string::npos, "migrate-prefix should update references");
-        expect(migpf_ok_text.find("QS-TSK-0002 -> NEWQS-TSK-0002") != std::string::npos, "migrate-prefix should update child references");
+        const auto migpf_plan = read_json(migpf_ok_output);
+        expect(
+            migpf_plan["status"].asString() == "ready" &&
+                migpf_plan["items"].size() >= 2,
+            "migrate-prefix should emit a complete ready plan");
+        expect(
+            migpf_plan["from_prefix"].asString() == "QS" &&
+                migpf_plan["to_prefix"].asString() == "NEWQS",
+            "migrate-prefix should report the exact prefix mapping");
+        expect(
+            migpf_plan["compatibility_policy"].asString() ==
+                "no-legacy-prefix-alias",
+            "migrate-prefix should expose the pre-1.0 alias policy");
+        const auto migpf_plan_hash =
+            migpf_plan["plan_hash"].asString();
+        expect(
+            migpf_plan_hash.size() == 64,
+            "migrate-prefix should emit an immutable SHA-256 plan hash");
+        expect(
+            read_text(migpf_ok_output).find(temp_root.string()) ==
+                std::string::npos,
+            "migrate-prefix output should not expose raw fixture paths");
+
         const auto migpf_fail_output = temp_root / "migpf_fail.json";
         expect(run_command_capture(binary, {
             "-P", "quick-smoke-product", "config", "migrate-prefix"
-        }, migpf_fail_output) != 0, "migrate-prefix without --to should fail");
-        const auto migpf_fail_text = read_text(migpf_fail_output);
-        expect(migpf_fail_text.find("\"valid\" : false") != std::string::npos, "migrate-prefix without --to should be invalid");
-        expect(migpf_fail_text.find("Target prefix (--to) is required") != std::string::npos, "migrate-prefix should list missing target error");
+        }, migpf_fail_output) != 0,
+            "migrate-prefix without --to should fail");
+        expect(
+            read_text(migpf_fail_output).find("invalid_target_prefix") !=
+                std::string::npos,
+            "migrate-prefix without --to should report a bounded blocker");
 
         const auto migpf_bad_to_output = temp_root / "migpf_bad_to.json";
         expect(run_command_capture(binary, {
-            "-P", "quick-smoke-product", "config", "migrate-prefix", "--to", "123QS"
-        }, migpf_bad_to_output) != 0, "migrate-prefix with invalid grammar --to should fail");
-        const auto migpf_bad_to_text = read_text(migpf_bad_to_output);
-        expect(migpf_bad_to_text.find("\"valid\" : false") != std::string::npos, "migrate-prefix with invalid grammar --to should be invalid");
-        expect(migpf_bad_to_text.find("New prefix does not match grammar") != std::string::npos, "migrate-prefix should list grammar error");
+            "-P", "quick-smoke-product", "config", "migrate-prefix",
+            "--to", "123QS"
+        }, migpf_bad_to_output) != 0,
+            "migrate-prefix with invalid grammar should fail");
+        expect(
+            read_text(migpf_bad_to_output).find("invalid_target_prefix") !=
+                std::string::npos,
+            "migrate-prefix should report the target grammar blocker");
 
         const auto migpf_bad_from_output = temp_root / "migpf_bad_from.json";
         expect(run_command_capture(binary, {
-            "-P", "quick-smoke-product", "config", "migrate-prefix", "--to", "NEWQS", "--from", "WRONG"
-        }, migpf_bad_from_output) != 0, "migrate-prefix with mismatching --from should fail");
-        const auto migpf_bad_from_text = read_text(migpf_bad_from_output);
-        expect(migpf_bad_from_text.find("\"valid\" : false") != std::string::npos, "migrate-prefix with mismatching --from should be invalid");
-        expect(migpf_bad_from_text.find("does not match resolved prefix") != std::string::npos, "migrate-prefix should list mismatching from error");
+            "-P", "quick-smoke-product", "config", "migrate-prefix",
+            "--to", "NEWQS", "--from", "WRONG"
+        }, migpf_bad_from_output) != 0,
+            "migrate-prefix with mismatching --from should fail");
+        expect(
+            read_text(migpf_bad_from_output).find(
+                "source_prefix_mismatch") != std::string::npos,
+            "migrate-prefix should report the source prefix mismatch");
 
-        // Step 67: apply migration with --write
+        const auto migpf_unconfirmed_output =
+            temp_root / "migpf_unconfirmed.json";
+        expect(run_command_capture(binary, {
+            "-P", "quick-smoke-product", "config", "migrate-prefix",
+            "--from", "QS", "--to", "NEWQS", "--apply",
+            "--plan-hash", migpf_plan_hash
+        }, migpf_unconfirmed_output) != 0,
+            "migrate-prefix apply without confirmation should fail");
+        expect(
+            read_text(migpf_unconfirmed_output).find(
+                "confirmation_required") != std::string::npos,
+            "migrate-prefix apply should require explicit confirmation");
+
         const auto migpf_apply_output = temp_root / "migpf_apply.json";
         expect_command_capture_success(
             run_command_capture(binary, {
-                "-P", "quick-smoke-product", "config", "migrate-prefix", "--to", "NEWQS2", "--write"
+                "-P", "quick-smoke-product", "config", "migrate-prefix",
+                "--from", "QS", "--to", "NEWQS", "--apply",
+                "--plan-hash", migpf_plan_hash, "--confirm", "--compact"
             }, migpf_apply_output),
             migpf_apply_output,
-            "config migrate-prefix --write failed"
+            "guarded config migrate-prefix apply failed"
         );
-        const auto migpf_apply_text = read_text(migpf_apply_output);
-        expect(migpf_apply_text.find("\"status\" : \"applied\"") != std::string::npos, "apply should report applied status");
-        expect(migpf_apply_text.find("\"valid\" : true") != std::string::npos, "apply should be valid");
-        expect(migpf_apply_text.find("\"from_prefix\" : \"QS\"") != std::string::npos, "apply from_prefix should be QS");
-        expect(migpf_apply_text.find("\"to_prefix\" : \"NEWQS2\"") != std::string::npos, "apply to_prefix should be NEWQS2");
-        expect(migpf_apply_text.find("\"items_renamed\"") != std::string::npos, "apply should report items_renamed count");
+        const auto migpf_apply = read_json(migpf_apply_output);
         expect(
-            !std::filesystem::exists(quick_views_root / "Dashboard_" "PlainMarkdown_Active.md") &&
-                !std::filesystem::exists(quick_views_root / "Dashboard_" "PlainMarkdown_New.md") &&
-                !std::filesystem::exists(quick_views_root / "Dashboard_" "PlainMarkdown_Done.md"),
-            "migrate-prefix should not generate plain Markdown dashboards");
+            migpf_apply["status"].asString() == "applied" &&
+                migpf_apply["recovery_status"].asString() == "available",
+            "apply should report applied status and recovery availability");
+        expect(
+            std::filesystem::is_regular_file(
+                temp_root / "_kano" / "backlog" / "products" /
+                "quick-smoke-product" / "items" / "task" / "0000" /
+                "NEWQS-TSK-0001_quick-smoke-task.md"),
+            "apply should publish canonical NEWQS item paths");
+        expect(
+            !std::filesystem::exists(
+                temp_root / "_kano" / "backlog" / "products" /
+                "quick-smoke-product" / "items" / "task" / "0000" /
+                "QS-TSK-0001_quick-smoke-task.md"),
+            "apply should retire canonical QS item paths");
+        expect(
+            !std::filesystem::exists(
+                quick_views_root / "Dashboard_PlainMarkdown_Active.md") &&
+                !std::filesystem::exists(
+                    quick_views_root / "Dashboard_PlainMarkdown_New.md") &&
+                !std::filesystem::exists(
+                    quick_views_root / "Dashboard_PlainMarkdown_Done.md"),
+            "migrate-prefix should not generate retired Markdown dashboards");
 
-        // Step 68: verify --write blocked when --from mismatches (prefix was already changed to NEWQS2)
-        const auto migpf_write_fail_output = temp_root / "migpf_write_fail.json";
-        expect(run_command_capture(binary, {
-            "-P", "quick-smoke-product", "config", "migrate-prefix", "--to", "NEWQS3", "--from", "QS", "--write"
-        }, migpf_write_fail_output) != 0, "migrate-prefix --write with mismatched --from should fail and not apply");
-        const auto migpf_write_fail_text = read_text(migpf_write_fail_output);
-        expect(migpf_write_fail_text.find("apply-blocked") != std::string::npos || migpf_write_fail_text.find("\"valid\" : false") != std::string::npos,
-            "apply-blocked output should report invalid plan");
+        const auto migpf_verify_output = temp_root / "migpf_verify.json";
+        expect_command_capture_success(
+            run_command_capture(binary, {
+                "config", "migrate-prefix", "--path", temp_root.string(),
+                "--verify", "--plan-hash", migpf_plan_hash, "--compact"
+            }, migpf_verify_output),
+            migpf_verify_output,
+            "config migrate-prefix verification failed"
+        );
+        expect(
+            read_json(migpf_verify_output)["status"].asString() == "verified",
+            "migrate-prefix verification should pass");
+
+        const auto migpf_status_output = temp_root / "migpf_status.json";
+        expect_command_capture_success(
+            run_command_capture(binary, {
+                "config", "migrate-prefix", "--path", temp_root.string(),
+                "--status", "--plan-hash", migpf_plan_hash, "--compact"
+            }, migpf_status_output),
+            migpf_status_output,
+            "config migrate-prefix status failed"
+        );
+        expect(
+            read_json(migpf_status_output)["rollback_supported"].asBool(),
+            "migrate-prefix status should expose rollback support");
+
 
         std::filesystem::current_path(original_cwd);
         std::filesystem::remove_all(temp_root);

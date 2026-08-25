@@ -410,12 +410,12 @@ int main() {
         const auto source_path = std::filesystem::path(KANO_REPO_ROOT) /
             "src/cpp/code/apps/kano_backlog_cli/main.cpp";
         const auto inventory = audit_cli11_lifetimes(source_path);
-        expect(inventory.total == 696, "CLI11 binding inventory changed; review every added or removed binding and update the audited baseline");
+        expect(inventory.total == 706, "CLI11 binding inventory changed; review every added or removed binding and update the audited baseline");
         expect(inventory.lexical > 0, "CLI11 audit did not classify lexical main-lifetime bindings");
         expect(inventory.arena_direct > 0, "CLI11 audit did not classify arena-retained direct bindings");
         expect(inventory.arena_owner > 0, "CLI11 audit did not classify arena-retained shared owners");
         expect(inventory.retained_helper_owner > 0, "CLI11 audit did not classify helper-retained shared owners");
-        expect(inventory.member_alias > 0, "CLI11 audit did not classify shared-state member aliases");
+        expect(inventory.member_alias == 0, "CLI11 member aliases were reintroduced; bind retained shared-state members directly");
         if (!inventory.unsafe.empty()) {
             std::ostringstream message;
             message << "unsafe CLI11 option bindings:";
