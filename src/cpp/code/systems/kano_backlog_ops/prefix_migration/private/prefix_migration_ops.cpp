@@ -223,7 +223,30 @@ std::string json_string(const Json::Value& value, bool pretty) {
     Json::StreamWriterBuilder builder;
     builder["indentation"] = pretty ? "  " : "";
     builder["commentStyle"] = "None";
-    return Json::writeString(builder, value);
+    auto rendered = Json::writeString(builder, value);
+    if (!pretty) {
+        return rendered;
+    }
+
+    std::string normalized;
+    normalized.reserve(rendered.size());
+    std::size_t line_start = 0;
+    while (line_start < rendered.size()) {
+        const auto newline = rendered.find('\n', line_start);
+        const auto line_end = newline == std::string::npos ? rendered.size() : newline;
+        auto content_end = line_end;
+        while (content_end > line_start &&
+               (rendered[content_end - 1] == ' ' || rendered[content_end - 1] == '\t')) {
+            --content_end;
+        }
+        normalized.append(rendered, line_start, content_end - line_start);
+        if (newline == std::string::npos) {
+            break;
+        }
+        normalized.push_back('\n');
+        line_start = newline + 1;
+    }
+    return normalized;
 }
 
 Json::Value parse_json(const std::string& content) {

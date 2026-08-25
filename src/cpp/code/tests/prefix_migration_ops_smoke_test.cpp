@@ -255,6 +255,11 @@ int main() {
         expect(
             std::filesystem::is_regular_file(root / applied.receipt_path),
             "apply should persist an immutable migration receipt");
+        const auto receipt_text = read_text(root / applied.receipt_path);
+        expect(
+            receipt_text.find(" \n") == std::string::npos &&
+                receipt_text.find("\t\n") == std::string::npos,
+            "migration receipt should not contain trailing whitespace");
         const auto replayed = PrefixMigrationOps::apply(stale_apply);
         expect(
             replayed.status == "applied" &&
