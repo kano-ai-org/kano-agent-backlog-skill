@@ -90,4 +90,3 @@ bytes and fails closed if later edits have drifted from both recorded states.
 Repo catalogs are outside KOB ownership. A ready plan reports the required
 `repo_catalog:<product>:backlog_prefix=<new-prefix>` update, which must be
 committed and validated in the owning integration repository.
-
