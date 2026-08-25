@@ -2003,17 +2003,23 @@ int main(int argc, char** argv) {
         const auto chunks_build_output = temp_root / "chunks-build.json";
         expect(run_command_capture(binary, {
             "chunks", "build",
-            "--product", "kano-ai-3d-asset-skill",
+            "--product", "KA",
             "--backlog-root", backlog_root.string(),
             "--force",
             "--format", "json"
         }, chunks_build_output) == 0, "chunks build failed");
-        expect(read_text(chunks_build_output).find("\"chunks_indexed\"") != std::string::npos, "chunks build did not emit json summary");
+        const auto chunks_build_text = read_text(chunks_build_output);
+        expect(chunks_build_text.find("\"product\" : \"kano-ai-3d-asset-skill\"") != std::string::npos,
+            "chunks build did not canonicalize the explicit-backlog-root prefix alias");
+        expect(chunks_build_text.find("\"items_indexed\" : 0") == std::string::npos,
+            "chunks build prefix alias resolved to an empty product root");
+        expect(chunks_build_text.find("\"chunks_indexed\" : 0") == std::string::npos,
+            "chunks build prefix alias produced no canonical chunks");
 
         const auto chunks_query_output = temp_root / "chunks-query.json";
         expect(run_command_capture(binary, {
             "chunks", "query", "Native",
-            "--product", "kano-ai-3d-asset-skill",
+            "--product", "KA",
             "--backlog-root", backlog_root.string(),
             "--format", "json"
         }, chunks_query_output) == 0, "chunks query failed");

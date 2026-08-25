@@ -9103,12 +9103,33 @@ int main(int InArgc, char* InArgv[]) {
             return resolve_ctx_for_product_arg(command_product);
         }
 
-        BacklogContext ctx;
-        ctx.backlog_root = normalized_absolute_path(std::filesystem::path(backlog_root_arg));
-        ctx.project_root = normalized_absolute_path(ctx.backlog_root.parent_path().parent_path());
-        ctx.product_name = !command_product.empty()
+        const auto explicit_backlog_root =
+            normalized_absolute_path(std::filesystem::path(backlog_root_arg));
+        const auto requested_product = !command_product.empty()
             ? command_product
             : (!product_name_opt.empty() ? product_name_opt : std::string("kano-agent-backlog-skill"));
+        std::filesystem::path registry_resource;
+        for (const auto& candidate : std::vector<std::filesystem::path>{
+                 explicit_backlog_root,
+                 explicit_backlog_root.parent_path().parent_path()}) {
+            if (ConfigLoader::find_project_config(candidate)) {
+                registry_resource = candidate;
+                break;
+            }
+        }
+        if (!registry_resource.empty()) {
+            return BacklogContext::resolve(
+                registry_resource,
+                std::optional<std::string>(requested_product),
+                sandbox_name_opt.empty()
+                    ? std::nullopt
+                    : std::optional<std::string>(sandbox_name_opt));
+        }
+
+        BacklogContext ctx;
+        ctx.backlog_root = explicit_backlog_root;
+        ctx.project_root = normalized_absolute_path(ctx.backlog_root.parent_path().parent_path());
+        ctx.product_name = requested_product;
         ctx.product_root = ctx.backlog_root / "products" / ctx.product_name;
         ctx.product_def.name = ctx.product_name;
         ctx.product_def.prefix = "KABS";
@@ -14829,10 +14850,33 @@ int main(int InArgc, char* InArgv[]) {
             const auto resolve_chunks_ctx = [&]() {
                 const auto effective_product = !command_product.empty() ? command_product : local_product;
                 if (!backlog_root.empty()) {
+                    const auto explicit_backlog_root =
+                        normalized_absolute_path(std::filesystem::path(backlog_root));
+                    const auto requested_product = !effective_product.empty()
+                        ? effective_product
+                        : std::string("kano-agent-backlog-skill");
+                    std::filesystem::path registry_resource;
+                    for (const auto& candidate : std::vector<std::filesystem::path>{
+                             explicit_backlog_root,
+                             explicit_backlog_root.parent_path().parent_path()}) {
+                        if (ConfigLoader::find_project_config(candidate)) {
+                            registry_resource = candidate;
+                            break;
+                        }
+                    }
+                    if (!registry_resource.empty()) {
+                        return BacklogContext::resolve(
+                            registry_resource,
+                            std::optional<std::string>(requested_product),
+                            local_sandbox.empty()
+                                ? std::nullopt
+                                : std::optional<std::string>(local_sandbox));
+                    }
+
                     BacklogContext ctx;
-                    ctx.backlog_root = normalized_absolute_path(std::filesystem::path(backlog_root));
+                    ctx.backlog_root = explicit_backlog_root;
                     ctx.project_root = normalized_absolute_path(ctx.backlog_root.parent_path().parent_path());
-                    ctx.product_name = !effective_product.empty() ? effective_product : std::string("kano-agent-backlog-skill");
+                    ctx.product_name = requested_product;
                     ctx.product_root = ctx.backlog_root / "products" / ctx.product_name;
                     ctx.product_def.name = ctx.product_name;
                     ctx.product_def.prefix = "KABS";
