@@ -91,6 +91,18 @@ set_tests_properties("${KB_TEST_PREFIX_MIGRATION_OPS}" PROPERTIES
     ENVIRONMENT "CI=true;KANO_BACKLOG_NONINTERACTIVE=1;KANO_TEST_NONINTERACTIVE=1;GIT_TERMINAL_PROMPT=0"
 )
 
+add_executable(product_relocation_ops_smoke_test
+    product_relocation_ops_smoke_test.cpp
+)
+target_compile_features(product_relocation_ops_smoke_test PRIVATE cxx_std_23)
+target_link_libraries(product_relocation_ops_smoke_test PRIVATE kano::backlog_ops)
+set(KB_TEST_PRODUCT_RELOCATION_OPS "[bdd][featured][feature:product-relocation][scenario:KOB-BDD-PRODUCT-RELOCATION-001] Product root relocation is bounded identity-preserving cross-volume-safe and recoverable")
+add_test(NAME "${KB_TEST_PRODUCT_RELOCATION_OPS}" COMMAND product_relocation_ops_smoke_test)
+set_tests_properties("${KB_TEST_PRODUCT_RELOCATION_OPS}" PROPERTIES
+    TIMEOUT 120
+    ENVIRONMENT "CI=true;KANO_BACKLOG_NONINTERACTIVE=1;KANO_TEST_NONINTERACTIVE=1;GIT_TERMINAL_PROMPT=0"
+)
+
 add_executable(topic_ops_smoke_test
     topic_ops_smoke_test.cpp
 )

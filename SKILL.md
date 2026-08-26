@@ -775,6 +775,10 @@ Guideline: do not paste large `--help` output into chat; inspect it locally and 
   - `kob view list --product <name>`
 - Backlog integrity checks:
   - `kob validate uids --product <name>`
+- Guarded product-root convergence:
+  - `kob migration relocate-product plan --product <slug> --backlog-root <shared-backlog-root>`
+  - Review the bounded plan, then use `apply ... --plan-hash <sha256> --confirm`.
+  - See [docs/product-root-relocation.md](docs/product-root-relocation.md) for verify/status/rollback and safety invariants.
 
 ## Conflict handling policy (configurable)
 

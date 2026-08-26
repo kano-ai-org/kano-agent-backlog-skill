@@ -10,6 +10,7 @@
 #include "kano/backlog_ops/relation/relation_ops.hpp"
 #include "kano/backlog_ops/migration/migration_ops.hpp"
 #include "kano/backlog_ops/prefix_migration/prefix_migration_ops.hpp"
+#include "kano/backlog_ops/product_relocation/product_relocation_ops.hpp"
 #include "kano/backlog_ops/topic/topic_ops.hpp"
 #include "kano/backlog_ops/workset/workset_ops.hpp"
 #include "kano/backlog_core/diagnostics/mutation_timing.hpp"
@@ -11164,6 +11165,238 @@ int main(int InArgc, char* InArgv[]) {
             rollback_cmd->callback([rollback_options, make_recovery_options]() {
                 const auto result = MigrationOps::rollback(make_recovery_options(rollback_options));
                 std::cout << result.to_json(!rollback_options->compact) << "\n";
+            });
+
+            auto* relocate_product_cmd = migration_cmd->add_subcommand(
+                "relocate-product",
+                "Relocate one registered product root into its canonical shared-backlog location");
+            struct ProductRelocationPlanCliOptions {
+                std::string product;
+                std::string destination_root;
+                std::string backlog_root;
+                std::string expected_source_revision;
+                std::size_t max_files =
+                    kDefaultProductRelocationMaxFiles;
+                std::uintmax_t max_bytes =
+                    kDefaultProductRelocationMaxBytes;
+                std::size_t max_items =
+                    kDefaultProductRelocationMaxItems;
+                std::string plan_hash;
+                bool compact = false;
+                bool confirm = false;
+            };
+            const auto add_product_relocation_plan_options =
+                [&](auto* command, const auto& relocation) {
+                    cli11_state.retain(relocation);
+                    command->add_option(
+                        "--product", relocation->product,
+                        "Registered canonical product slug or unique prefix")->required();
+                    command->add_option(
+                        "--destination-root", relocation->destination_root,
+                        "Expected canonical shared product root; defaults to products/<slug>");
+                    command->add_option(
+                        "--backlog-root", relocation->backlog_root,
+                        "Explicit shared backlog root containing .kano/backlog_config.toml");
+                    command->add_option(
+                        "--expected-source-revision",
+                        relocation->expected_source_revision,
+                        "Optional canonical source snapshot SHA-256 guard");
+                    command->add_option(
+                        "--max-files", relocation->max_files,
+                        "Maximum canonical files included in the immutable plan");
+                    command->add_option(
+                        "--max-bytes", relocation->max_bytes,
+                        "Maximum aggregate canonical bytes included in the plan");
+                    command->add_option(
+                        "--max-items", relocation->max_items,
+                        "Maximum source and registry items scanned for identity collisions");
+                    command->add_flag(
+                        "--compact", relocation->compact,
+                        "Emit compact JSON");
+                };
+            const auto make_product_relocation_plan =
+                [&path_str](const auto& relocation) {
+                    ProductRelocationOps::PlanOptions request;
+                    request.start_path = path_str;
+                    if (!relocation->backlog_root.empty()) {
+                        request.backlog_root =
+                            std::filesystem::path(
+                                relocation->backlog_root);
+                    }
+                    request.request.product = relocation->product;
+                    if (!relocation->destination_root.empty()) {
+                        request.request.destination_root =
+                            std::filesystem::path(
+                                relocation->destination_root);
+                    }
+                    if (!relocation->expected_source_revision.empty()) {
+                        request.request.expected_source_revision =
+                            relocation->expected_source_revision;
+                    }
+                    request.request.max_files = relocation->max_files;
+                    request.request.max_bytes = relocation->max_bytes;
+                    request.request.max_items = relocation->max_items;
+                    return request;
+                };
+
+            auto relocation_plan_options =
+                cli11_state.make_shared<ProductRelocationPlanCliOptions>();
+            auto* relocation_plan_cmd =
+                relocate_product_cmd->add_subcommand(
+                    "plan",
+                    "Build a no-write identity and byte-manifest relocation plan");
+            add_product_relocation_plan_options(
+                relocation_plan_cmd, relocation_plan_options);
+            relocation_plan_cmd->callback([
+                relocation_plan_options,
+                make_product_relocation_plan
+            ]() {
+                const auto result = ProductRelocationOps::plan(
+                    make_product_relocation_plan(
+                        relocation_plan_options));
+                std::cout << result.to_json(
+                    !relocation_plan_options->compact) << "\n";
+                if (!result.ready()) {
+                    throw std::runtime_error(
+                        "Product relocation plan is blocked");
+                }
+            });
+
+            auto relocation_apply_options =
+                cli11_state.make_shared<ProductRelocationPlanCliOptions>();
+            auto* relocation_apply_cmd =
+                relocate_product_cmd->add_subcommand(
+                    "apply",
+                    "Apply the exact reviewed relocation plan with recovery journal");
+            add_product_relocation_plan_options(
+                relocation_apply_cmd, relocation_apply_options);
+            cli11_state.retain(relocation_apply_options);
+            relocation_apply_cmd->add_option(
+                "--plan-hash", relocation_apply_options->plan_hash,
+                "Exact reviewed relocation plan SHA-256")->required();
+            relocation_apply_cmd->add_flag(
+                "--confirm", relocation_apply_options->confirm,
+                "Confirm product root relocation mutation");
+            relocation_apply_cmd->callback([
+                relocation_apply_options,
+                make_product_relocation_plan
+            ]() {
+                ProductRelocationOps::ApplyOptions request;
+                request.plan = make_product_relocation_plan(
+                    relocation_apply_options);
+                request.expected_plan_hash =
+                    relocation_apply_options->plan_hash;
+                request.confirm = relocation_apply_options->confirm;
+                const auto result =
+                    ProductRelocationOps::apply(request);
+                std::cout << result.to_json(
+                    !relocation_apply_options->compact) << "\n";
+                if (result.status != "applied") {
+                    throw std::runtime_error(
+                        "Product relocation apply did not complete");
+                }
+            });
+
+            struct ProductRelocationRecoveryCliOptions {
+                std::string plan_hash;
+                std::string backlog_root;
+                bool compact = false;
+                bool confirm = false;
+            };
+            const auto add_product_relocation_recovery_options =
+                [&](auto* command, const auto& recovery) {
+                    cli11_state.retain(recovery);
+                    command->add_option(
+                        "plan_hash", recovery->plan_hash,
+                        "Persisted product relocation plan SHA-256")->required();
+                    command->add_option(
+                        "--backlog-root", recovery->backlog_root,
+                        "Explicit shared backlog root");
+                    command->add_flag(
+                        "--compact", recovery->compact,
+                        "Emit compact JSON");
+                };
+            const auto make_product_relocation_recovery =
+                [&path_str](const auto& recovery) {
+                    ProductRelocationOps::RecoveryOptions request;
+                    request.start_path = path_str;
+                    request.plan_hash = recovery->plan_hash;
+                    request.confirm = recovery->confirm;
+                    if (!recovery->backlog_root.empty()) {
+                        request.backlog_root =
+                            std::filesystem::path(
+                                recovery->backlog_root);
+                    }
+                    return request;
+                };
+
+            auto relocation_verify_options =
+                cli11_state.make_shared<ProductRelocationRecoveryCliOptions>();
+            auto* relocation_verify_cmd =
+                relocate_product_cmd->add_subcommand(
+                    "verify",
+                    "Verify config, identity, refs, bytes, and derived index postconditions");
+            add_product_relocation_recovery_options(
+                relocation_verify_cmd, relocation_verify_options);
+            relocation_verify_cmd->callback([
+                relocation_verify_options,
+                make_product_relocation_recovery
+            ]() {
+                const auto result = ProductRelocationOps::verify(
+                    make_product_relocation_recovery(
+                        relocation_verify_options));
+                std::cout << result.to_json(
+                    !relocation_verify_options->compact) << "\n";
+                if (result.status != "verified") {
+                    throw std::runtime_error(
+                        "Product relocation verification failed");
+                }
+            });
+
+            auto relocation_status_options =
+                cli11_state.make_shared<ProductRelocationRecoveryCliOptions>();
+            auto* relocation_status_cmd =
+                relocate_product_cmd->add_subcommand(
+                    "status",
+                    "Inspect relocation stage and deterministic recovery state");
+            add_product_relocation_recovery_options(
+                relocation_status_cmd, relocation_status_options);
+            relocation_status_cmd->callback([
+                relocation_status_options,
+                make_product_relocation_recovery
+            ]() {
+                const auto result = ProductRelocationOps::status(
+                    make_product_relocation_recovery(
+                        relocation_status_options));
+                std::cout << result.to_json(
+                    !relocation_status_options->compact) << "\n";
+            });
+
+            auto relocation_rollback_options =
+                cli11_state.make_shared<ProductRelocationRecoveryCliOptions>();
+            auto* relocation_rollback_cmd =
+                relocate_product_cmd->add_subcommand(
+                    "rollback",
+                    "Restore exact source/config state from the relocation journal");
+            add_product_relocation_recovery_options(
+                relocation_rollback_cmd, relocation_rollback_options);
+            cli11_state.retain(relocation_rollback_options);
+            relocation_rollback_cmd->add_flag(
+                "--confirm", relocation_rollback_options->confirm,
+                "Confirm relocation rollback mutation");
+            relocation_rollback_cmd->callback([
+                relocation_rollback_options,
+                make_product_relocation_recovery
+            ]() {
+                const auto result = ProductRelocationOps::rollback(
+                    make_product_relocation_recovery(
+                        relocation_rollback_options));
+                std::cout << result.to_json(
+                    !relocation_rollback_options->compact) << "\n";
+                if (result.status != "rolled_back") {
+                    throw std::runtime_error(
+                        "Product relocation rollback did not complete");
+                }
             });
         }
 

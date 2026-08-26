@@ -28,6 +28,8 @@ target_sources(kano_backlog_ops
     migration/private/migration_ops.cpp
     prefix_migration/public/kano/backlog_ops/prefix_migration/prefix_migration_ops.hpp
     prefix_migration/private/prefix_migration_ops.cpp
+    product_relocation/public/kano/backlog_ops/product_relocation/product_relocation_ops.hpp
+    product_relocation/private/product_relocation_ops.cpp
 )
 
 add_library(kano::backlog_ops ALIAS kano_backlog_ops)
@@ -50,6 +52,7 @@ target_include_directories(kano_backlog_ops
       relation/public
       migration/public
       prefix_migration/public
+      product_relocation/public
     PRIVATE
       workitem/private
       view/private
@@ -64,6 +67,7 @@ target_include_directories(kano_backlog_ops
       relation/private
       migration/private
       prefix_migration/private
+      product_relocation/private
 )
 
 target_link_libraries(kano_backlog_ops 
