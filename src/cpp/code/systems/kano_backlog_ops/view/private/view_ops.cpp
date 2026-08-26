@@ -182,36 +182,27 @@ using namespace kano::backlog_core;
 
 std::vector<IndexItem> ViewOps::list_items(BacklogIndex& index, const ViewFilter& filter) {
     if (!filter.product_root) {
-        return index.query_items(filter.type, filter.state);
+        return index.query_items(filter.type, filter.state, filter.product);
     }
+    IndexQuery query;
+    query.type = filter.type;
+    query.state = filter.state;
+    const auto product = filter.product.value_or(filter.product_root->filename().string());
+    return index.query_metadata(*filter.product_root, product, query).items;
+}
 
-    CanonicalStore store(*filter.product_root);
-    std::vector<IndexItem> items;
-    for (const auto& path : store.list_items()) {
-        const auto item = store.read_metadata(path);
-        if ((filter.type && item.type != *filter.type) ||
-            (filter.state && item.state != *filter.state)) {
-            continue;
-        }
-
-        IndexItem indexed;
-        indexed.id = item.id;
-        indexed.uid = item.uid;
-        indexed.type = item.type;
-        indexed.title = item.title;
-        indexed.state = item.state;
-        indexed.duplicate_of = item.duplicate_of;
-        indexed.path = path.string();
-        indexed.updated = item.updated;
-        items.push_back(indexed);
+IndexQueryResult ViewOps::list_items_with_diagnostics(
+    const std::filesystem::path& index_path,
+    const ViewFilter& filter
+) {
+    if (!filter.product_root) {
+        throw std::runtime_error("metadata_index_product_root_required");
     }
-    std::sort(items.begin(), items.end(), [](const auto& left, const auto& right) {
-        if (left.updated != right.updated) {
-            return left.updated > right.updated;
-        }
-        return left.id < right.id;
-    });
-    return items;
+    IndexQuery query;
+    query.type = filter.type;
+    query.state = filter.state;
+    const auto product = filter.product.value_or(filter.product_root->filename().string());
+    return query_metadata_index(index_path, *filter.product_root, product, query);
 }
 
 std::vector<ListItemProjection> ViewOps::list_item_projections(

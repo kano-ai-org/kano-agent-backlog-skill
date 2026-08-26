@@ -1566,6 +1566,11 @@ MigrationResult MigrationOps::apply(const ApplyOptions& options) {
             index.initialize();
             CanonicalStore source_store(source_root);
             std::unordered_map<std::string, std::string> mapped_ids;
+            std::vector<std::string> removed_index_ids;
+            std::vector<MaterializedIndexInput> materialized_index_items;
+            std::map<std::pair<std::string, std::string>, int> sequence_floors;
+            removed_index_ids.reserve(current_plan.items.size());
+            materialized_index_items.reserve(current_plan.items.size());
             for (const auto& mapping : current_plan.items) {
                 mapped_ids[mapping.source_id] = mapping.target_id;
             }
@@ -1615,23 +1620,38 @@ MigrationResult MigrationOps::apply(const ApplyOptions& options) {
             }
             for (const auto& mapping : current_plan.items) {
                 auto item = source_store.read(backlog_root / mapping.source_path);
-                index.remove_item(mapping.source_id);
+                removed_index_ids.push_back(mapping.source_id);
                 item.id = mapping.target_id;
                 item.file_path = backlog_root / mapping.target_path;
+                if (item.parent) {
+                    if (const auto mapped = mapped_ids.find(*item.parent); mapped != mapped_ids.end()) {
+                        item.parent = mapped->second;
+                    }
+                }
                 if (item.duplicate_of) {
                     if (const auto mapped = mapped_ids.find(*item.duplicate_of); mapped != mapped_ids.end()) {
                         item.duplicate_of = mapped->second;
                     }
                 }
-                index.index_item(item);
+                const auto& target_content = pending.at(mapping.target_path).after_content;
+                if (!target_content) {
+                    throw std::runtime_error("target_item_materialization_missing:" + mapping.target_path);
+                }
+                materialized_index_items.push_back(
+                    MaterializedIndexInput{std::move(item), *target_content});
                 const auto separator = mapping.target_id.rfind('-');
                 if (separator == std::string::npos) {
                     throw std::runtime_error("invalid_target_id:" + mapping.target_id);
                 }
-                index.ensure_sequence_at_least(
-                    current_plan.target_prefix,
-                    type_code(mapping.type),
-                    std::stoi(mapping.target_id.substr(separator + 1)));
+                auto& floor = sequence_floors[
+                    {current_plan.target_prefix, type_code(mapping.type)}];
+                floor = std::max(
+                    floor, std::stoi(mapping.target_id.substr(separator + 1)));
+            }
+            index.remove_items(removed_index_ids);
+            index.index_materialized_items(materialized_index_items);
+            for (const auto& [sequence, floor] : sequence_floors) {
+                index.ensure_sequence_at_least(sequence.first, sequence.second, floor);
             }
         }
         const auto staged_index_bytes = std::filesystem::file_size(staged_index);

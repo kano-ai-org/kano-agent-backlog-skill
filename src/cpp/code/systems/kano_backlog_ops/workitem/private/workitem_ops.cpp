@@ -1403,7 +1403,8 @@ BacklogItem WorkitemOps::transition_state_action(
     StateAction action,
     std::optional<std::string> agent,
     std::optional<std::string> message,
-    std::optional<std::string> model
+    std::optional<std::string> model,
+    BacklogIndex* index
 ) {
     diagnostics::ScopedMutationSpan total_span("workitem.transition_state_action.total", item_ref);
     CanonicalStore store(backlog_root);
@@ -1425,6 +1426,10 @@ BacklogItem WorkitemOps::transition_state_action(
     {
         diagnostics::ScopedMutationSpan span("workitem.transition_state_action.write_item", item.id);
         store.write(item);
+    }
+    if (index != nullptr) {
+        diagnostics::ScopedMutationSpan span("workitem.transition_state_action.index_item", item.id);
+        index->index_item(item);
     }
     return item;
 }
@@ -1707,6 +1712,7 @@ DecisionWritebackResult WorkitemOps::add_decision_writeback(
     
     // 4. Write back
     store.write(item);
+    index.index_item(item);
     
     return {item.id, *item.file_path, !exists, true};
 }

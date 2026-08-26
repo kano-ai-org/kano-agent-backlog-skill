@@ -575,6 +575,102 @@ int main(int argc, char** argv) {
         expect(run_command(binary, with_duplicate_admission({"-P", "second-product", "workitem", "create", "-t", "task", "--title", "Cross product target", "--agent", "tester"}, "Cross product target")) == 0,
             "second product target creation failed");
 
+        const auto quick_index_build_output = temp_root / "quick-index-build.json";
+        expect_command_capture_success(
+            run_command_capture(binary, {
+                "-P", "quick-smoke-product", "index", "build",
+                "--force", "--format", "json"
+            }, quick_index_build_output),
+            quick_index_build_output,
+            "quick product metadata index build failed");
+        const auto quick_index_build = read_json(quick_index_build_output);
+        expect(quick_index_build["schema"].asString() == "kob.metadata-index.v1" &&
+                   quick_index_build["status"].asString() == "ready" &&
+                   quick_index_build["items_indexed"].asInt() == 1 &&
+                   quick_index_build["index_revision"].asString() ==
+                       quick_index_build["canonical_revision"].asString(),
+            "metadata index build must emit a verified versioned snapshot");
+        expect(read_text(quick_index_build_output).find(temp_root.string()) ==
+                   std::string::npos,
+            "metadata index build must not expose a raw workspace path");
+
+        const auto quick_index_query_output = temp_root / "quick-index-query.json";
+        expect_command_capture_success(
+            run_command_capture(binary, {
+                "-P", "QS", "index", "query", "--item", "QS-TSK-0001",
+                "--format", "json"
+            }, quick_index_query_output),
+            quick_index_query_output,
+            "prefix-alias metadata index query failed");
+        const auto quick_index_query = read_json(quick_index_query_output);
+        expect(quick_index_query["product"].asString() == "quick-smoke-product" &&
+                   quick_index_query["diagnostics"]["index_used"].asBool() &&
+                   quick_index_query["diagnostics"]["index_status"].asString() == "ready" &&
+                   !quick_index_query["diagnostics"]["fallback_scan"].asBool() &&
+                   quick_index_query["items"].size() == 1 &&
+                   quick_index_query["items"][0]["id"].asString() == "QS-TSK-0001",
+            "prefix alias must resolve to the same fresh product-scoped index");
+        const auto quick_source_ref =
+            quick_index_query["items"][0]["source_ref"].asString();
+        expect(!quick_source_ref.empty() &&
+                   !std::filesystem::path(quick_source_ref).is_absolute() &&
+                   quick_source_ref.find("..") == std::string::npos &&
+                   read_text(quick_index_query_output).find(temp_root.string()) ==
+                       std::string::npos,
+            "index query must expose only a bounded canonical source ref");
+        for (const auto* field : {
+                 "index_used",
+                 "index_status",
+                 "index_revision",
+                 "canonical_revision",
+                 "fallback_scan",
+                 "scanned_count",
+                 "matched_count",
+                 "elapsed_ms",
+             }) {
+            expect(quick_index_query["diagnostics"].isMember(field),
+                std::string("index query diagnostics missing ") + field);
+        }
+
+        const auto quick_index_doctor_output = temp_root / "quick-index-doctor.json";
+        expect_command_capture_success(
+            run_command_capture(binary, {
+                "-P", "QS", "index", "doctor", "--format", "json"
+            }, quick_index_doctor_output),
+            quick_index_doctor_output,
+            "metadata index doctor failed");
+        const auto quick_index_doctor = read_json(quick_index_doctor_output);
+        expect(quick_index_doctor["healthy"].asBool() &&
+                   quick_index_doctor["source_hash_mismatches"].asUInt64() == 0,
+            "metadata index doctor must verify the fresh source hashes");
+
+        const auto quick_index_list_output = temp_root / "quick-index-list.txt";
+        expect_command_capture_success(
+            run_command_capture(binary, {
+                "-P", "QS", "workitem", "list", "--type", "task",
+                "--index-diagnostics"
+            }, quick_index_list_output),
+            quick_index_list_output,
+            "metadata-index-backed item list failed");
+        const auto quick_index_list_text = read_text(quick_index_list_output);
+        expect(quick_index_list_text.find("QS-TSK-0001") != std::string::npos &&
+                   quick_index_list_text.find("KOB_INDEX_DIAGNOSTICS") !=
+                       std::string::npos &&
+                   quick_index_list_text.find("\"index_used\":true") !=
+                       std::string::npos,
+            "ordinary item list must expose opt-in fresh-index diagnostics");
+
+        const auto second_index_build_output = temp_root / "second-index-build.json";
+        expect_command_capture_success(
+            run_command_capture(binary, {
+                "-P", "second-product", "index", "build",
+                "--force", "--format", "json"
+            }, second_index_build_output),
+            second_index_build_output,
+            "second product metadata index build failed");
+        expect(read_json(second_index_build_output)["items_indexed"].asInt() == 1,
+            "second product build must remain product-scoped");
+
         const auto quick_product_list_output = temp_root / "quick-product-list.txt";
         expect_command_capture_success(
             run_command_capture(binary, {

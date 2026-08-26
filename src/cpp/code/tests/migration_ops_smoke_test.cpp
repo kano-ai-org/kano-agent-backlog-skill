@@ -331,6 +331,9 @@ int main() {
              }) {
             apply_options.inject_failure_after = phase;
             const auto failed = MigrationOps::apply(apply_options);
+            if (failed.status != "rolled_back" || failed.recovery_status != "completed") {
+                std::cerr << failed.to_json(true) << "\n";
+            }
             expect(failed.status == "rolled_back" && failed.recovery_status == "completed",
                 std::string("injected failure should automatically roll back phase ") + phase);
             expect(read_text(*source_initiative.file_path) == source_before,

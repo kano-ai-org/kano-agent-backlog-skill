@@ -31,6 +31,18 @@ set_tests_properties("${KB_TEST_WORKITEM_OPS}" PROPERTIES
     ENVIRONMENT "CI=true;KANO_BACKLOG_NONINTERACTIVE=1;KANO_TEST_NONINTERACTIVE=1;GIT_TERMINAL_PROMPT=0"
 )
 
+add_executable(metadata_index_smoke_test
+    metadata_index_smoke_test.cpp
+)
+target_compile_features(metadata_index_smoke_test PRIVATE cxx_std_23)
+target_link_libraries(metadata_index_smoke_test PRIVATE kano::backlog_ops)
+set(KB_TEST_METADATA_INDEX "[bdd][featured][feature:metadata-index][scenario:KOB-BDD-METADATA-INDEX-001] Derived metadata index remains disposable, invalidatable, and canonical-safe")
+add_test(NAME "${KB_TEST_METADATA_INDEX}" COMMAND metadata_index_smoke_test)
+set_tests_properties("${KB_TEST_METADATA_INDEX}" PROPERTIES
+    TIMEOUT 90
+    ENVIRONMENT "CI=true;KANO_BACKLOG_NONINTERACTIVE=1;KANO_TEST_NONINTERACTIVE=1;GIT_TERMINAL_PROMPT=0"
+)
+
 add_executable(integrity_ops_smoke_test
     integrity_ops_smoke_test.cpp
 )

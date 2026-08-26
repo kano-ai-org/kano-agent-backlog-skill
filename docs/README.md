@@ -37,6 +37,7 @@ If you are reading the repository directly, start here instead of `docs/index.md
 - [Version Goal Ledger schema](design/version-goal-ledger-schema.md)
 - [Evidence quality classification model](design/evidence-quality-classification-model.md)
 - [Context recovery summary contract](design/context-recovery-summary-contract.md)
+- [Derived metadata index](design/derived-metadata-index.md)
 
 ## Release notes
 

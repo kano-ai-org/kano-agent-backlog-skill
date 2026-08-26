@@ -28,7 +28,7 @@ SUBCOMMANDS:
   evidence                    Manage evidence records for workset metadata
   assumptions                 Assumptions registry operations
   view                        Dashboard and view management
-  index                       SQLite index operations
+  index                       Disposable derived metadata index operations
   inspect                     Inspector operations
   benchmark                   Deterministic benchmark harness
   chunks                      Canonical chunks SQLite DB (FTS5)

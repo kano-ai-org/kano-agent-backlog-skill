@@ -10,6 +10,7 @@
 #include <vector>
 
 #include "KanoBacklog.BacklogWebviewService.hpp"
+#include "kano/backlog_core/frontmatter/canonical_store.hpp"
 #include "kano/backlog_core/process/noninteractive_errors.hpp"
 #include "kano/backlog_ops/index/backlog_index.hpp"
 
@@ -1420,6 +1421,7 @@ int main() {
                      "Route this feature only after humans choose the deterministic capability.",
                      "external:\n"
                      "  capability_routes: native-cpp, docs\n"));
+
         write_text(
             products / "product-alpha" / "items" / "experiment" / "0001" / "PRA-EXP-0001.md",
             item_doc("PRA-EXP-0001",
@@ -1430,6 +1432,11 @@ int main() {
                      "",
                      "Unclassified item body without route metadata."));
 
+        const auto alphaProductRoot = products / "product-alpha";
+        const auto alphaIndexPath = alphaProductRoot / ".cache" / "index" / "backlog.db";
+        const auto alphaTaskPath =
+            alphaProductRoot / "items" / "task" / "0001" / "PRA-TSK-0001.md";
+
         write_text(root / "topics" / "native-migration" / "manifest.json",
                    R"json({"topic":"Native Migration","status":"open","seed_items":["019ec100-0000-7000-8000-000000000002","PRA-TSK-0001"]})json");
         write_text(root / "topics" / "native-migration" / "brief.md",
@@ -1438,11 +1445,6 @@ int main() {
                    R"json({"topic":"Hierarchy Review","status":"open","seed_items":["019ec100-0000-7000-8000-000000000110","PRA-FTR-0100","019ec100-0000-7000-8000-000000000111","PRA-SUBTSK-0110","019ec100-0000-7000-8000-000000000112","PRA-SUBTSK-0111"]})json");
         write_text(root / "topics" / "hierarchy-review" / "brief.md",
                    "# Hierarchy Review\n\nTopic hierarchy fixture.");
-
-        const auto alphaIndexPath = products / "product-alpha" / ".cache" / "index" / "backlog.db";
-        auto alphaIndexBuild = kano::backlog_ops::build_index(products / "product-alpha", alphaIndexPath, true);
-        expect(alphaIndexBuild.items_indexed >= 1,
-               "alpha product index should include item rows for Backboard exact-detail smoke");
 
         webview::BacklogWebviewService service(products);
 
@@ -2043,10 +2045,19 @@ int main() {
                "detail lookup should include content");
         expect(detail["item"]["gate_status"]["ready"]["state"].asString() == "passed",
                "item detail should include gate_status");
+        {
+            kano::backlog_ops::BacklogIndex alphaIndex(
+                alphaIndexPath, "product-alpha", alphaProductRoot);
+            alphaIndex.index_item(
+                kano::backlog_core::CanonicalStore(alphaProductRoot).read(alphaTaskPath));
+        }
         auto indexedDetail = service.GetItem("product-alpha", "PRA-TSK-0001");
         expect(!indexedDetail.isMember("error"), "indexed exact product detail lookup should find task");
         expect(indexedDetail["index_diagnostics"]["schema"].asString() == "kob.backboard.index_diagnostics.v1",
                "exact detail should expose index diagnostics schema");
+        if (indexedDetail["index_diagnostics"]["status"].asString() != "warm_index_hit") {
+            std::cerr << json_to_string(indexedDetail["index_diagnostics"]) << '\n';
+        }
         expect(indexedDetail["index_diagnostics"]["status"].asString() == "warm_index_hit",
                "fresh index should support warm exact-detail lookup");
         expect(indexedDetail["index_diagnostics"]["used_index"].asBool(),

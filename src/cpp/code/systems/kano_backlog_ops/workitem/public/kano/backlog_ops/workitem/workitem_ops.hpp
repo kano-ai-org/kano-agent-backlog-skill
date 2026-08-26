@@ -104,7 +104,8 @@ public:
         kano::backlog_core::StateAction action,
         std::optional<std::string> agent = std::nullopt,
         std::optional<std::string> message = std::nullopt,
-        std::optional<std::string> model = std::nullopt
+        std::optional<std::string> model = std::nullopt,
+        BacklogIndex* index = nullptr
     );
 
     /**

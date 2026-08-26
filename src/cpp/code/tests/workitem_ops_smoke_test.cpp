@@ -1460,10 +1460,12 @@ int main() {
             expect(!bounded_stack.warnings.empty(), "bounded intent stack should warn at depth limit");
 
             auto stale_parent_item = parent_item;
-            stale_parent_item.file_path = std::filesystem::temp_directory_path() /
-                "kano-backlog-stale-host-root" /
-                parent_created.path.filename();
+            stale_parent_item.file_path =
+                root / "items" / "feature" / "9900" /
+                (parent_created.id + "_stale-index-source.md");
+            store.write(stale_parent_item);
             index.index_item(stale_parent_item);
+            std::filesystem::remove(*stale_parent_item.file_path);
 
             auto update_result = WorkitemOps::update_state(
                 index,
@@ -1527,7 +1529,9 @@ int main() {
                 "0000" /
                 (shared_parent_created.id + "_host-only.md");
             host_only_parent.file_path = host_only_parent_path;
+            write_text(host_only_parent_path, read_text(shared_parent_created.path));
             shared_index.index_item(host_only_parent);
+            std::filesystem::remove(host_only_parent_path);
 
             auto shared_update = WorkitemOps::update_state(
                 shared_index,
@@ -1656,9 +1660,14 @@ int main() {
             auto stale_missing_parent_ref = std::string("TST-FTR-9998");
             auto stale_missing_parent_index = outside_index_parent;
             stale_missing_parent_index.id = stale_missing_parent_ref;
-            stale_missing_parent_index.uid = stale_missing_parent_ref + "-uid";
-            stale_missing_parent_index.file_path = external_created.path;
+            stale_missing_parent_index.uid =
+                "019cdf6a-0000-7000-8000-000000009998";
+            stale_missing_parent_index.file_path =
+                external_root / "items" / "feature" / "9900" /
+                (stale_missing_parent_ref + "_stale-index-source.md");
+            external_store.write(stale_missing_parent_index);
             index.index_item(stale_missing_parent_index);
+            std::filesystem::remove(*stale_missing_parent_index.file_path);
 
             auto stale_missing_child_created = create_item_with_admission(
                 index,
@@ -1691,8 +1700,9 @@ int main() {
                 stale_missing_parent_diagnostic.find("stale index/path cache") != std::string::npos,
                 "stale indexed missing parent diagnostic should mention stale index/path cache");
             expect(
-                stale_missing_parent_diagnostic.find("outside-active-root") != std::string::npos,
-                "stale indexed missing parent diagnostic should classify outside-root index paths");
+                stale_missing_parent_diagnostic.find(
+                    "indexed path no longer exists on disk") != std::string::npos,
+                "stale indexed missing parent diagnostic should classify the bounded missing source");
             expect(
                 stale_missing_parent_diagnostic.find(external_created.path.string()) == std::string::npos,
                 "stale indexed missing parent diagnostic should not echo outside-root paths");
@@ -1728,7 +1738,9 @@ int main() {
             // scenario where the cache still references the pre-rename file.
             auto stale_renamed_item = renamed_parent_after;
             stale_renamed_item.file_path = renamed_parent_path;
+            store.write(stale_renamed_item);
             index.index_item(stale_renamed_item);
+            std::filesystem::remove(renamed_parent_path);
 
             auto renamed_child_created = create_item_with_admission(
                 index,

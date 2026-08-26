@@ -6486,6 +6486,11 @@ std::optional<int> try_run_workitem_set_ready_fast_path(int argc, char** argv) {
 
     StateMachine::record_worklog(item, agent, "Updated Ready fields: " + join_strings(updated_fields));
     store.write(item);
+    BacklogIndex metadata_index(
+        ctx.backlog_root / ".cache" / "index" / "backlog.db",
+        ctx.product_name,
+        ctx.product_root);
+    metadata_index.index_item(item);
 
     std::cout << "OK: Updated Ready fields for " << item.id << "\n";
     std::cout << "  Worklog: Updated " << join_strings(updated_fields) << "\n";
@@ -6782,13 +6787,18 @@ std::optional<int> try_run_state_transition_fast_path(int argc, char** argv) {
         product.empty() ? std::nullopt : std::optional<std::string>(product),
         sandbox.empty() ? std::nullopt : std::optional<std::string>(sandbox)
     );
+    BacklogIndex metadata_index(
+        ctx.backlog_root / ".cache" / "index" / "backlog.db",
+        ctx.product_name,
+        ctx.product_root);
     const auto item = WorkitemOps::transition_state_action(
         ctx.product_root,
         ref,
         *action,
         agent.empty() ? std::nullopt : std::optional<std::string>(agent),
         message.empty() ? std::nullopt : std::optional<std::string>(message),
-        model.empty() ? std::nullopt : std::optional<std::string>(model)
+        model.empty() ? std::nullopt : std::optional<std::string>(model),
+        &metadata_index
     );
     std::cout << "OK: " << item.id << " transitioned to " << to_string(item.state) << "\n";
 
@@ -6931,6 +6941,11 @@ std::optional<int> try_run_worklog_append_fast_path(int argc, char** argv) {
     const auto model_opt = model.empty() ? std::nullopt : std::optional<std::string>(model);
     StateMachine::record_worklog(item, agent.empty() ? "cli" : agent, message, model_opt);
     store.write(item);
+    BacklogIndex metadata_index(
+        ctx.backlog_root / ".cache" / "index" / "backlog.db",
+        ctx.product_name,
+        ctx.product_root);
+    metadata_index.index_item(item);
 
     std::cout << "OK: Appended worklog to " << item.id << "\n";
     if (consume_input_files) {
@@ -7126,6 +7141,11 @@ std::optional<int> try_run_workitem_attach_artifact_fast_path(int argc, char** a
     }
     StateMachine::record_worklog(item, agent, message);
     store.write(item);
+    BacklogIndex metadata_index(
+        ctx.backlog_root / ".cache" / "index" / "backlog.db",
+        ctx.product_name,
+        ctx.product_root);
+    metadata_index.index_item(item);
 
     if (format_norm == "json") {
         Json::Value payload(Json::objectValue);
@@ -9396,6 +9416,11 @@ int main(int InArgc, char* InArgv[]) {
 
                 StateMachine::record_worklog(item, set_ready_agent, "Updated Ready fields: " + join_strings(updated_fields));
                 store.write(item);
+                BacklogIndex metadata_index(
+                    ctx.backlog_root / ".cache" / "index" / "backlog.db",
+                    ctx.product_name,
+                    ctx.product_root);
+                metadata_index.index_item(item);
 
                 std::cout << "OK: Updated Ready fields for " << item.id << "\n";
                 std::cout << "  Worklog: Updated " << join_strings(updated_fields) << "\n";
@@ -9645,6 +9670,11 @@ int main(int InArgc, char* InArgv[]) {
                 const auto guidance = intent_amendment_guidance(item.state);
                 StateMachine::record_worklog(item, state->agent, "Intent Amendment appended: " + state->reason + " | " + guidance);
                 store.write(item);
+                BacklogIndex metadata_index(
+                    ctx.backlog_root / ".cache" / "index" / "backlog.db",
+                    ctx.product_name,
+                    ctx.product_root);
+                metadata_index.index_item(item);
 
                 if (state->consume_input_files) {
                     consume_backlog_text_file(state->correction_file, "--correction-file");
@@ -10087,6 +10117,11 @@ int main(int InArgc, char* InArgv[]) {
                 }
                 StateMachine::record_worklog(item, attach_agent, message);
                 store.write(item);
+                BacklogIndex metadata_index(
+                    ctx.backlog_root / ".cache" / "index" / "backlog.db",
+                    ctx.product_name,
+                    ctx.product_root);
+                metadata_index.index_item(item);
 
                 if (format_norm == "json") {
                     Json::Value payload(Json::objectValue);
@@ -10181,6 +10216,7 @@ int main(int InArgc, char* InArgv[]) {
                 std::string group;
                 std::string format = "plain";
                 bool compact = false;
+                bool index_diagnostics = false;
             };
             auto state = cli11_state.make_shared<ListCommandState>();
             listCmd->add_option("--type", state->filter_type_str, "Filter by type (initiative, epic, feature, userstory, task, subtask, bug, issue)");
@@ -10190,6 +10226,10 @@ int main(int InArgc, char* InArgv[]) {
             listCmd->add_option("--group", state->group, "Retrieve one compact group ID (requires --compact)");
             listCmd->add_option("--format", state->format, "Output format: plain|json");
             listCmd->add_flag("--compact", state->compact, "Opt in to reversible compaction of old Done items");
+            listCmd->add_flag(
+                "--index-diagnostics",
+                state->index_diagnostics,
+                "Emit bounded metadata-index lifecycle diagnostics");
             listCmd->callback([&, state]() {
                 auto ctx = resolve_ctx();
 
@@ -10230,13 +10270,36 @@ int main(int InArgc, char* InArgv[]) {
                     state->exact_item.empty() &&
                     state->topic.empty();
                 if (canonical_plain_fast_path) {
-                    BacklogIndex index(ctx.backlog_root / ".cache" / "index" / "backlog.db");
                     ViewFilter filter;
                     filter.product_root = ctx.product_root;
+                    filter.product = ctx.product_name;
                     filter.type = selection.type;
                     filter.state = selection.state;
-                    const auto items = ViewOps::list_items(index, filter);
-                    std::cout << ViewOps::render_table(items);
+                    const auto result = ViewOps::list_items_with_diagnostics(
+                        ctx.backlog_root / ".cache" / "index" / "backlog.db",
+                        filter);
+                    std::cout << ViewOps::render_table(result.items);
+                    if (state->index_diagnostics) {
+                        Json::Value diagnostics(Json::objectValue);
+                        diagnostics["index_used"] = result.diagnostics.index_used;
+                        diagnostics["index_status"] = result.diagnostics.index_status;
+                        diagnostics["index_revision"] = result.diagnostics.index_revision;
+                        diagnostics["canonical_revision"] = result.diagnostics.canonical_revision;
+                        diagnostics["fallback_scan"] = result.diagnostics.fallback_scan;
+                        diagnostics["scanned_count"] = static_cast<Json::UInt64>(
+                            result.diagnostics.scanned_count);
+                        diagnostics["matched_count"] = static_cast<Json::UInt64>(
+                            result.diagnostics.matched_count);
+                        diagnostics["revision_check_ms"] =
+                            result.diagnostics.revision_check_ms;
+                        diagnostics["elapsed_ms"] = result.diagnostics.elapsed_ms;
+                        diagnostics["stale_reason"] = result.diagnostics.stale_reason
+                            ? Json::Value(*result.diagnostics.stale_reason)
+                            : Json::Value(Json::nullValue);
+                        diagnostics["recovery"] = result.diagnostics.recovery;
+                        std::cerr << "KOB_INDEX_DIAGNOSTICS "
+                                  << json_to_string(diagnostics, false) << "\n";
+                    }
                     return;
                 }
                 const bool strict_filter_validation =
@@ -17815,6 +17878,10 @@ int main(int InArgc, char* InArgv[]) {
                     std::optional<std::string> agent_opt = agent.empty() ? std::nullopt : std::optional<std::string>(agent);
                     std::optional<std::string> msg_opt = message.empty() ? std::nullopt : std::optional<std::string>(message);
                     std::optional<std::string> model_opt = model.empty() ? std::nullopt : std::optional<std::string>(model);
+                    BacklogIndex metadata_index(
+                        ctx.backlog_root / ".cache" / "index" / "backlog.db",
+                        ctx.product_name,
+                        ctx.product_root);
 
                     const auto item = WorkitemOps::transition_state_action(
                         ctx.product_root,
@@ -17822,7 +17889,8 @@ int main(int InArgc, char* InArgv[]) {
                         *action_opt,
                         agent_opt,
                         msg_opt,
-                        model_opt);
+                        model_opt,
+                        &metadata_index);
 
                     std::cout << "OK: " << item.id << " transitioned to " << to_string(item.state) << "\n";
                     if (transition_consume_input_files) {
@@ -19075,6 +19143,11 @@ int main(int InArgc, char* InArgv[]) {
 
                     StateMachine::record_worklog(item, agent.empty() ? "cli" : agent, message, model_opt);
                     store.write(item);
+                    BacklogIndex metadata_index(
+                        ctx.backlog_root / ".cache" / "index" / "backlog.db",
+                        ctx.product_name,
+                        ctx.product_root);
+                    metadata_index.index_item(item);
 
                     std::cout << "OK: Appended worklog to " << item.id << "\n";
                     if (append_consume_input_files) {
@@ -19705,54 +19778,125 @@ int main(int InArgc, char* InArgv[]) {
         // index group
         // ============================================================
         {
-            auto* indexCmd = app.add_subcommand("index", "SQLite index operations");
+            auto* indexCmd = app.add_subcommand(
+                "index",
+                "Disposable derived metadata index operations");
+            const auto resolve_index_ctx = [&](const std::string& command_product) {
+                return BacklogContext::resolve(
+                    path_str,
+                    command_product.empty()
+                        ? (product_name_opt.empty()
+                            ? std::nullopt
+                            : std::optional<std::string>(product_name_opt))
+                        : std::optional<std::string>(command_product),
+                    sandbox_name_opt.empty()
+                        ? std::nullopt
+                        : std::optional<std::string>(sandbox_name_opt));
+            };
+            const auto diagnostics_json = [](const IndexDiagnostics& diagnostics) {
+                Json::Value value(Json::objectValue);
+                value["index_used"] = diagnostics.index_used;
+                value["index_status"] = diagnostics.index_status;
+                value["index_revision"] = diagnostics.index_revision;
+                value["canonical_revision"] = diagnostics.canonical_revision;
+                value["fallback_scan"] = diagnostics.fallback_scan;
+                value["scanned_count"] =
+                    static_cast<Json::UInt64>(diagnostics.scanned_count);
+                value["matched_count"] =
+                    static_cast<Json::UInt64>(diagnostics.matched_count);
+                value["revision_check_ms"] = diagnostics.revision_check_ms;
+                value["elapsed_ms"] = diagnostics.elapsed_ms;
+                value["stale_reason"] = diagnostics.stale_reason
+                    ? Json::Value(*diagnostics.stale_reason)
+                    : Json::Value(Json::nullValue);
+                value["recovery"] = diagnostics.recovery;
+                return value;
+            };
+            const auto require_index_format = [](const std::string& raw) {
+                const auto format = lower_copy(trim_copy(raw));
+                if (format != "plain" && format != "json") {
+                    throw std::runtime_error("format must be plain or json");
+                }
+                return format;
+            };
 
             // index build
             {
-                auto* buildCmd = indexCmd->add_subcommand("build", "Build the SQLite index from markdown items");
+                auto* buildCmd = indexCmd->add_subcommand(
+                    "build",
+                    "Atomically rebuild the metadata index from canonical items");
+                buildCmd->alias("rebuild");
                 struct IndexBuildCommandState {
                     std::string product;
+                    std::string format = "plain";
                     bool force = false;
                 };
                 const auto state = cli11_state.make_shared<IndexBuildCommandState>();
                 buildCmd->add_option("--product", state->product, "Product name");
-                buildCmd->add_flag("--force", state->force, "Rebuild even if index exists");
+                buildCmd->add_option("--format", state->format, "Output format: plain|json");
+                buildCmd->add_flag("--force", state->force, "Rebuild even when the snapshot is current");
                 buildCmd->callback([&, state]() {
-                    auto ctx = BacklogContext::resolve(
-                        path_str,
-                        state->product.empty()
-                            ? (product_name_opt.empty() ? std::nullopt : std::optional<std::string>(product_name_opt))
-                            : std::optional<std::string>(state->product),
-                        sandbox_name_opt.empty() ? std::nullopt : std::optional<std::string>(sandbox_name_opt)
-                    );
-                    auto idx_path = ctx.backlog_root / ".cache" / "index" / "backlog.db";
-                    auto result = build_index(ctx.product_root, idx_path, state->force);
-                    std::cout << "Built index: " << result.index_path.string() << "\n";
+                    const auto format = require_index_format(state->format);
+                    auto ctx = resolve_index_ctx(state->product);
+                    const auto idx_path = ctx.backlog_root / ".cache" / "index" / "backlog.db";
+                    const auto result = build_index(
+                        ctx.product_root, idx_path, state->force, ctx.product_name);
+                    if (format == "json") {
+                        Json::Value payload(Json::objectValue);
+                        payload["schema"] = "kob.metadata-index.v1";
+                        payload["snapshot_schema"] = "kob.metadata-index-snapshot.v1";
+                        payload["status"] = "ready";
+                        payload["product"] = ctx.product_name;
+                        payload["index_ref"] = result.index_ref;
+                        payload["items_indexed"] = result.items_indexed;
+                        payload["index_revision"] = result.index_revision;
+                        payload["canonical_revision"] = result.canonical_revision;
+                        payload["elapsed_ms"] = result.build_time_ms;
+                        std::cout << json_to_string(payload, true) << "\n";
+                        return;
+                    }
+                    std::cout << "Built index: " << result.index_ref << "\n";
                     std::cout << "  Items: " << result.items_indexed << "\n";
+                    std::cout << "  Revision: " << result.index_revision << "\n";
                     std::cout << "  Time: " << std::fixed << std::setprecision(1) << result.build_time_ms << " ms\n";
                 });
             }
 
             // index refresh
             {
-                auto* refreshCmd = indexCmd->add_subcommand("refresh", "Refresh the SQLite index (MVP: full rebuild)");
+                auto* refreshCmd = indexCmd->add_subcommand(
+                    "refresh",
+                    "Refresh the metadata index with an atomic canonical rebuild");
                 struct IndexRefreshCommandState {
                     std::string product;
+                    std::string format = "plain";
                 };
                 const auto state = cli11_state.make_shared<IndexRefreshCommandState>();
                 refreshCmd->add_option("--product", state->product, "Product name");
+                refreshCmd->add_option("--format", state->format, "Output format: plain|json");
                 refreshCmd->callback([&, state]() {
-                    auto ctx = BacklogContext::resolve(
-                        path_str,
-                        state->product.empty()
-                            ? (product_name_opt.empty() ? std::nullopt : std::optional<std::string>(product_name_opt))
-                            : std::optional<std::string>(state->product),
-                        sandbox_name_opt.empty() ? std::nullopt : std::optional<std::string>(sandbox_name_opt)
-                    );
-                    auto idx_path = ctx.backlog_root / ".cache" / "index" / "backlog.db";
-                    auto result = refresh_index(ctx.product_root, idx_path);
-                    std::cout << "Refreshed index: " << result.index_path.string() << "\n";
+                    const auto format = require_index_format(state->format);
+                    auto ctx = resolve_index_ctx(state->product);
+                    const auto idx_path = ctx.backlog_root / ".cache" / "index" / "backlog.db";
+                    const auto result = refresh_index(
+                        ctx.product_root, idx_path, ctx.product_name);
+                    if (format == "json") {
+                        Json::Value payload(Json::objectValue);
+                        payload["schema"] = "kob.metadata-index.v1";
+                        payload["snapshot_schema"] = "kob.metadata-index-snapshot.v1";
+                        payload["status"] = "ready";
+                        payload["product"] = ctx.product_name;
+                        payload["index_ref"] = result.index_ref;
+                        payload["items_indexed"] = result.items_added;
+                        payload["index_revision"] = result.index_revision;
+                        payload["canonical_revision"] = result.canonical_revision;
+                        payload["elapsed_ms"] = result.refresh_time_ms;
+                        std::cout << json_to_string(payload, true) << "\n";
+                        return;
+                    }
+                    std::cout << "Refreshed index: " << result.index_ref << "\n";
                     std::cout << "  Items: " << result.items_added << "\n";
+                    std::cout << "  Revision: " << result.index_revision << "\n";
                     std::cout << "  Time: " << std::fixed << std::setprecision(1) << result.refresh_time_ms << " ms\n";
                 });
             }
@@ -19762,32 +19906,201 @@ int main(int InArgc, char* InArgv[]) {
                 auto* statusCmd = indexCmd->add_subcommand("status", "Show SQLite index status and statistics");
                 struct IndexStatusCommandState {
                     std::string product;
+                    std::string format = "plain";
                 };
                 const auto state = cli11_state.make_shared<IndexStatusCommandState>();
                 statusCmd->add_option("--product", state->product, "Product name");
+                statusCmd->add_option("--format", state->format, "Output format: plain|json");
                 statusCmd->callback([&, state]() {
-                    auto ctx = BacklogContext::resolve(
-                        path_str,
-                        state->product.empty()
-                            ? (product_name_opt.empty() ? std::nullopt : std::optional<std::string>(product_name_opt))
-                            : std::optional<std::string>(state->product),
-                        sandbox_name_opt.empty() ? std::nullopt : std::optional<std::string>(sandbox_name_opt)
-                    );
-                    auto result = get_index_status(ctx.backlog_root, ctx.product_name);
+                    const auto format = require_index_format(state->format);
+                    auto ctx = resolve_index_ctx(state->product);
+                    const auto result = get_index_status(
+                        ctx.backlog_root, ctx.product_name, ctx.product_root);
                     if (result.indexes.empty()) {
                         std::cout << "No indexes found.\n";
                         return;
                     }
+                    if (format == "json") {
+                        Json::Value payload(Json::objectValue);
+                        payload["schema"] = "kob.metadata-index-status.v1";
+                        payload["indexes"] = Json::arrayValue;
+                        for (const auto& idx : result.indexes) {
+                            Json::Value value(Json::objectValue);
+                            value["product"] = idx.product;
+                            value["index_ref"] = idx.index_ref;
+                            value["exists"] = idx.exists;
+                            value["status"] = idx.status;
+                            value["item_count"] = idx.item_count;
+                            value["size_bytes"] = static_cast<Json::UInt64>(idx.size_bytes);
+                            value["schema_version"] = idx.schema_version;
+                            value["snapshot_schema_version"] = idx.snapshot_schema_version;
+                            value["index_revision"] = idx.index_revision;
+                            value["canonical_revision"] = idx.canonical_revision;
+                            value["stale_reason"] = idx.stale_reason
+                                ? Json::Value(*idx.stale_reason)
+                                : Json::Value(Json::nullValue);
+                            payload["indexes"].append(value);
+                        }
+                        std::cout << json_to_string(payload, true) << "\n";
+                        return;
+                    }
                     for (const auto& idx : result.indexes) {
                         std::cout << "Index: " << idx.product << "\n";
-                        std::cout << "  Path: " << idx.index_path.string() << "\n";
-                        std::cout << "  Status: " << (idx.exists ? "Exists" : "Missing") << "\n";
+                        std::cout << "  Ref: " << idx.index_ref << "\n";
+                        std::cout << "  Status: " << idx.status << "\n";
                         if (idx.exists) {
                             std::cout << "  Items: " << idx.item_count << "\n";
                             std::cout << "  Size: " << idx.size_bytes << " bytes\n";
-                            std::cout << "  Modified: " << idx.last_modified << "\n";
+                        }
+                        std::cout << "  Index revision: " << idx.index_revision << "\n";
+                        std::cout << "  Canonical revision: " << idx.canonical_revision << "\n";
+                        if (idx.stale_reason) {
+                            std::cout << "  Stale reason: " << *idx.stale_reason << "\n";
                         }
                     }
+                });
+            }
+
+            // index query
+            {
+                auto* queryCmd = indexCmd->add_subcommand(
+                    "query",
+                    "Query validated metadata with explicit fallback diagnostics");
+                struct IndexQueryCommandState {
+                    std::string product;
+                    std::string type;
+                    std::string state;
+                    std::string exact_ref;
+                    std::string text;
+                    std::string format = "json";
+                    std::size_t limit = 20000;
+                };
+                const auto state = cli11_state.make_shared<IndexQueryCommandState>();
+                queryCmd->add_option("--product", state->product, "Product name");
+                queryCmd->add_option("--type", state->type, "Filter by item type");
+                queryCmd->add_option("--state", state->state, "Filter by item state");
+                queryCmd->add_option("--item", state->exact_ref, "Exact display ID or UID");
+                queryCmd->add_option("--query", state->text, "Bounded metadata token query");
+                queryCmd->add_option("--limit", state->limit, "Maximum result count");
+                queryCmd->add_option("--format", state->format, "Output format: plain|json");
+                queryCmd->callback([&, state]() {
+                    const auto format = require_index_format(state->format);
+                    auto ctx = resolve_index_ctx(state->product);
+                    IndexQuery query;
+                    query.limit = state->limit;
+                    if (!state->type.empty()) {
+                        query.type = parse_item_type(state->type);
+                        if (!query.type) {
+                            throw std::runtime_error("Invalid item type: " + state->type);
+                        }
+                    }
+                    if (!state->state.empty()) {
+                        query.state = parse_item_state(state->state);
+                        if (!query.state) {
+                            throw std::runtime_error("Invalid item state: " + state->state);
+                        }
+                    }
+                    if (!state->exact_ref.empty()) query.exact_ref = state->exact_ref;
+                    if (!state->text.empty()) query.text = state->text;
+
+                    const auto result = query_metadata_index(
+                        ctx.backlog_root / ".cache" / "index" / "backlog.db",
+                        ctx.product_root,
+                        ctx.product_name,
+                        query);
+                    if (format == "plain") {
+                        std::cout << ViewOps::render_table(result.items);
+                        std::cout << "Diagnostics: "
+                                  << json_to_string(diagnostics_json(result.diagnostics), false)
+                                  << "\n";
+                        return;
+                    }
+
+                    Json::Value payload(Json::objectValue);
+                    payload["schema"] = "kob.metadata-index-query.v1";
+                    payload["snapshot_schema"] = "kob.metadata-index-snapshot.v1";
+                    payload["product"] = ctx.product_name;
+                    payload["diagnostics"] = diagnostics_json(result.diagnostics);
+                    payload["items"] = Json::arrayValue;
+                    for (const auto& item : result.items) {
+                        Json::Value value(Json::objectValue);
+                        value["id"] = item.id;
+                        value["uid"] = item.uid;
+                        value["product"] = item.product;
+                        value["type"] = to_string(item.type);
+                        value["state"] = to_string(item.state);
+                        value["priority"] = item.priority
+                            ? Json::Value(*item.priority)
+                            : Json::Value(Json::nullValue);
+                        value["title"] = item.title;
+                        value["slug"] = item.slug;
+                        value["parent"] = item.parent
+                            ? Json::Value(*item.parent)
+                            : Json::Value(Json::nullValue);
+                        value["updated"] = item.updated;
+                        value["source_ref"] = item.source_ref;
+                        value["source_hash"] = item.source_hash;
+                        value["estimated_tokens"] =
+                            static_cast<Json::UInt64>(item.estimated_tokens);
+                        payload["items"].append(value);
+                    }
+                    std::cout << json_to_string(payload, true) << "\n";
+                });
+            }
+
+            // index doctor
+            {
+                auto* doctorCmd = indexCmd->add_subcommand(
+                    "doctor",
+                    "Detect missing, stale, corrupt, or source-hash-divergent metadata");
+                struct IndexDoctorCommandState {
+                    std::string product;
+                    std::string format = "json";
+                    bool skip_source_hashes = false;
+                };
+                const auto state = cli11_state.make_shared<IndexDoctorCommandState>();
+                doctorCmd->add_option("--product", state->product, "Product name");
+                doctorCmd->add_option("--format", state->format, "Output format: plain|json");
+                doctorCmd->add_flag(
+                    "--skip-source-hashes",
+                    state->skip_source_hashes,
+                    "Run the cheap revision check without full source-hash verification");
+                doctorCmd->callback([&, state]() {
+                    const auto format = require_index_format(state->format);
+                    auto ctx = resolve_index_ctx(state->product);
+                    const auto result = doctor_metadata_index(
+                        ctx.backlog_root / ".cache" / "index" / "backlog.db",
+                        ctx.product_root,
+                        ctx.product_name,
+                        !state->skip_source_hashes);
+                    if (format == "plain") {
+                        std::cout << "Index doctor: "
+                                  << (result.healthy ? "healthy" : "attention") << "\n";
+                        std::cout << "  Missing rows: " << result.missing_rows << "\n";
+                        std::cout << "  Orphaned rows: " << result.orphaned_rows << "\n";
+                        std::cout << "  Stale rows: " << result.stale_rows << "\n";
+                        std::cout << "  Source hash mismatches: "
+                                  << result.source_hash_mismatches << "\n";
+                        std::cout << "  Diagnostics: "
+                                  << json_to_string(diagnostics_json(result.diagnostics), false)
+                                  << "\n";
+                        return;
+                    }
+                    Json::Value payload(Json::objectValue);
+                    payload["schema"] = "kob.metadata-index-doctor.v1";
+                    payload["snapshot_schema"] = "kob.metadata-index-snapshot.v1";
+                    payload["product"] = ctx.product_name;
+                    payload["healthy"] = result.healthy;
+                    payload["missing_rows"] =
+                        static_cast<Json::UInt64>(result.missing_rows);
+                    payload["orphaned_rows"] =
+                        static_cast<Json::UInt64>(result.orphaned_rows);
+                    payload["stale_rows"] =
+                        static_cast<Json::UInt64>(result.stale_rows);
+                    payload["source_hash_mismatches"] =
+                        static_cast<Json::UInt64>(result.source_hash_mismatches);
+                    payload["diagnostics"] = diagnostics_json(result.diagnostics);
+                    std::cout << json_to_string(payload, true) << "\n";
                 });
             }
         }
@@ -21493,6 +21806,13 @@ int main(int InArgc, char* InArgv[]) {
                         total_checked += product_checked;
                         total_issues += product_issues;
                         total_fixed += product_fixed;
+                        if (state->apply && product_fixed > 0) {
+                            BacklogIndex metadata_index(
+                                backlog_root / ".cache" / "index" / "backlog.db",
+                                product_name,
+                                product_root);
+                            metadata_index.rebuild_metadata(product_root, product_name);
+                        }
                     }
 
                     std::cout << "\nTotal: " << total_checked << " checked, " << total_issues << " issues, " << total_fixed << " fixed\n";

@@ -14,6 +14,7 @@ struct ViewFilter {
     std::optional<kano::backlog_core::ItemType> type;
     std::optional<kano::backlog_core::ItemState> state;
     std::optional<std::filesystem::path> product_root;
+    std::optional<std::string> product;
     std::optional<std::string> parent_id;
     std::optional<std::string> owner;
     std::vector<std::string> tags;
@@ -79,6 +80,16 @@ public:
     static std::vector<IndexItem> list_items(
         BacklogIndex& index,
         const ViewFilter& filter = {}
+    );
+
+    /**
+     * Validate the product snapshot before serving metadata rows.
+     * Missing, stale, or corrupt cache state falls back to canonical metadata
+     * and is reported through diagnostics.
+     */
+    static IndexQueryResult list_items_with_diagnostics(
+        const std::filesystem::path& index_path,
+        const ViewFilter& filter
     );
 
     /**

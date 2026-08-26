@@ -676,14 +676,18 @@ int main(int argc, char** argv) {
             standalone_index_build_output,
             "standalone shared index build failed"
         );
-        const auto standalone_built_index_path = line_value(
+        const auto standalone_index_ref = line_value(
             read_text(standalone_index_build_output),
             "Built index: "
         );
         const auto standalone_expected_index_path =
             (standalone_backlog_root / ".cache" / "index" / "backlog.db").lexically_normal();
-        expect(paths_equivalent_for_test(standalone_built_index_path, standalone_expected_index_path),
-            "standalone build did not use the repository-level shared index");
+        expect(standalone_index_ref == "product-cache/index/backlog.db" &&
+                   std::filesystem::exists(standalone_expected_index_path),
+            "standalone build did not publish the bounded shared index");
+        expect(read_text(standalone_index_build_output).find(
+                   standalone_backlog_root.string()) == std::string::npos,
+            "standalone index build exposed a raw backlog path");
 
         const auto standalone_index_refresh_output = temp_root / "standalone-index-refresh.txt";
         expect_command_capture_success(
@@ -695,13 +699,10 @@ int main(int argc, char** argv) {
             standalone_index_refresh_output,
             "standalone shared index refresh failed"
         );
-        expect(
-            paths_equivalent_for_test(line_value(
-                read_text(standalone_index_refresh_output),
-                "Refreshed index: "
-            ), standalone_expected_index_path),
-            "standalone refresh did not use the repository-level shared index"
-        );
+        expect(line_value(
+                   read_text(standalone_index_refresh_output),
+                   "Refreshed index: ") == "product-cache/index/backlog.db",
+            "standalone refresh did not report the bounded shared index");
 
         const auto standalone_index_status_output = temp_root / "standalone-index-status.txt";
         expect_command_capture_success(
@@ -714,12 +715,11 @@ int main(int argc, char** argv) {
             "standalone shared index status failed"
         );
         const auto standalone_status_text = read_text(standalone_index_status_output);
-        expect(paths_equivalent_for_test(
-                line_value(standalone_status_text, "  Path: "),
-                standalone_expected_index_path),
-            "standalone index status did not report the build path");
-        expect(standalone_status_text.find("Status: Exists") != std::string::npos,
-            "standalone index status did not find the shared index after build");
+        expect(line_value(standalone_status_text, "  Ref: ") ==
+                   "product-cache/index/backlog.db",
+            "standalone index status did not report the bounded index ref");
+        expect(standalone_status_text.find("Status: ready") != std::string::npos,
+            "standalone index status did not report a ready shared index");
 
         const auto short_path_backlog_root = temp_root / "standalone-short-path-backlog";
         std::filesystem::create_directories(short_path_backlog_root / ".git");
@@ -850,10 +850,13 @@ int main(int argc, char** argv) {
             "shared index build failed"
         );
         const auto index_build_text = read_text(index_build_output);
-        const auto built_index_path = line_value(index_build_text, "Built index: ");
         const auto expected_index_path = (backlog_root / ".cache" / "index" / "backlog.db").lexically_normal();
-        expect(paths_equivalent_for_test(built_index_path, expected_index_path),
-            "index build did not use the shared index path");
+        expect(line_value(index_build_text, "Built index: ") ==
+                   "product-cache/index/backlog.db" &&
+                   std::filesystem::exists(expected_index_path),
+            "index build did not publish the bounded shared index");
+        expect(index_build_text.find(backlog_root.string()) == std::string::npos,
+            "index build exposed a raw backlog path");
 
         const auto index_status_output = temp_root / "index-status.txt";
         expect_command_capture_success(
@@ -864,11 +867,11 @@ int main(int argc, char** argv) {
             "shared index status failed"
         );
         const auto index_status_text = read_text(index_status_output);
-        const auto status_index_path = line_value(index_status_text, "  Path: ");
-        expect(paths_equivalent_for_test(status_index_path, expected_index_path),
-            "index status did not report the exact path emitted by index build");
-        expect(index_status_text.find("Status: Exists") != std::string::npos,
-            "index status did not find the shared index after build");
+        expect(line_value(index_status_text, "  Ref: ") ==
+                   "product-cache/index/backlog.db",
+            "index status did not report the bounded ref emitted by index build");
+        expect(index_status_text.find("Status: ready") != std::string::npos,
+            "index status did not report a ready shared index");
         expect(index_status_text.find("Items: 1") != std::string::npos,
             "index status did not report shared index cardinality");
 
