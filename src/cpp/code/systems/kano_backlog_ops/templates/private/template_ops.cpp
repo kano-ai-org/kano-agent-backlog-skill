@@ -1,12 +1,27 @@
 #include "kano/backlog_ops/templates/template_ops.hpp"
+#include <yaml-cpp/yaml.h>
 #include <sstream>
 #include <iomanip>
 #include <chrono>
 #include <ctime>
+#include <stdexcept>
 
 namespace kano::backlog_ops {
 
 using namespace kano::backlog_core;
+
+namespace {
+
+std::string render_yaml_scalar(const std::string& value) {
+    YAML::Emitter emitter;
+    emitter << value;
+    if (!emitter.good()) {
+        throw std::runtime_error("Failed to serialize backlog title as YAML scalar");
+    }
+    return emitter.c_str();
+}
+
+} // namespace
 
 std::string TemplateOps::render_item_body(
     const BacklogItem& item,
@@ -80,7 +95,7 @@ std::string TemplateOps::render_frontmatter(const BacklogItem& item) {
     ss << "id: " << item.id << "\n";
     ss << "uid: " << item.uid << "\n";
     ss << "type: " << to_string(item.type) << "\n";
-    ss << "title: \"" << item.title << "\"\n";
+    ss << "title: " << render_yaml_scalar(item.title) << "\n";
     ss << "state: " << to_string(item.state) << "\n";
     ss << "priority: " << (item.priority ? *item.priority : "P2") << "\n";
     ss << "parent: " << (item.parent ? *item.parent : "null") << "\n";

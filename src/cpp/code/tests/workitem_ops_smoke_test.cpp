@@ -214,6 +214,67 @@ int main() {
 
             CanonicalStore store(root);
 
+            const auto title_root = make_temp_root();
+            {
+                BacklogIndex title_index(title_root / ".cache" / "index" / "backlog.db");
+                title_index.initialize();
+                CanonicalStore title_store(title_root);
+
+                const auto title_parent = create_item_with_admission(
+                    title_index,
+                    title_root,
+                    "TTL",
+                    ItemType::Initiative,
+                    "Title round-trip parent",
+                    "opencode");
+                const std::vector<std::pair<std::string, std::optional<std::string>>> title_cases = {
+                    {"Plain compact create title", std::nullopt},
+                    {"Punctuation: compact/full - title", std::nullopt},
+                    {std::string("Unicode ") + "\xE6\xA8\x99\xE9\xA1\x8C", std::nullopt},
+                    {"Embedded \"quoted\" title", std::nullopt},
+                    {"\"Intentional boundary quotes\"", std::nullopt},
+                    {"Parented Epic title", title_parent.id},
+                };
+
+                for (const auto& [expected_title, parent] : title_cases) {
+                    const auto type = parent ? ItemType::Epic : ItemType::Task;
+                    const auto title_created = create_item_with_admission(
+                        title_index,
+                        title_root,
+                        "TTL",
+                        type,
+                        expected_title,
+                        "opencode",
+                        parent);
+                    auto compact_read = title_store.read(title_created.path);
+                    expect(
+                        compact_read.title == expected_title,
+                        "compact create title should round-trip without transport or serialization quotes");
+
+                    set_ready_fields(compact_read);
+                    title_store.write(compact_read);
+                    const auto full_read = title_store.read(title_created.path);
+                    expect(
+                        full_read.title == expected_title,
+                        "full Ready-field rewrite should preserve the exact compact-create title value");
+                    expect(
+                        full_read.title == compact_read.title,
+                        "compact and full Ready paths should expose byte-equivalent canonical title values");
+                    if (parent) {
+                        expect(
+                            full_read.parent && *full_read.parent == *parent,
+                            "parented Epic title round-trip should preserve hierarchy");
+                    }
+                }
+
+                const auto plain_text = read_text(
+                    title_store.find_item_path_by_id("TTL-TSK-0001").value());
+                expect(
+                    plain_text.find("title: Plain compact create title") != std::string::npos,
+                    "plain compact title should not retain unnecessary serialization quotes");
+            }
+            std::filesystem::remove_all(title_root);
+
             auto subtask_created = create_item_with_admission(index, root, "TST", ItemType::SubTask, "Native subtask smoke", "opencode", created.id);
             expect(subtask_created.id.rfind("TST-SUBTSK-", 0) == 0, "created subtask should use SUBTSK prefix");
             expect(

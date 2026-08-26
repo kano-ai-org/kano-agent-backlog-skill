@@ -123,7 +123,11 @@ add_executable(cli_quick_smoke_test
 )
 target_compile_features(cli_quick_smoke_test PRIVATE cxx_std_23)
 target_compile_definitions(cli_quick_smoke_test PRIVATE KANO_REPO_ROOT="${KB_REPO_ROOT}")
-target_link_libraries(cli_quick_smoke_test PRIVATE kano::backlog_core ${_jsoncpp_target})
+target_link_libraries(cli_quick_smoke_test PRIVATE
+    kano::backlog_core
+    KanoInfra::process
+    ${_jsoncpp_target}
+)
 target_include_directories(cli_quick_smoke_test PRIVATE ${_jsoncpp_include_dir})
 set(KB_TEST_CLI_QUICK "[bdd][featured][feature:cli-workflow][scenario:KOB-BDD-CLI-QUICK-001] KOB CLI quick smoke covers bounded core commands")
 add_test(NAME "${KB_TEST_CLI_QUICK}" COMMAND cli_quick_smoke_test)

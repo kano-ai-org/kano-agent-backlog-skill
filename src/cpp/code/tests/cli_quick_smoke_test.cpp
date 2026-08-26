@@ -11,6 +11,7 @@
 #include <json/json.h>
 
 #include "kano/backlog_core/process/noninteractive_errors.hpp"
+#include "kano_process.h"
 
 namespace {
 
@@ -53,6 +54,49 @@ void log_command_result(int rc, const std::filesystem::path& output_path = {}) {
 int run_command(const std::filesystem::path& binary, const std::vector<std::string>& args) {
     log_command_start(args);
     const int rc = std::system(shell_command_for(binary, args).c_str());
+    log_command_result(rc);
+    return rc;
+}
+
+int run_native_command(
+    const std::filesystem::path& binary,
+    const std::vector<std::string>& args
+) {
+    log_command_start(args);
+    const std::string executable = binary.string();
+    const std::string working_dir = std::filesystem::current_path().string();
+    std::vector<std::string> argv_storage;
+#ifdef _WIN32
+    argv_storage.push_back(executable);
+#endif
+    argv_storage.insert(argv_storage.end(), args.begin(), args.end());
+    std::vector<const char*> argv;
+    argv.reserve(argv_storage.size());
+    for (const auto& arg : argv_storage) {
+        argv.push_back(arg.c_str());
+    }
+
+    KanoProcessOptions options{};
+    options.executable = executable.c_str();
+    options.working_dir = working_dir.c_str();
+    options.argv = argv.data();
+    options.argv_count = argv.size();
+    options.mode = KANO_PROCESS_MODE_CAPTURE;
+    options.timeout_ms = 30000;
+
+    KanoProcessResult result{};
+    if (!kano_process_run_ex(&options, &result)) {
+        log_command_result(-1);
+        return -1;
+    }
+    if (result.stdout_data) {
+        std::cout << result.stdout_data;
+    }
+    if (result.stderr_data) {
+        std::cerr << result.stderr_data;
+    }
+    const int rc = result.timed_out ? -1 : result.exit_code;
+    kano_process_free_result(&result);
     log_command_result(rc);
     return rc;
 }
@@ -2123,6 +2167,47 @@ int main(int argc, char** argv) {
         expect(
             read_json(migpf_status_output)["rollback_supported"].asBool(),
             "migrate-prefix status should expose rollback support");
+
+        const std::string embedded_quote_title =
+            "CLI embedded \"quoted\" title";
+        expect(
+            run_native_command(binary, with_duplicate_admission({
+                "-P", "quick-smoke-product", "workitem", "create",
+                "-t", "task", "--title", embedded_quote_title,
+                "--agent", "tester"
+            }, embedded_quote_title)) == 0,
+            "compact CLI create should preserve embedded title quotes");
+        const std::string boundary_quote_title =
+            "\"CLI intentional boundary quotes\"";
+        expect(
+            run_native_command(binary, with_duplicate_admission({
+                "-P", "quick-smoke-product", "workitem", "create",
+                "-t", "task", "--title", boundary_quote_title,
+                "--agent", "tester"
+            }, boundary_quote_title)) == 0,
+            "compact CLI create should preserve intentional boundary quotes");
+
+        const auto quoted_title_list_output =
+            temp_root / "quoted_title_list.json";
+        expect_command_capture_success(
+            run_command_capture(binary, {
+                "-P", "quick-smoke-product", "workitem", "list",
+                "--format", "json"
+            }, quoted_title_list_output),
+            quoted_title_list_output,
+            "quoted-title canonical list failed"
+        );
+        const auto quoted_title_list = read_json(quoted_title_list_output);
+        expect(
+            find_json_object(
+                quoted_title_list, "items", "title",
+                embedded_quote_title) != nullptr,
+            "compact CLI create should round-trip embedded quotes canonically");
+        expect(
+            find_json_object(
+                quoted_title_list, "items", "title",
+                boundary_quote_title) != nullptr,
+            "compact CLI create should round-trip intentional boundary quotes canonically");
 
 
         std::filesystem::current_path(original_cwd);
