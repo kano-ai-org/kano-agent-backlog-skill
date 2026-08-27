@@ -44,7 +44,7 @@ normalize_explicit_backlog_root_args() {
 
 resolve_workspace_root() {
   local start_dir="${PWD}"
-  while [[ "$start_dir" != "/" ]]; do
+  while true; do
     if [[ -f "$start_dir/.kano/backlog_config.toml" ]]; then
       printf '%s\n' "$start_dir"
       return 0
@@ -55,7 +55,12 @@ resolve_workspace_root() {
       return 0
     fi
 
-    start_dir="$(dirname "$start_dir")"
+    local parent_dir
+    parent_dir="$(dirname "$start_dir")"
+    if [[ "$parent_dir" == "$start_dir" || "$parent_dir" == "." ]]; then
+      break
+    fi
+    start_dir="$parent_dir"
   done
 
   printf '%s\n' "$PWD"
