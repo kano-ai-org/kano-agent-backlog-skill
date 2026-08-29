@@ -34,6 +34,64 @@ Public JSON uses bounded refs such as
 `product-cache:<slug>/index/backlog.db`. Raw absolute paths are confined to the
 local recovery journal and are not emitted as navigation refs or receipts.
 
+## Register an Existing External Root First
+
+Relocation requires the external product to exist in the exact shared registry
+at `<shared-backlog-root>/.kano/backlog_config.toml`. Register an unregistered
+root before planning relocation:
+
+```bash
+kob migration register-product plan \
+  --product <slug> \
+  --product-name <display-name> \
+  --prefix <PREFIX> \
+  --external-root <absolute-existing-product-root> \
+  --backlog-root <absolute-shared-backlog-root>
+
+kob migration register-product apply \
+  --product <slug> \
+  --product-name <display-name> \
+  --prefix <PREFIX> \
+  --external-root <absolute-existing-product-root> \
+  --backlog-root <absolute-shared-backlog-root> \
+  --plan-hash <sha256> \
+  --confirm \
+  --agent <actor>
+```
+
+Registration is config-only. It appends one product block atomically while
+leaving the external root and the absent canonical destination untouched. It
+does not run `admin init`, create product scaffolding, relocate files, or expose
+manual rollback or unregister commands. Registration evidence is published as
+one immutable directory before the shared config is replaced. Cooperating
+registration writers serialize that replacement through
+`.kano/product-registration.config.lock`, use a unique same-directory temporary
+file, and atomically rename the reviewed bytes into place.
+
+Recovery is intentionally exact and bounded. Tests interrupt every publication
+phase and inject each post-publication failure: an exact-hash retry reclaims only
+validated same-plan staging, resumes from the recorded config bytes, returns an
+already-applied terminal receipt when the reviewed bytes are present, restores
+the exact prior bytes when a safe rollback is required, and fails closed on a
+third config state, changed source, excessive inventory, or tampered evidence.
+Apply and recovery actors remain distinct in durable attempt history. Recovery
+is performed only by repeating the same confirmed `apply`; `status` and
+`verify` remain read-only.
+
+The registration lock is a cooperative protocol, not a claim of global
+linearizability for every historical config writer. Any legacy or unrelated
+tool that edits `.kano/backlog_config.toml` without taking this lock must be
+quiesced; schedule registration inside an exclusive operator window whenever
+such writers may still run.
+
+The operator order is deliberate:
+
+1. `register-product` establishes the shared config authority.
+2. `relocate-product` moves the registered root to `products/<slug>` when
+   convergence is desired.
+3. Ark product binding happens only after registration and any planned
+   relocation have verified successfully.
+
 ## Workflow
 
 Build and review a no-write plan:
