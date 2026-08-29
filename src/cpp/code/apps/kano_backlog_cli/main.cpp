@@ -10,6 +10,7 @@
 #include "kano/backlog_ops/relation/relation_ops.hpp"
 #include "kano/backlog_ops/migration/migration_ops.hpp"
 #include "kano/backlog_ops/prefix_migration/prefix_migration_ops.hpp"
+#include "kano/backlog_ops/product_registration/product_registration_ops.hpp"
 #include "kano/backlog_ops/product_relocation/product_relocation_ops.hpp"
 #include "kano/backlog_ops/topic/topic_ops.hpp"
 #include "kano/backlog_ops/workset/workset_ops.hpp"
@@ -10853,6 +10854,7 @@ int main(int InArgc, char* InArgv[]) {
                 std::string to;
                 std::string from;
                 std::string plan_hash;
+                std::optional<std::string> agent;
                 std::size_t max_files = kDefaultPrefixMigrationMaxFiles;
                 std::uintmax_t max_bytes = kDefaultPrefixMigrationMaxBytes;
                 bool apply = false;
@@ -10881,6 +10883,9 @@ int main(int InArgc, char* InArgv[]) {
             migratePrefixCmd->add_option(
                 "--plan-hash", migratePrefixState->plan_hash,
                 "Exact reviewed plan SHA-256");
+            migratePrefixCmd->add_option(
+                "--agent", migratePrefixState->agent,
+                "Audit actor required for apply or manual rollback");
             migratePrefixCmd->add_option(
                 "--max-files", migratePrefixState->max_files,
                 "Maximum files included in the source snapshot");
@@ -10918,6 +10923,16 @@ int main(int InArgc, char* InArgv[]) {
                     throw std::runtime_error(
                         "Choose only one of --apply, --verify, --status, or --rollback");
                 }
+                const bool mutation_mode =
+                    migratePrefixState->apply || migratePrefixState->rollback;
+                if (mutation_mode && !migratePrefixState->agent) {
+                    throw std::runtime_error(
+                        "--agent is required for --apply/--write and --rollback");
+                }
+                if (!mutation_mode && migratePrefixState->agent) {
+                    throw std::runtime_error(
+                        "--agent is not allowed for plan, verify, or status");
+                }
 
                 const auto make_recovery = [&]() {
                     PrefixMigrationOps::RecoveryOptions recovery;
@@ -10927,6 +10942,7 @@ int main(int InArgc, char* InArgv[]) {
                             std::filesystem::path(migratePrefixState->backlog_root);
                     }
                     recovery.plan_hash = migratePrefixState->plan_hash;
+                    recovery.agent = migratePrefixState->agent;
                     recovery.confirm = migratePrefixState->confirm;
                     return recovery;
                 };
@@ -10953,6 +10969,10 @@ int main(int InArgc, char* InArgv[]) {
                             PrefixMigrationOps::status(make_recovery());
                         std::cout << result.to_json(!migratePrefixState->compact)
                                   << "\n";
+                        if (result.status == "failed") {
+                            throw std::runtime_error(
+                                "Prefix migration status failed");
+                        }
                         return;
                     }
                     const auto result =
@@ -10989,6 +11009,7 @@ int main(int InArgc, char* InArgv[]) {
                     apply_options.plan = plan_options;
                     apply_options.expected_plan_hash =
                         migratePrefixState->plan_hash;
+                    apply_options.agent = migratePrefixState->agent;
                     apply_options.confirm = migratePrefixState->confirm;
                     const auto result =
                         PrefixMigrationOps::apply(apply_options);
@@ -11396,6 +11417,186 @@ int main(int InArgc, char* InArgv[]) {
                 if (result.status != "rolled_back") {
                     throw std::runtime_error(
                         "Product relocation rollback did not complete");
+                }
+            });
+
+            auto* register_product_cmd = migration_cmd->add_subcommand(
+                "register-product",
+                "Register an existing external product root through shared config only");
+            struct ProductRegistrationPlanCliOptions {
+                std::string product;
+                std::string product_name;
+                std::string prefix;
+                std::string external_root;
+                std::string backlog_root;
+                std::string plan_hash;
+                std::string agent;
+                bool confirm = false;
+            };
+            const auto make_product_registration_plan =
+                [](const auto& registration) {
+                    ProductRegistrationOps::PlanOptions request;
+                    request.backlog_root = std::filesystem::path(
+                        registration->backlog_root);
+                    request.request.product = registration->product;
+                    request.request.product_name =
+                        registration->product_name;
+                    request.request.prefix = registration->prefix;
+                    request.request.external_root = std::filesystem::path(
+                        registration->external_root);
+                    return request;
+                };
+
+            auto registration_plan_options =
+                cli11_state.make_shared<ProductRegistrationPlanCliOptions>();
+            cli11_state.retain(registration_plan_options);
+            auto* registration_plan_cmd =
+                register_product_cmd->add_subcommand(
+                    "plan",
+                    "Build a deterministic no-write external-root registration plan");
+            registration_plan_cmd->add_option(
+                "--product", registration_plan_options->product,
+                "New canonical product slug")->required();
+            registration_plan_cmd->add_option(
+                "--product-name", registration_plan_options->product_name,
+                "Human-readable product name")->required();
+            registration_plan_cmd->add_option(
+                "--prefix", registration_plan_options->prefix,
+                "Canonical uppercase product prefix")->required();
+            registration_plan_cmd->add_option(
+                "--external-root", registration_plan_options->external_root,
+                "Absolute existing external product root")->required();
+            registration_plan_cmd->add_option(
+                "--backlog-root", registration_plan_options->backlog_root,
+                "Absolute shared backlog root containing .kano/backlog_config.toml")->required();
+            registration_plan_cmd->callback([
+                registration_plan_options,
+                make_product_registration_plan
+            ]() {
+                const auto result = ProductRegistrationOps::plan(
+                    make_product_registration_plan(
+                        registration_plan_options));
+                std::cout << result.to_json(true) << "\n";
+                if (!result.ready()) {
+                    throw std::runtime_error(
+                        "Product registration plan is blocked");
+                }
+            });
+
+            auto registration_apply_options =
+                cli11_state.make_shared<ProductRegistrationPlanCliOptions>();
+            cli11_state.retain(registration_apply_options);
+            auto* registration_apply_cmd =
+                register_product_cmd->add_subcommand(
+                    "apply",
+                    "Publish the exact reviewed config-only registration transaction");
+            registration_apply_cmd->add_option(
+                "--product", registration_apply_options->product,
+                "New canonical product slug")->required();
+            registration_apply_cmd->add_option(
+                "--product-name", registration_apply_options->product_name,
+                "Human-readable product name")->required();
+            registration_apply_cmd->add_option(
+                "--prefix", registration_apply_options->prefix,
+                "Canonical uppercase product prefix")->required();
+            registration_apply_cmd->add_option(
+                "--external-root", registration_apply_options->external_root,
+                "Absolute existing external product root")->required();
+            registration_apply_cmd->add_option(
+                "--backlog-root", registration_apply_options->backlog_root,
+                "Absolute shared backlog root containing .kano/backlog_config.toml")->required();
+            registration_apply_cmd->add_option(
+                "--plan-hash", registration_apply_options->plan_hash,
+                "Exact reviewed registration plan SHA-256")->required();
+            registration_apply_cmd->add_flag(
+                "--confirm", registration_apply_options->confirm,
+                "Confirm shared config publication");
+            registration_apply_cmd->add_option(
+                "--agent", registration_apply_options->agent,
+                "Non-placeholder mutation actor")->required();
+            registration_apply_cmd->callback([
+                registration_apply_options,
+                make_product_registration_plan
+            ]() {
+                ProductRegistrationOps::ApplyOptions request;
+                request.plan = make_product_registration_plan(
+                    registration_apply_options);
+                request.expected_plan_hash =
+                    registration_apply_options->plan_hash;
+                request.agent = registration_apply_options->agent;
+                request.confirm = registration_apply_options->confirm;
+                const auto result = ProductRegistrationOps::apply(request);
+                std::cout << result.to_json(true) << "\n";
+                if (result.status != "applied") {
+                    throw std::runtime_error(
+                        "Product registration apply did not complete");
+                }
+            });
+
+            struct ProductRegistrationRecoveryCliOptions {
+                std::string plan_hash;
+                std::string backlog_root;
+            };
+            const auto make_product_registration_recovery =
+                [](const auto& recovery) {
+                    ProductRegistrationOps::RecoveryOptions request;
+                    request.plan_hash = recovery->plan_hash;
+                    request.backlog_root = std::filesystem::path(
+                        recovery->backlog_root);
+                    return request;
+                };
+
+            auto registration_status_options = cli11_state.make_shared<
+                ProductRegistrationRecoveryCliOptions>();
+            cli11_state.retain(registration_status_options);
+            auto* registration_status_cmd =
+                register_product_cmd->add_subcommand(
+                    "status",
+                    "Read the persisted config-only transaction state");
+            registration_status_cmd->add_option(
+                "plan_hash", registration_status_options->plan_hash,
+                "Persisted product registration plan SHA-256")->required();
+            registration_status_cmd->add_option(
+                "--backlog-root", registration_status_options->backlog_root,
+                "Absolute shared backlog root")->required();
+            registration_status_cmd->callback([
+                registration_status_options,
+                make_product_registration_recovery
+            ]() {
+                const auto result = ProductRegistrationOps::status(
+                    make_product_registration_recovery(
+                        registration_status_options));
+                std::cout << result.to_json(true) << "\n";
+                if (result.status == "failed") {
+                    throw std::runtime_error(
+                        "Product registration status failed");
+                }
+            });
+
+            auto registration_verify_options = cli11_state.make_shared<
+                ProductRegistrationRecoveryCliOptions>();
+            cli11_state.retain(registration_verify_options);
+            auto* registration_verify_cmd =
+                register_product_cmd->add_subcommand(
+                    "verify",
+                    "Read and verify config-only registration postconditions");
+            registration_verify_cmd->add_option(
+                "plan_hash", registration_verify_options->plan_hash,
+                "Persisted product registration plan SHA-256")->required();
+            registration_verify_cmd->add_option(
+                "--backlog-root", registration_verify_options->backlog_root,
+                "Absolute shared backlog root")->required();
+            registration_verify_cmd->callback([
+                registration_verify_options,
+                make_product_registration_recovery
+            ]() {
+                const auto result = ProductRegistrationOps::verify(
+                    make_product_registration_recovery(
+                        registration_verify_options));
+                std::cout << result.to_json(true) << "\n";
+                if (result.status != "verified") {
+                    throw std::runtime_error(
+                        "Product registration verification failed");
                 }
             });
         }

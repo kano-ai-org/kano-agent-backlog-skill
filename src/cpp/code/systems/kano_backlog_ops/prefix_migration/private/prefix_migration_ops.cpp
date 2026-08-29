@@ -35,6 +35,63 @@ using kano::backlog_ops::PrefixMigrationPlan;
 using kano::backlog_ops::PrefixMigrationRequest;
 
 constexpr std::uintmax_t kMaximumSingleFileBytes = 256ull * 1024ull * 1024ull;
+constexpr const char* kReceiptSchemaV2 = "kob.product_prefix_migration.receipt.v2";
+constexpr const char* kReceiptSchemaV3 = "kob.product_prefix_migration.receipt.v3";
+constexpr const char* kJournalSchemaV2 = "kob.product_prefix_migration.journal.v2";
+constexpr const char* kJournalSchemaV3 = "kob.product_prefix_migration.journal.v3";
+
+std::string lowercase_ascii(std::string value) {
+    std::transform(value.begin(), value.end(), value.begin(), [](unsigned char character) {
+        return static_cast<char>(std::tolower(character));
+    });
+    return value;
+}
+
+bool is_valid_agent(const std::string& agent) {
+    static const std::regex grammar(R"(^[A-Za-z][A-Za-z0-9._-]{0,63}$)");
+    static const std::set<std::string> placeholders = {
+        "agent", "anonymous", "assistant", "auto", "na", "none", "null",
+        "placeholder", "todo", "unknown", "unset", "user",
+    };
+    return std::regex_match(agent, grammar) &&
+           !placeholders.contains(lowercase_ascii(agent));
+}
+
+std::string require_mutation_agent(const std::optional<std::string>& agent) {
+    if (!agent) {
+        throw std::runtime_error("agent_required");
+    }
+    if (!is_valid_agent(*agent)) {
+        throw std::runtime_error("invalid_agent");
+    }
+    return *agent;
+}
+
+void reject_read_only_agent(const std::optional<std::string>& agent) {
+    if (agent) {
+        throw std::runtime_error("agent_not_allowed_for_read_only_mode");
+    }
+}
+
+bool read_valid_agent_field(
+    const Json::Value& value,
+    const char* field,
+    std::optional<std::string>& agent
+) {
+    agent.reset();
+    if (!value.isMember(field) || value[field].isNull()) {
+        return true;
+    }
+    if (!value[field].isString() || !is_valid_agent(value[field].asString())) {
+        return false;
+    }
+    agent = value[field].asString();
+    return true;
+}
+
+Json::Value nullable_string(const std::optional<std::string>& value) {
+    return value ? Json::Value(*value) : Json::Value(Json::nullValue);
+}
 
 std::filesystem::path normalized_absolute(const std::filesystem::path& path) {
     std::error_code ec;
@@ -628,7 +685,55 @@ Json::Value journal_operation_json(const JournalOperation& operation) {
     return value;
 }
 
-JournalOperation journal_operation_from_json(const Json::Value& value) {
+std::filesystem::path canonical_journal_boundary(
+    const std::filesystem::path& path,
+    const char* error
+) {
+    std::error_code ec;
+    const auto canonical = std::filesystem::weakly_canonical(path, ec);
+    if (ec) {
+        throw std::runtime_error(error);
+    }
+    return canonical.lexically_normal();
+}
+
+std::filesystem::path confined_journal_path(
+    const std::filesystem::path& root,
+    const std::string& raw_path,
+    const char* error
+) {
+    const std::filesystem::path relative(raw_path);
+    if (raw_path.empty() || relative.is_absolute() || relative.has_root_path()) {
+        throw std::runtime_error(error);
+    }
+    const auto normalized = relative.lexically_normal();
+    if (normalized.empty() || normalized == "." ||
+        normalized.generic_string() != relative.generic_string()) {
+        throw std::runtime_error(error);
+    }
+    const auto canonical_root = canonical_journal_boundary(root, error);
+    const auto target =
+        canonical_journal_boundary(canonical_root / normalized, error);
+    if (!is_within(target, canonical_root)) {
+        throw std::runtime_error(error);
+    }
+    return target;
+}
+
+JournalOperation journal_operation_from_json(
+    const Json::Value& value,
+    const std::filesystem::path& backlog_root,
+    const std::filesystem::path& transaction
+) {
+    if (!value.isObject() || !value["path"].isString() ||
+        !value["kind"].isString() || !value["before_exists"].isBool() ||
+        !value["before_sha256"].isString() ||
+        !value["after_exists"].isBool() ||
+        !value["after_sha256"].isString() ||
+        !value["backup_path"].isString() ||
+        !value["stage_path"].isString()) {
+        throw std::runtime_error("invalid_journal_operation_shape");
+    }
     JournalOperation operation;
     operation.path = value["path"].asString();
     operation.kind = value["kind"].asString();
@@ -638,13 +743,62 @@ JournalOperation journal_operation_from_json(const Json::Value& value) {
     operation.after_sha256 = value["after_sha256"].asString();
     operation.backup_path = value["backup_path"].asString();
     operation.stage_path = value["stage_path"].asString();
+    confined_journal_path(
+        backlog_root, operation.path, "invalid_journal_operation_path");
+    if (operation.kind.empty()) {
+        throw std::runtime_error("invalid_journal_operation_kind");
+    }
+    if (operation.before_exists) {
+        if (!is_sha256(operation.before_sha256)) {
+            throw std::runtime_error("invalid_journal_before_hash");
+        }
+        const auto backup = confined_journal_path(
+            transaction, operation.backup_path, "invalid_journal_backup_path");
+        if (!is_within(
+                backup,
+                canonical_journal_boundary(
+                    transaction / "backup", "invalid_journal_backup_path"))) {
+            throw std::runtime_error("invalid_journal_backup_path");
+        }
+    } else if (!operation.before_sha256.empty() ||
+               !operation.backup_path.empty()) {
+        throw std::runtime_error("invalid_journal_backup_binding");
+    }
+    if (operation.after_exists) {
+        if (!is_sha256(operation.after_sha256)) {
+            throw std::runtime_error("invalid_journal_after_hash");
+        }
+        const auto stage = confined_journal_path(
+            transaction, operation.stage_path, "invalid_journal_stage_path");
+        if (!is_within(
+                stage,
+                canonical_journal_boundary(
+                    transaction / "stage", "invalid_journal_stage_path"))) {
+            throw std::runtime_error("invalid_journal_stage_path");
+        }
+    } else if (!operation.after_sha256.empty() || !operation.stage_path.empty()) {
+        throw std::runtime_error("invalid_journal_stage_binding");
+    }
     return operation;
 }
 
-std::vector<JournalOperation> journal_operations(const Json::Value& journal) {
+std::vector<JournalOperation> journal_operations(
+    const Json::Value& journal,
+    const std::filesystem::path& backlog_root,
+    const std::filesystem::path& transaction
+) {
+    if (!journal["operations"].isArray()) {
+        throw std::runtime_error("invalid_journal_operations");
+    }
     std::vector<JournalOperation> result;
+    std::set<std::string> paths;
     for (const auto& value : journal["operations"]) {
-        result.push_back(journal_operation_from_json(value));
+        auto operation =
+            journal_operation_from_json(value, backlog_root, transaction);
+        if (!paths.insert(operation.path).second) {
+            throw std::runtime_error("duplicate_journal_operation_path");
+        }
+        result.push_back(std::move(operation));
     }
     return result;
 }
@@ -655,7 +809,8 @@ Json::Value load_journal(const std::filesystem::path& transaction) {
         throw std::runtime_error("prefix_migration_journal_not_found");
     }
     const auto journal = parse_json(read_file(path));
-    if (journal["schema"].asString() != "kob.product_prefix_migration.journal.v2") {
+    const auto schema = journal["schema"].asString();
+    if (schema != kJournalSchemaV2 && schema != kJournalSchemaV3) {
         throw std::runtime_error("unsupported_prefix_migration_journal_schema");
     }
     return journal;
@@ -669,6 +824,466 @@ bool file_matches(
     const std::filesystem::path& path,
     bool expected_exists,
     const std::string& expected_sha256
+);
+
+std::optional<std::string> optional_nonempty_string(
+    const Json::Value& value,
+    const char* field,
+    const char* error
+) {
+    if (!value.isMember(field) || value[field].isNull()) {
+        return std::nullopt;
+    }
+    if (!value[field].isString() || value[field].asString().empty()) {
+        throw std::runtime_error(error);
+    }
+    return value[field].asString();
+}
+
+struct ValidatedJournalEvidence {
+    Json::Value journal;
+    Json::Value plan;
+    std::vector<JournalOperation> operations;
+    std::string status;
+    std::string receipt_path;
+    std::optional<std::string> apply_agent;
+    std::optional<std::string> rollback_agent;
+    std::optional<std::string> rollback_mode;
+    std::optional<std::string> rollback_attempted_at;
+    std::optional<std::string> rolled_back_at;
+};
+
+std::string bounded_recovery_error(const std::string& error) {
+    constexpr std::size_t kMaximumRecoveryErrorBytes = 1024u;
+    return error.size() <= kMaximumRecoveryErrorBytes
+        ? error
+        : error.substr(0, kMaximumRecoveryErrorBytes);
+}
+
+std::string merged_recovery_failures(
+    const std::vector<std::string>& failures
+) {
+    auto ordered = failures;
+    sort_unique(ordered);
+    std::string merged;
+    for (const auto& failure : ordered) {
+        if (!merged.empty()) {
+            merged += ";";
+        }
+        merged += failure;
+    }
+    return bounded_recovery_error(merged);
+}
+
+void validate_receipt_identity(
+    const Json::Value& receipt,
+    const Json::Value& plan,
+    const std::string& requested_plan_hash,
+    const std::string& journal_schema,
+    const std::optional<std::string>& apply_agent,
+    const char* identity_error,
+    const char* actor_error
+) {
+    const auto expected_receipt_schema =
+        journal_schema == kJournalSchemaV3 ? kReceiptSchemaV3 : kReceiptSchemaV2;
+    if (receipt["schema"].asString() != expected_receipt_schema ||
+        receipt["plan_hash"].asString() != requested_plan_hash ||
+        receipt["product"] != plan["product"] ||
+        receipt["from_prefix"] != plan["from_prefix"] ||
+        receipt["to_prefix"] != plan["to_prefix"] ||
+        receipt["source_revision"] != plan["source_revision"] ||
+        receipt["compatibility_policy"] != plan["compatibility_policy"] ||
+        receipt["preserved_historical_surfaces"] !=
+            plan["preserved_historical_surfaces"] ||
+        receipt["required_external_updates"] !=
+            plan["required_external_updates"] ||
+        receipt["item_mappings"] != plan["items"] ||
+        receipt["transaction_status_ref"].asString() !=
+            ".kano/cache/prefix-migrations/" + requested_plan_hash +
+                "/journal.json" ||
+        !receipt["timestamp"].isString() ||
+        receipt["timestamp"].asString().empty()) {
+        throw std::runtime_error(identity_error);
+    }
+    if (journal_schema == kJournalSchemaV3) {
+        std::optional<std::string> receipt_agent;
+        if (!read_valid_agent_field(receipt, "apply_agent", receipt_agent) ||
+            receipt_agent != apply_agent) {
+            throw std::runtime_error(actor_error);
+        }
+    }
+}
+
+const Json::Value* latest_rollback_attempt(const Json::Value& journal) {
+    if (!journal.isMember("rollback_attempts")) {
+        return nullptr;
+    }
+    const auto& attempts = journal["rollback_attempts"];
+    if (!attempts.isArray() || attempts.empty()) {
+        throw std::runtime_error("invalid_rollback_attempts");
+    }
+    for (Json::ArrayIndex index = 0; index < attempts.size(); ++index) {
+        const auto& attempt = attempts[index];
+        if (!attempt.isObject() || !attempt["agent"].isString() ||
+            !is_valid_agent(attempt["agent"].asString()) ||
+            !attempt["mode"].isString() ||
+            (attempt["mode"].asString() != "manual" &&
+             attempt["mode"].asString() != "automatic") ||
+            !attempt["attempted_at"].isString() ||
+            attempt["attempted_at"].asString().empty() ||
+            !attempt["status"].isString()) {
+            throw std::runtime_error("invalid_rollback_attempt");
+        }
+        const auto status = attempt["status"].asString();
+        if (status == "in_progress") {
+            if (attempt.isMember("failed_at") || attempt.isMember("completed_at") ||
+                attempt.isMember("error")) {
+                throw std::runtime_error("invalid_rollback_attempt");
+            }
+        } else if (status == "failed") {
+            if (!attempt["failed_at"].isString() ||
+                attempt["failed_at"].asString().empty() ||
+                !attempt["error"].isString() ||
+                attempt["error"].asString().empty() ||
+                attempt["error"].asString().size() > 1024u ||
+                attempt.isMember("completed_at")) {
+                throw std::runtime_error("invalid_rollback_attempt");
+            }
+        } else if (status == "completed") {
+            if (!attempt["completed_at"].isString() ||
+                attempt["completed_at"].asString().empty() ||
+                attempt.isMember("failed_at") || attempt.isMember("error")) {
+                throw std::runtime_error("invalid_rollback_attempt");
+            }
+        } else {
+            throw std::runtime_error("invalid_rollback_attempt");
+        }
+        if (index + 1u < attempts.size() && status != "failed") {
+            throw std::runtime_error("invalid_rollback_attempt_history");
+        }
+    }
+    return &attempts[attempts.size() - 1u];
+}
+
+std::size_t append_rollback_attempt(
+    Json::Value& journal,
+    const std::string& agent,
+    const std::string& mode,
+    const std::string& attempted_at
+) {
+    if (!journal.isMember("rollback_attempts")) {
+        journal["rollback_attempts"] = Json::Value(Json::arrayValue);
+    }
+    if (!journal["rollback_attempts"].isArray()) {
+        throw std::runtime_error("invalid_rollback_attempts");
+    }
+    auto& attempts = journal["rollback_attempts"];
+    if (!attempts.empty()) {
+        auto& latest = attempts[attempts.size() - 1u];
+        const auto latest_status = latest["status"].asString();
+        if (latest_status == "in_progress") {
+            latest["status"] = "failed";
+            latest["failed_at"] = current_utc_timestamp();
+            latest["error"] = bounded_recovery_error(
+                "interrupted_before_confirmed_retry");
+        } else if (latest_status == "completed") {
+            throw std::runtime_error(
+                "completed_rollback_attempt_not_retryable");
+        } else if (latest_status != "failed") {
+            throw std::runtime_error("invalid_rollback_attempt");
+        }
+    }
+    Json::Value attempt(Json::objectValue);
+    attempt["agent"] = agent;
+    attempt["mode"] = mode;
+    attempt["attempted_at"] = attempted_at;
+    attempt["status"] = "in_progress";
+    attempts.append(attempt);
+    journal["rollback_agent"] = agent;
+    journal["rollback_mode"] = mode;
+    journal["rollback_attempted_at"] = attempted_at;
+    journal.removeMember("rolled_back_at");
+    return attempts.size() - 1u;
+}
+
+void mark_rollback_attempt_failed(
+    Json::Value& journal,
+    std::size_t attempt_index,
+    const std::string& error
+) {
+    auto& attempt = journal["rollback_attempts"][static_cast<Json::ArrayIndex>(attempt_index)];
+    attempt["status"] = "failed";
+    attempt.removeMember("completed_at");
+    attempt["failed_at"] = current_utc_timestamp();
+    attempt["error"] = bounded_recovery_error(error);
+}
+
+std::string mark_rollback_attempt_completed(
+    Json::Value& journal,
+    std::size_t attempt_index
+) {
+    const auto completed_at = current_utc_timestamp();
+    auto& attempt = journal["rollback_attempts"][static_cast<Json::ArrayIndex>(attempt_index)];
+    attempt["status"] = "completed";
+    attempt.removeMember("failed_at");
+    attempt.removeMember("error");
+    attempt["completed_at"] = completed_at;
+    journal["rolled_back_at"] = completed_at;
+    return completed_at;
+}
+
+ValidatedJournalEvidence load_validated_journal(
+    const std::filesystem::path& backlog_root,
+    const std::filesystem::path& transaction,
+    const std::string& requested_plan_hash
+) {
+    ValidatedJournalEvidence evidence;
+    evidence.journal = load_journal(transaction);
+    if (evidence.journal["plan_hash"].asString() != requested_plan_hash) {
+        throw std::runtime_error("journal_plan_hash_mismatch");
+    }
+    if (!evidence.journal["plan"].isObject()) {
+        throw std::runtime_error("invalid_embedded_plan");
+    }
+    evidence.plan = evidence.journal["plan"];
+    if (evidence.plan["schema"].asString() !=
+            kano::backlog_ops::kPrefixMigrationPlanSchema ||
+        evidence.plan["plan_hash"].asString() != requested_plan_hash) {
+        throw std::runtime_error("embedded_plan_identity_mismatch");
+    }
+    auto hash_input = evidence.plan;
+    hash_input["plan_hash"] = "";
+    if (sha256_hex(json_string(hash_input, false)) != requested_plan_hash) {
+        throw std::runtime_error("embedded_plan_hash_mismatch");
+    }
+    if (evidence.plan["status"].asString() != "ready" ||
+        !evidence.plan["product"].isString() ||
+        evidence.plan["product"].asString().empty() ||
+        !evidence.plan["from_prefix"].isString() ||
+        evidence.plan["from_prefix"].asString().empty() ||
+        !evidence.plan["to_prefix"].isString() ||
+        evidence.plan["to_prefix"].asString().empty() ||
+        !evidence.plan["source_revision"].isString() ||
+        !is_sha256(evidence.plan["source_revision"].asString()) ||
+        !evidence.plan["config_path"].isString()) {
+        throw std::runtime_error("invalid_embedded_plan_identity");
+    }
+
+    evidence.operations =
+        journal_operations(evidence.journal, backlog_root, transaction);
+    if (!evidence.journal["status"].isString()) {
+        throw std::runtime_error("invalid_journal_status");
+    }
+    evidence.status = evidence.journal["status"].asString();
+    if (evidence.status != "prepared" && evidence.status != "applying" &&
+        evidence.status != "applied" &&
+        evidence.status != "recovery_required" &&
+        evidence.status != "rolled_back") {
+        throw std::runtime_error("invalid_journal_status");
+    }
+    if (!evidence.journal["receipt_path"].isString()) {
+        throw std::runtime_error("invalid_journal_receipt_path");
+    }
+    evidence.receipt_path = evidence.journal["receipt_path"].asString();
+    const auto receipt_absolute = confined_journal_path(
+        backlog_root, evidence.receipt_path, "invalid_journal_receipt_path");
+
+    const auto config_path = confined_journal_path(
+        backlog_root, evidence.plan["config_path"].asString(),
+        "invalid_embedded_plan_config_path");
+    const auto project = ProjectConfig::load_from_toml(config_path);
+    if (!project) {
+        throw std::runtime_error("embedded_plan_config_unreadable");
+    }
+    const auto product_root = project->resolve_backlog_root(
+        evidence.plan["product"].asString(), config_path);
+    if (!product_root) {
+        throw std::runtime_error("embedded_plan_product_root_missing");
+    }
+    const auto normalized_backlog_root = normalized_absolute(backlog_root);
+    const auto normalized_product_root = normalized_absolute(*product_root);
+    if (!is_within(normalized_product_root, normalized_backlog_root)) {
+        throw std::runtime_error("embedded_plan_product_root_outside_backlog");
+    }
+    const auto expected_receipt = relative_path(
+        normalized_product_root / "_meta" / "prefix-migrations" /
+            (evidence.plan["from_prefix"].asString() + "-to-" +
+             evidence.plan["to_prefix"].asString() + ".json"),
+        normalized_backlog_root);
+    if (evidence.receipt_path != expected_receipt) {
+        throw std::runtime_error("journal_receipt_path_mismatch");
+    }
+
+    const JournalOperation* receipt_operation = nullptr;
+    for (const auto& operation : evidence.operations) {
+        if (operation.kind != "migration_receipt") {
+            continue;
+        }
+        if (receipt_operation != nullptr) {
+            throw std::runtime_error("duplicate_journal_receipt_operation");
+        }
+        receipt_operation = &operation;
+    }
+    if (receipt_operation == nullptr ||
+        receipt_operation->path != evidence.receipt_path ||
+        receipt_operation->before_exists || !receipt_operation->after_exists) {
+        throw std::runtime_error("journal_receipt_operation_mismatch");
+    }
+
+    const auto schema = evidence.journal["schema"].asString();
+    if (!read_valid_agent_field(
+            evidence.journal, "rollback_agent", evidence.rollback_agent)) {
+        throw std::runtime_error("invalid_journal_rollback_agent");
+    }
+    evidence.rollback_mode = optional_nonempty_string(
+        evidence.journal, "rollback_mode", "invalid_journal_rollback_mode");
+    evidence.rollback_attempted_at = optional_nonempty_string(
+        evidence.journal, "rollback_attempted_at",
+        "invalid_journal_rollback_timestamp");
+    evidence.rolled_back_at = optional_nonempty_string(
+        evidence.journal, "rolled_back_at",
+        "invalid_journal_rollback_timestamp");
+    if (evidence.rollback_mode && *evidence.rollback_mode != "manual" &&
+        *evidence.rollback_mode != "automatic") {
+        throw std::runtime_error("invalid_journal_rollback_mode");
+    }
+    if (schema == kJournalSchemaV3) {
+        if (!read_valid_agent_field(
+                evidence.journal, "apply_agent", evidence.apply_agent) ||
+            !evidence.apply_agent) {
+            throw std::runtime_error("invalid_journal_apply_agent");
+        }
+    }
+
+    const auto* latest_attempt = latest_rollback_attempt(evidence.journal);
+    if (latest_attempt != nullptr) {
+        if (!evidence.rollback_agent || !evidence.rollback_mode ||
+            !evidence.rollback_attempted_at ||
+            *evidence.rollback_agent != (*latest_attempt)["agent"].asString() ||
+            *evidence.rollback_mode != (*latest_attempt)["mode"].asString() ||
+            *evidence.rollback_attempted_at !=
+                (*latest_attempt)["attempted_at"].asString()) {
+            throw std::runtime_error("rollback_attempt_top_level_mismatch");
+        }
+        const auto attempt_status = (*latest_attempt)["status"].asString();
+        if (evidence.status == "recovery_required") {
+            if ((attempt_status != "in_progress" && attempt_status != "failed") ||
+                evidence.rolled_back_at) {
+                throw std::runtime_error("rollback_attempt_state_mismatch");
+            }
+        } else if (evidence.status == "rolled_back") {
+            if (attempt_status != "completed" || !evidence.rolled_back_at ||
+                *evidence.rolled_back_at !=
+                    (*latest_attempt)["completed_at"].asString()) {
+                throw std::runtime_error("rollback_attempt_state_mismatch");
+            }
+        } else {
+            throw std::runtime_error("rollback_attempt_state_mismatch");
+        }
+        if (*evidence.rollback_mode == "automatic" &&
+            schema == kJournalSchemaV3 &&
+            evidence.rollback_agent != evidence.apply_agent) {
+            throw std::runtime_error("automatic_rollback_agent_mismatch");
+        }
+    } else if (schema == kJournalSchemaV3) {
+        const bool has_attempt = evidence.rollback_agent.has_value() ||
+                                 evidence.rollback_mode.has_value() ||
+                                 evidence.rollback_attempted_at.has_value();
+        if (evidence.status == "recovery_required" ||
+            evidence.status == "rolled_back") {
+            throw std::runtime_error("incomplete_v3_rollback_provenance");
+        }
+        if (has_attempt || evidence.rolled_back_at) {
+            throw std::runtime_error("unexpected_v3_rollback_provenance");
+        }
+    }
+    if (schema == kJournalSchemaV3 && latest_attempt != nullptr) {
+        for (const auto& attempt : evidence.journal["rollback_attempts"]) {
+            if (attempt["mode"].asString() == "automatic" &&
+                attempt["agent"].asString() != *evidence.apply_agent) {
+                throw std::runtime_error("automatic_rollback_agent_mismatch");
+            }
+        }
+    }
+
+    const bool receipt_exists = std::filesystem::is_regular_file(receipt_absolute);
+    if (evidence.status == "applied" && !receipt_exists) {
+        throw std::runtime_error("migration_receipt_missing");
+    }
+    const auto validate_canonical_receipt = [&]() {
+        if (!file_matches(
+                receipt_absolute, receipt_operation->after_exists,
+                receipt_operation->after_sha256)) {
+            throw std::runtime_error("migration_receipt_hash_mismatch");
+        }
+        try {
+            const auto receipt = parse_json(read_file(receipt_absolute));
+            validate_receipt_identity(
+                receipt, evidence.plan, requested_plan_hash, schema,
+                evidence.apply_agent,
+                "migration_receipt_identity_mismatch", "apply_agent_mismatch");
+        } catch (const std::runtime_error& error) {
+            if (std::string(error.what()) == "migration_receipt_identity_mismatch" ||
+                std::string(error.what()) == "apply_agent_mismatch") {
+                throw;
+            }
+            throw std::runtime_error("migration_receipt_identity_mismatch");
+        }
+    };
+    if (evidence.status == "rolled_back") {
+        if (!file_matches(
+                receipt_absolute, receipt_operation->before_exists,
+                receipt_operation->before_sha256)) {
+            throw std::runtime_error("rolled_back_receipt_state_mismatch");
+        }
+    } else if (evidence.status == "applied") {
+        validate_canonical_receipt();
+    }
+
+    const auto staged_receipt_absolute = confined_journal_path(
+        transaction, receipt_operation->stage_path,
+        "invalid_journal_stage_path");
+    const bool recoverable = evidence.status == "prepared" ||
+                             evidence.status == "applying" ||
+                             evidence.status == "applied" ||
+                             evidence.status == "recovery_required";
+    if (recoverable) {
+        if (!std::filesystem::is_regular_file(staged_receipt_absolute)) {
+            throw std::runtime_error("staged_migration_receipt_missing");
+        }
+        if (!file_matches(
+                staged_receipt_absolute, true,
+                receipt_operation->after_sha256)) {
+            throw std::runtime_error("staged_migration_receipt_hash_mismatch");
+        }
+        try {
+            const auto staged_receipt =
+                parse_json(read_file(staged_receipt_absolute));
+            validate_receipt_identity(
+                staged_receipt, evidence.plan, requested_plan_hash, schema,
+                evidence.apply_agent,
+                "staged_migration_receipt_identity_mismatch",
+                "staged_migration_receipt_identity_mismatch");
+        } catch (const std::runtime_error& error) {
+            if (std::string(error.what()) ==
+                "staged_migration_receipt_identity_mismatch") {
+                throw;
+            }
+            throw std::runtime_error(
+                "staged_migration_receipt_identity_mismatch");
+        }
+    }
+    if (evidence.status != "applied" && evidence.status != "rolled_back" &&
+        receipt_exists) {
+        validate_canonical_receipt();
+    }
+    return evidence;
+}
+
+bool file_matches(
+    const std::filesystem::path& path,
+    bool expected_exists,
+    const std::string& expected_sha256
 ) {
     if (!expected_exists) {
         return !std::filesystem::exists(path);
@@ -676,15 +1291,22 @@ bool file_matches(
     return std::filesystem::is_regular_file(path) && sha256_hex(read_file(path)) == expected_sha256;
 }
 
-std::vector<std::string> restore_before_state(
+void restore_before_state(
     const std::filesystem::path& backlog_root,
     const std::filesystem::path& transaction,
     const std::vector<JournalOperation>& operations,
-    std::vector<std::string>& failures
+    std::vector<std::string>& restored,
+    std::vector<std::string>& failures,
+    const std::optional<std::size_t>& inject_failure_after = std::nullopt,
+    bool inject_reported_failure = false
 ) {
-    std::vector<std::string> restored;
+    std::size_t restored_count = 0;
+    if (inject_failure_after && *inject_failure_after == 0) {
+        throw std::runtime_error("injected_rollback_failure");
+    }
     for (auto it = operations.rbegin(); it != operations.rend(); ++it) {
-        const auto path = backlog_root / it->path;
+        const auto path = confined_journal_path(
+            backlog_root, it->path, "invalid_journal_operation_path");
         const bool before = file_matches(path, it->before_exists, it->before_sha256);
         const bool after = file_matches(path, it->after_exists, it->after_sha256);
         if (before) {
@@ -695,7 +1317,8 @@ std::vector<std::string> restore_before_state(
             continue;
         }
         if (it->before_exists) {
-            const auto backup = transaction / it->backup_path;
+            const auto backup = confined_journal_path(
+                transaction, it->backup_path, "invalid_journal_backup_path");
             if (!file_matches(backup, true, it->before_sha256)) {
                 failures.push_back("backup_hash_mismatch:" + it->path);
                 continue;
@@ -710,10 +1333,16 @@ std::vector<std::string> restore_before_state(
             }
         }
         restored.push_back(it->path);
+        ++restored_count;
+        if (inject_reported_failure && restored_count == 1u) {
+            failures.push_back("injected_rollback_reported_failure");
+        }
+        if (inject_failure_after && restored_count == *inject_failure_after) {
+            throw std::runtime_error("injected_rollback_failure");
+        }
     }
     sort_unique(restored);
     sort_unique(failures);
-    return restored;
 }
 
 std::filesystem::path resolve_backlog_root(
@@ -1200,6 +1829,11 @@ std::string PrefixMigrationResult::to_json(bool pretty) const {
     value["operation_receipts"] = string_array(operation_receipts);
     value["receipt_path"] = receipt_path;
     value["recovery_status"] = recovery_status;
+    value["apply_agent"] = nullable_string(apply_agent);
+    value["rollback_agent"] = nullable_string(rollback_agent);
+    value["rollback_mode"] = nullable_string(rollback_mode);
+    value["rollback_attempted_at"] = nullable_string(rollback_attempted_at);
+    value["rolled_back_at"] = nullable_string(rolled_back_at);
     value["idempotent_replay"] = idempotent_replay;
     return json_string(value, pretty);
 }
@@ -1211,6 +1845,7 @@ std::string PrefixMigrationVerification::to_json(bool pretty) const {
     value["plan_hash"] = plan_hash;
     value["postconditions"] = string_array(postconditions);
     value["failures"] = string_array(failures);
+    value["apply_agent"] = nullable_string(apply_agent);
     return json_string(value, pretty);
 }
 
@@ -1220,6 +1855,11 @@ std::string PrefixMigrationStatus::to_json(bool pretty) const {
     value["status"] = status;
     value["plan_hash"] = plan_hash;
     value["recovery_status"] = recovery_status;
+    value["apply_agent"] = nullable_string(apply_agent);
+    value["rollback_agent"] = nullable_string(rollback_agent);
+    value["rollback_mode"] = nullable_string(rollback_mode);
+    value["rollback_attempted_at"] = nullable_string(rollback_attempted_at);
+    value["rolled_back_at"] = nullable_string(rolled_back_at);
     value["rollback_supported"] = rollback_supported;
     return json_string(value, pretty);
 }
@@ -1231,6 +1871,11 @@ std::string PrefixMigrationRollback::to_json(bool pretty) const {
     value["plan_hash"] = plan_hash;
     value["restored_paths"] = string_array(restored_paths);
     value["failures"] = string_array(failures);
+    value["apply_agent"] = nullable_string(apply_agent);
+    value["rollback_agent"] = nullable_string(rollback_agent);
+    value["rollback_mode"] = nullable_string(rollback_mode);
+    value["rollback_attempted_at"] = nullable_string(rollback_attempted_at);
+    value["rolled_back_at"] = nullable_string(rolled_back_at);
     return json_string(value, pretty);
 }
 
@@ -1256,8 +1901,11 @@ PrefixMigrationResult PrefixMigrationOps::apply(const ApplyOptions& options) {
     result.recovery_status = "not_started";
     std::filesystem::path transaction;
     std::filesystem::path backlog_root;
+    std::optional<std::string> apply_actor;
 
     try {
+        apply_actor = require_mutation_agent(options.agent);
+        result.apply_agent = apply_actor;
         if (!options.confirm) {
             throw std::runtime_error("confirmation_required");
         }
@@ -1271,11 +1919,17 @@ PrefixMigrationResult PrefixMigrationOps::apply(const ApplyOptions& options) {
         backlog_root = resolve_backlog_root(replay_recovery);
         transaction = transaction_root(backlog_root, options.expected_plan_hash);
         if (std::filesystem::is_regular_file(transaction / "journal.json")) {
-            const auto existing = load_journal(transaction);
-            const auto existing_status = existing["status"].asString();
+            const auto existing = load_validated_journal(
+                backlog_root, transaction, options.expected_plan_hash);
+            const auto existing_status = existing.status;
             if (existing_status == "applied") {
                 const auto replay_verification = verify(replay_recovery);
-                result.receipt_path = existing["receipt_path"].asString();
+                result.receipt_path = existing.receipt_path;
+                result.apply_agent = existing.apply_agent;
+                result.rollback_agent = existing.rollback_agent;
+                result.rollback_mode = existing.rollback_mode;
+                result.rollback_attempted_at = existing.rollback_attempted_at;
+                result.rolled_back_at = existing.rolled_back_at;
                 if (replay_verification.status != "verified") {
                     result.status = "recovery_required";
                     result.recovery_status = "required";
@@ -1311,6 +1965,7 @@ PrefixMigrationResult PrefixMigrationOps::apply(const ApplyOptions& options) {
                 return result;
             }
         }
+        result.apply_agent = apply_actor;
 
         auto prepared = build_prepared(options.plan);
         if (prepared.backlog_root != backlog_root) {
@@ -1329,8 +1984,9 @@ PrefixMigrationResult PrefixMigrationOps::apply(const ApplyOptions& options) {
 
         const auto receipt_path = receipt_relative_path(prepared);
         Json::Value receipt(Json::objectValue);
-        receipt["schema"] = "kob.product_prefix_migration.receipt.v2";
+        receipt["schema"] = kReceiptSchemaV3;
         receipt["plan_hash"] = prepared.plan.plan_hash;
+        receipt["apply_agent"] = *apply_actor;
         receipt["product"] = prepared.plan.product;
         receipt["from_prefix"] = prepared.plan.from_prefix;
         receipt["to_prefix"] = prepared.plan.to_prefix;
@@ -1396,9 +2052,10 @@ PrefixMigrationResult PrefixMigrationOps::apply(const ApplyOptions& options) {
         }
 
         Json::Value journal(Json::objectValue);
-        journal["schema"] = "kob.product_prefix_migration.journal.v2";
+        journal["schema"] = kJournalSchemaV3;
         journal["status"] = "prepared";
         journal["plan_hash"] = prepared.plan.plan_hash;
+        journal["apply_agent"] = *apply_actor;
         journal["plan"] = parse_json(prepared.plan.to_json(false));
         journal["receipt_path"] = receipt_path;
         Json::Value operation_values(Json::arrayValue);
@@ -1517,36 +2174,98 @@ PrefixMigrationResult PrefixMigrationOps::apply(const ApplyOptions& options) {
         result.operation_receipts.push_back(error.what());
         if (!transaction.empty() &&
             std::filesystem::is_regular_file(transaction / "journal.json")) {
+            Json::Value recovery_journal;
+            std::optional<std::size_t> recovery_attempt_index;
+            bool recovery_attempt_persisted = false;
+            std::vector<std::string> automatic_recovery_failures;
             try {
-                auto journal = load_journal(transaction);
-                const auto operations = journal_operations(journal);
-                std::vector<std::string> failures;
-                result.changed_paths = restore_before_state(
-                    backlog_root, transaction, operations, failures);
-                if (failures.empty()) {
-                    journal["status"] = "rolled_back";
-                    journal["last_error"] = error.what();
-                    write_journal(transaction, journal);
+                auto evidence = load_validated_journal(
+                    backlog_root, transaction, options.expected_plan_hash);
+                recovery_journal = evidence.journal;
+                const auto rollback_attempted_at = current_utc_timestamp();
+                recovery_journal["status"] = "recovery_required";
+                recovery_attempt_index = append_rollback_attempt(
+                    recovery_journal, *apply_actor, "automatic",
+                    rollback_attempted_at);
+                recovery_journal["last_error"] =
+                    bounded_recovery_error(error.what());
+                write_journal(transaction, recovery_journal);
+                recovery_attempt_persisted = true;
+                result.rollback_agent = apply_actor;
+                result.rollback_mode = "automatic";
+                result.rollback_attempted_at = rollback_attempted_at;
+                const bool inject_chained_failure =
+                    options.inject_automatic_recovery_failure ==
+                    std::optional<std::string>(
+                        "reported_failure_then_exception");
+                if (options.inject_automatic_recovery_failure &&
+                    !inject_chained_failure) {
+                    throw std::runtime_error(
+                        "invalid_automatic_recovery_failure_injection");
+                }
+                restore_before_state(
+                    backlog_root, transaction, evidence.operations,
+                    result.changed_paths, automatic_recovery_failures,
+                    options.inject_rollback_failure_after,
+                    inject_chained_failure);
+                if (inject_chained_failure) {
+                    throw std::runtime_error(
+                        "injected_automatic_recovery_exception_after_restore");
+                }
+                if (automatic_recovery_failures.empty()) {
+                    recovery_journal["status"] = "rolled_back";
+                    const auto rolled_back_at = mark_rollback_attempt_completed(
+                        recovery_journal, *recovery_attempt_index);
+                    recovery_journal.removeMember("last_error");
+                    write_journal(transaction, recovery_journal);
+                    result.rolled_back_at = rolled_back_at;
                     result.status = "rolled_back";
                     result.recovery_status = "completed";
                     result.operation_receipts.push_back(
                         "automatic_rollback_completed");
                 } else {
-                    journal["status"] = "recovery_required";
-                    journal["last_error"] = error.what();
-                    write_journal(transaction, journal);
+                    const auto merged_failures =
+                        merged_recovery_failures(automatic_recovery_failures);
+                    mark_rollback_attempt_failed(
+                        recovery_journal, *recovery_attempt_index,
+                        merged_failures);
+                    recovery_journal["last_error"] = merged_failures;
+                    write_journal(transaction, recovery_journal);
                     result.status = "recovery_required";
                     result.recovery_status = "required";
                     result.operation_receipts.insert(
                         result.operation_receipts.end(),
-                        failures.begin(), failures.end());
+                        automatic_recovery_failures.begin(),
+                        automatic_recovery_failures.end());
                 }
             } catch (const std::exception& recovery_error) {
                 result.status = "recovery_required";
                 result.recovery_status = "required";
-                result.operation_receipts.push_back(
+                automatic_recovery_failures.push_back(
                     "automatic_rollback_failed:" +
-                    std::string(recovery_error.what()));
+                    bounded_recovery_error(recovery_error.what()));
+                result.operation_receipts.insert(
+                    result.operation_receipts.end(),
+                    automatic_recovery_failures.begin(),
+                    automatic_recovery_failures.end());
+                if (recovery_attempt_persisted && recovery_attempt_index) {
+                    try {
+                        recovery_journal["status"] = "recovery_required";
+                        recovery_journal.removeMember("rolled_back_at");
+                        const auto merged_failures =
+                            merged_recovery_failures(
+                                automatic_recovery_failures);
+                        mark_rollback_attempt_failed(
+                            recovery_journal, *recovery_attempt_index,
+                            merged_failures);
+                        recovery_journal["last_error"] = merged_failures;
+                        write_journal(transaction, recovery_journal);
+                    } catch (const std::exception& update_error) {
+                        result.operation_receipts.push_back(
+                            "automatic_rollback_evidence_update_failed:" +
+                            bounded_recovery_error(update_error.what()));
+                    }
+                }
             }
         }
         sort_unique(result.changed_paths);
@@ -1562,25 +2281,24 @@ PrefixMigrationVerification PrefixMigrationOps::verify(
     verification.plan_hash = options.plan_hash;
     verification.status = "not_applied";
     try {
+        reject_read_only_agent(options.agent);
         const auto backlog_root = resolve_backlog_root(options);
         const auto transaction = transaction_root(backlog_root, options.plan_hash);
-        const auto journal = load_journal(transaction);
-        if (journal["plan_hash"].asString() != options.plan_hash) {
-            verification.failures.push_back("journal_plan_hash_mismatch");
-        }
-        if (journal["status"].asString() != "applied") {
+        const auto evidence = load_validated_journal(
+            backlog_root, transaction, options.plan_hash);
+        verification.apply_agent = evidence.apply_agent;
+        if (evidence.status != "applied") {
             verification.failures.push_back(
-                "migration_not_applied:" + journal["status"].asString());
+                "migration_not_applied:" + evidence.status);
         }
-        auto embedded_plan = journal["plan"];
-        embedded_plan["plan_hash"] = "";
-        if (sha256_hex(json_string(embedded_plan, false)) != options.plan_hash) {
-            verification.failures.push_back("embedded_plan_hash_mismatch");
-        }
+        const auto& embedded_plan = evidence.plan;
 
-        for (const auto& operation : journal_operations(journal)) {
+        for (const auto& operation : evidence.operations) {
             if (!file_matches(
-                    backlog_root / operation.path, operation.after_exists,
+                    confined_journal_path(
+                        backlog_root, operation.path,
+                        "invalid_journal_operation_path"),
+                    operation.after_exists,
                     operation.after_sha256)) {
                 verification.failures.push_back(
                     "operation_postcondition_failed:" + operation.path);
@@ -1590,7 +2308,9 @@ PrefixMigrationVerification PrefixMigrationOps::verify(
             verification.postconditions.push_back("journal_file_hashes_match");
         }
 
-        const auto config_path = backlog_root / embedded_plan["config_path"].asString();
+        const auto config_path = confined_journal_path(
+            backlog_root, embedded_plan["config_path"].asString(),
+            "invalid_embedded_plan_config_path");
         const auto project = ProjectConfig::load_from_toml(config_path);
         const auto product_name = embedded_plan["product"].asString();
         const auto from_prefix = embedded_plan["from_prefix"].asString();
@@ -1628,8 +2348,9 @@ PrefixMigrationVerification PrefixMigrationOps::verify(
                         verification.failures.push_back(
                             "source_id_still_resolves:" + source_id);
                     }
-                    const auto target_path =
-                        backlog_root / mapping["target_path"].asString();
+                    const auto target_path = confined_journal_path(
+                        backlog_root, mapping["target_path"].asString(),
+                        "invalid_embedded_plan_item_path");
                     try {
                         const auto item = store.read(target_path);
                         if (item.id != target_id ||
@@ -1667,6 +2388,10 @@ PrefixMigrationVerification PrefixMigrationOps::verify(
             }
         }
         if (verification.failures.empty()) {
+            if (evidence.journal["schema"].asString() == kJournalSchemaV3) {
+                verification.postconditions.push_back(
+                    "apply_actor_provenance_verified");
+            }
             verification.postconditions.push_back(
                 "uid_and_display_id_mapping_verified");
             verification.postconditions.push_back(
@@ -1699,10 +2424,18 @@ PrefixMigrationStatus PrefixMigrationOps::status(
     result.status = "not_applied";
     result.recovery_status = "none";
     try {
+        reject_read_only_agent(options.agent);
         const auto backlog_root = resolve_backlog_root(options);
-        const auto journal = load_journal(
-            transaction_root(backlog_root, options.plan_hash));
-        result.status = journal["status"].asString();
+        const auto transaction =
+            transaction_root(backlog_root, options.plan_hash);
+        const auto evidence = load_validated_journal(
+            backlog_root, transaction, options.plan_hash);
+        result.apply_agent = evidence.apply_agent;
+        result.rollback_agent = evidence.rollback_agent;
+        result.rollback_mode = evidence.rollback_mode;
+        result.rollback_attempted_at = evidence.rollback_attempted_at;
+        result.rolled_back_at = evidence.rolled_back_at;
+        result.status = evidence.status;
         if (result.status == "applied") {
             result.recovery_status = "available";
             result.rollback_supported = true;
@@ -1729,39 +2462,83 @@ PrefixMigrationRollback PrefixMigrationOps::rollback(
     PrefixMigrationRollback result;
     result.plan_hash = options.plan_hash;
     result.status = "blocked";
+    std::string rollback_actor;
+    try {
+        rollback_actor = require_mutation_agent(options.agent);
+    } catch (const std::exception& error) {
+        result.failures.push_back(bounded_recovery_error(error.what()));
+        return result;
+    }
     if (!options.confirm) {
         result.failures.push_back("confirmation_required");
         return result;
     }
+    std::filesystem::path transaction;
+    Json::Value journal;
+    bool attempt_persisted = false;
+    std::optional<std::size_t> attempt_index;
     try {
         const auto backlog_root = resolve_backlog_root(options);
-        const auto transaction =
-            transaction_root(backlog_root, options.plan_hash);
-        auto journal = load_journal(transaction);
-        if (journal["plan_hash"].asString() != options.plan_hash) {
-            result.failures.push_back("journal_plan_hash_mismatch");
-            return result;
-        }
-        if (journal["status"].asString() == "rolled_back") {
+        transaction = transaction_root(backlog_root, options.plan_hash);
+        const auto evidence = load_validated_journal(
+            backlog_root, transaction, options.plan_hash);
+        result.apply_agent = evidence.apply_agent;
+        if (evidence.status == "rolled_back") {
+            result.rollback_agent = evidence.rollback_agent;
+            result.rollback_mode = evidence.rollback_mode;
+            result.rollback_attempted_at = evidence.rollback_attempted_at;
+            result.rolled_back_at = evidence.rolled_back_at;
             result.status = "rolled_back";
             return result;
         }
-        result.restored_paths = restore_before_state(
-            backlog_root, transaction, journal_operations(journal),
-            result.failures);
+        journal = evidence.journal;
+        const auto rollback_attempted_at = current_utc_timestamp();
+        journal["status"] = "recovery_required";
+        attempt_index = append_rollback_attempt(
+            journal, rollback_actor, "manual", rollback_attempted_at);
+        journal["last_error"] = "manual_rollback_in_progress";
+        write_journal(transaction, journal);
+        attempt_persisted = true;
+        result.rollback_agent = rollback_actor;
+        result.rollback_mode = "manual";
+        result.rollback_attempted_at = rollback_attempted_at;
+        restore_before_state(
+            backlog_root, transaction, evidence.operations,
+            result.restored_paths, result.failures,
+            options.inject_rollback_failure_after);
         if (result.failures.empty()) {
             journal["status"] = "rolled_back";
-            journal["rolled_back_at"] = current_utc_timestamp();
+            const auto rolled_back_at = mark_rollback_attempt_completed(
+                journal, *attempt_index);
+            journal.removeMember("last_error");
             write_journal(transaction, journal);
+            result.rolled_back_at = rolled_back_at;
             result.status = "rolled_back";
         } else {
-            journal["status"] = "recovery_required";
+            mark_rollback_attempt_failed(
+                journal, *attempt_index, result.failures.front());
+            journal["last_error"] =
+                bounded_recovery_error(result.failures.front());
             write_journal(transaction, journal);
             result.status = "recovery_required";
         }
     } catch (const std::exception& error) {
-        result.failures.push_back(error.what());
-        result.status = "failed";
+        result.failures.push_back(bounded_recovery_error(error.what()));
+        result.status = attempt_persisted ? "recovery_required" : "failed";
+        if (attempt_persisted && attempt_index) {
+            try {
+                journal["status"] = "recovery_required";
+                journal.removeMember("rolled_back_at");
+                mark_rollback_attempt_failed(
+                    journal, *attempt_index, error.what());
+                journal["last_error"] = bounded_recovery_error(error.what());
+                write_journal(transaction, journal);
+            } catch (const std::exception& update_error) {
+                result.failures.push_back(
+                    "rollback_evidence_update_failed:" +
+                    bounded_recovery_error(update_error.what()));
+            }
+        }
     }
     sort_unique(result.restored_paths);
     sort_unique(result.failures);

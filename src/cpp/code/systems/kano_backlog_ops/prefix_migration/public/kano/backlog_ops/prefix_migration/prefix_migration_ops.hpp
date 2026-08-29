@@ -10,10 +10,10 @@
 namespace kano::backlog_ops {
 
 inline constexpr const char* kPrefixMigrationPlanSchema = "kob.product_prefix_migration.plan.v2";
-inline constexpr const char* kPrefixMigrationResultSchema = "kob.product_prefix_migration.result.v2";
-inline constexpr const char* kPrefixMigrationVerificationSchema = "kob.product_prefix_migration.verification.v2";
-inline constexpr const char* kPrefixMigrationStatusSchema = "kob.product_prefix_migration.status.v2";
-inline constexpr const char* kPrefixMigrationRollbackSchema = "kob.product_prefix_migration.rollback.v2";
+inline constexpr const char* kPrefixMigrationResultSchema = "kob.product_prefix_migration.result.v3";
+inline constexpr const char* kPrefixMigrationVerificationSchema = "kob.product_prefix_migration.verification.v3";
+inline constexpr const char* kPrefixMigrationStatusSchema = "kob.product_prefix_migration.status.v3";
+inline constexpr const char* kPrefixMigrationRollbackSchema = "kob.product_prefix_migration.rollback.v3";
 inline constexpr std::size_t kDefaultPrefixMigrationMaxFiles = 500000;
 inline constexpr std::uintmax_t kDefaultPrefixMigrationMaxBytes = 16ull * 1024ull * 1024ull * 1024ull;
 
@@ -75,6 +75,11 @@ struct PrefixMigrationResult {
     std::vector<std::string> operation_receipts;
     std::string receipt_path;
     std::string recovery_status;
+    std::optional<std::string> apply_agent;
+    std::optional<std::string> rollback_agent;
+    std::optional<std::string> rollback_mode;
+    std::optional<std::string> rollback_attempted_at;
+    std::optional<std::string> rolled_back_at;
     bool idempotent_replay = false;
 
     [[nodiscard]] std::string to_json(bool pretty = false) const;
@@ -86,6 +91,7 @@ struct PrefixMigrationVerification {
     std::string plan_hash;
     std::vector<std::string> postconditions;
     std::vector<std::string> failures;
+    std::optional<std::string> apply_agent;
 
     [[nodiscard]] std::string to_json(bool pretty = false) const;
 };
@@ -95,6 +101,11 @@ struct PrefixMigrationStatus {
     std::string status;
     std::string plan_hash;
     std::string recovery_status;
+    std::optional<std::string> apply_agent;
+    std::optional<std::string> rollback_agent;
+    std::optional<std::string> rollback_mode;
+    std::optional<std::string> rollback_attempted_at;
+    std::optional<std::string> rolled_back_at;
     bool rollback_supported = false;
 
     [[nodiscard]] std::string to_json(bool pretty = false) const;
@@ -106,6 +117,11 @@ struct PrefixMigrationRollback {
     std::string plan_hash;
     std::vector<std::string> restored_paths;
     std::vector<std::string> failures;
+    std::optional<std::string> apply_agent;
+    std::optional<std::string> rollback_agent;
+    std::optional<std::string> rollback_mode;
+    std::optional<std::string> rollback_attempted_at;
+    std::optional<std::string> rolled_back_at;
 
     [[nodiscard]] std::string to_json(bool pretty = false) const;
 };
@@ -121,17 +137,24 @@ public:
     struct ApplyOptions {
         PlanOptions plan;
         std::string expected_plan_hash;
+        std::optional<std::string> agent;
         bool confirm = false;
 
-        // Test-only deterministic failure injection.
+        // Test-only deterministic failure injection; never exposed by CLI/env.
         std::optional<std::string> inject_failure_after;
+        std::optional<std::size_t> inject_rollback_failure_after;
+        std::optional<std::string> inject_automatic_recovery_failure;
     };
 
     struct RecoveryOptions {
         std::filesystem::path start_path = ".";
         std::optional<std::filesystem::path> backlog_root;
         std::string plan_hash;
+        std::optional<std::string> agent;
         bool confirm = false;
+
+        // Test-only deterministic failure injection; never exposed by the CLI.
+        std::optional<std::size_t> inject_rollback_failure_after;
     };
 
     static PrefixMigrationPlan plan(const PlanOptions& options);

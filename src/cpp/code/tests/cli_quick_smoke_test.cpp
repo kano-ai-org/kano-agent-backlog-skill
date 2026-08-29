@@ -473,6 +473,262 @@ int main(int argc, char** argv) {
         const auto original_cwd = std::filesystem::current_path();
         std::filesystem::current_path(temp_root);
 
+        const auto registration_plan_help =
+            temp_root / "registration-plan-help.txt";
+        expect_command_capture_success(
+            run_command_capture(binary, {
+                "migration", "register-product", "plan", "--help"
+            }, registration_plan_help),
+            registration_plan_help,
+            "register-product plan help failed");
+        const auto registration_plan_help_text =
+            read_text(registration_plan_help);
+        for (const auto* option : {
+                 "--product", "--product-name", "--prefix",
+                 "--external-root", "--backlog-root",
+             }) {
+            expect(
+                registration_plan_help_text.find(option) !=
+                    std::string::npos,
+                std::string("register-product plan should expose ") + option);
+        }
+        for (const auto* forbidden : {
+                 "--compact", "--force", "--write", "--rollback",
+                 "--destination-root", "--expected-source-revision",
+             }) {
+            expect(
+                registration_plan_help_text.find(forbidden) ==
+                    std::string::npos,
+                std::string("register-product plan must not expose ") +
+                    forbidden);
+        }
+
+        const auto registration_apply_help =
+            temp_root / "registration-apply-help.txt";
+        expect_command_capture_success(
+            run_command_capture(binary, {
+                "migration", "register-product", "apply", "--help"
+            }, registration_apply_help),
+            registration_apply_help,
+            "register-product apply help failed");
+        const auto registration_apply_help_text =
+            read_text(registration_apply_help);
+        for (const auto* option : {
+                 "--product", "--product-name", "--prefix",
+                 "--external-root", "--backlog-root", "--plan-hash",
+                 "--confirm", "--agent",
+             }) {
+            expect(
+                registration_apply_help_text.find(option) !=
+                    std::string::npos,
+                std::string("register-product apply should expose ") + option);
+        }
+
+        const auto registration_shared =
+            std::filesystem::absolute(temp_root / "registration-shared");
+        const auto registration_external =
+            std::filesystem::absolute(temp_root / "registration-external");
+        const auto registration_destination =
+            registration_shared / "products" / "HorizonQuestDemo";
+        const auto registration_config =
+            registration_shared / ".kano" / "backlog_config.toml";
+        const auto registration_local_config =
+            registration_external / "_config" / "config.toml";
+        const auto registration_item =
+            registration_external / "items" / "task" / "0000" /
+            "HQST-TSK-0001_horizon-quest-demo-task.md";
+        const std::string registration_config_before =
+            "# Existing registry bytes remain exact.\n"
+            "[products.observer]\n"
+            "name = \"Observer\"\n"
+            "prefix = \"OBS\"\n"
+            "backlog_root = \"products/observer\"\n";
+        const std::string registration_local_config_before =
+            "[product]\n"
+            "name = \"Horizon Quest Demo\"\n"
+            "prefix = \"HQST\"\n";
+        const std::string registration_item_before = list_fixture_item_markdown(
+            "HQST-TSK-0001",
+            "019d1000-0001-7000-8000-000000000001",
+            "Horizon Quest Demo task", "Ready", "P2", "2026-08-29");
+        std::filesystem::create_directories(
+            registration_shared / "products" / "observer" / "items");
+        write_text(registration_config, registration_config_before);
+        write_text(
+            registration_local_config, registration_local_config_before);
+        write_text(registration_item, registration_item_before);
+
+        const auto registration_plan_agent_output =
+            temp_root / "registration-plan-agent.txt";
+        expect(run_command_capture(binary, {
+             "migration", "register-product", "plan",
+             "--product", "HorizonQuestDemo",
+             "--product-name", "Horizon Quest Demo",
+             "--prefix", "HQST",
+            "--external-root", registration_external.string(),
+            "--backlog-root", registration_shared.string(),
+            "--agent", "tester"
+        }, registration_plan_agent_output) != 0,
+            "register-product plan must reject mutation attribution");
+        expect(
+            !std::filesystem::exists(
+                registration_shared / ".kano" / "cache") &&
+                read_text(registration_config) == registration_config_before,
+            "rejected read-mode attribution must not create transaction data");
+
+        const auto registration_plan_output =
+            temp_root / "registration-plan.json";
+        expect_command_capture_success(
+            run_command_capture(binary, {
+                 "migration", "register-product", "plan",
+                 "--product", "HorizonQuestDemo",
+                 "--product-name", "Horizon Quest Demo",
+                 "--prefix", "HQST",
+                "--external-root", registration_external.string(),
+                "--backlog-root", registration_shared.string()
+            }, registration_plan_output),
+            registration_plan_output,
+            "register-product plan failed");
+        const auto registration_plan = read_json(registration_plan_output);
+        const auto registration_plan_hash =
+            registration_plan["plan_hash"].asString();
+        expect(
+            registration_plan["schema"].asString() ==
+                    "kob.product_registration.plan.v1" &&
+                registration_plan["status"].asString() == "ready" &&
+                registration_plan_hash.size() == 64 &&
+                !registration_plan.isMember("apply_agent"),
+            "register-product plan should emit the actorless v1 contract");
+        const auto registration_plan_text =
+            read_text(registration_plan_output);
+        expect(
+            registration_plan_text.find(registration_external.string()) ==
+                    std::string::npos &&
+                registration_plan_text.find(registration_shared.string()) ==
+                    std::string::npos,
+            "register-product plan must not expose absolute roots");
+
+        const auto registration_unconfirmed_output =
+            temp_root / "registration-unconfirmed.json";
+        expect(run_command_capture(binary, {
+             "migration", "register-product", "apply",
+             "--product", "HorizonQuestDemo",
+             "--product-name", "Horizon Quest Demo",
+             "--prefix", "HQST",
+            "--external-root", registration_external.string(),
+            "--backlog-root", registration_shared.string(),
+            "--plan-hash", registration_plan_hash,
+            "--agent", "tester"
+        }, registration_unconfirmed_output) != 0,
+            "register-product apply without confirmation should fail");
+        expect(
+            read_text(registration_unconfirmed_output).find(
+                "confirmation_required") != std::string::npos &&
+                !std::filesystem::exists(
+                    registration_shared / ".kano" / "cache"),
+            "unconfirmed registration must fail before transaction writes");
+
+        const auto registration_invalid_actor_output =
+            temp_root / "registration-invalid-actor.json";
+        expect(run_command_capture(binary, {
+             "migration", "register-product", "apply",
+             "--product", "HorizonQuestDemo",
+             "--product-name", "Horizon Quest Demo",
+             "--prefix", "HQST",
+            "--external-root", registration_external.string(),
+            "--backlog-root", registration_shared.string(),
+            "--plan-hash", registration_plan_hash,
+            "--confirm", "--agent", "AsSiStAnT"
+        }, registration_invalid_actor_output) != 0,
+            "register-product apply should reject placeholder actors");
+        expect(
+            read_text(registration_invalid_actor_output).find(
+                "invalid_agent") != std::string::npos &&
+                !std::filesystem::exists(
+                    registration_shared / ".kano" / "cache"),
+            "invalid registration actor must fail before transaction writes");
+
+        const auto registration_apply_output =
+            temp_root / "registration-apply.json";
+        expect_command_capture_success(
+            run_command_capture(binary, {
+                 "migration", "register-product", "apply",
+                 "--product", "HorizonQuestDemo",
+                 "--product-name", "Horizon Quest Demo",
+                 "--prefix", "HQST",
+                "--external-root", registration_external.string(),
+                "--backlog-root", registration_shared.string(),
+                "--plan-hash", registration_plan_hash,
+                "--confirm", "--agent", "tester"
+            }, registration_apply_output),
+            registration_apply_output,
+            "register-product apply failed");
+        const auto registration_apply = read_json(registration_apply_output);
+        expect(
+            registration_apply["schema"].asString() ==
+                    "kob.product_registration.result.v1" &&
+                registration_apply["status"].asString() == "applied" &&
+                registration_apply["apply_agent"].asString() == "tester" &&
+                json_array_contains_string(
+                    registration_apply["changed_refs"],
+                    "project-config:.kano/backlog_config.toml"),
+            "register-product apply should publish attributed config-only evidence");
+
+        const auto registration_status_output =
+            temp_root / "registration-status.json";
+        expect_command_capture_success(
+            run_command_capture(binary, {
+                "migration", "register-product", "status",
+                registration_plan_hash,
+                "--backlog-root", registration_shared.string()
+            }, registration_status_output),
+            registration_status_output,
+            "register-product status failed");
+        const auto registration_status = read_json(registration_status_output);
+        expect(
+            registration_status["schema"].asString() ==
+                    "kob.product_registration.status.v1" &&
+                registration_status["status"].asString() == "applied" &&
+                registration_status["stage"].asString() == "completed" &&
+                !registration_status["rollback_supported"].asBool() &&
+                registration_status["apply_agent"].asString() == "tester",
+            "register-product status should remain read-only and attributed");
+
+        const auto registration_verify_output =
+            temp_root / "registration-verify.json";
+        expect_command_capture_success(
+            run_command_capture(binary, {
+                "migration", "register-product", "verify",
+                registration_plan_hash,
+                "--backlog-root", registration_shared.string()
+            }, registration_verify_output),
+            registration_verify_output,
+            "register-product verify failed");
+        const auto registration_verify = read_json(registration_verify_output);
+        expect(
+            registration_verify["schema"].asString() ==
+                    "kob.product_registration.verification.v1" &&
+                registration_verify["status"].asString() == "verified" &&
+                registration_verify["apply_agent"].asString() == "tester",
+            "register-product verify should prove the persisted transaction");
+        expect(
+            read_text(registration_config).starts_with(
+                registration_config_before) &&
+                 count_occurrences(
+                     read_text(registration_config),
+                     "[products.HorizonQuestDemo]") == 1 &&
+                read_text(registration_local_config) ==
+                    registration_local_config_before &&
+                read_text(registration_item) == registration_item_before &&
+                !std::filesystem::exists(registration_destination) &&
+                !std::filesystem::exists(
+                    registration_external / ".cache") &&
+                !std::filesystem::exists(
+                    registration_external / "_meta") &&
+                !std::filesystem::exists(
+                    registration_external / "views"),
+            "registration lifecycle must not scaffold or mutate either product root");
+
         const auto migration_plan_output = temp_root / "migration-plan-invalid-request.json";
         expect_command_capture_success(
             run_command_capture(binary, {
@@ -2153,9 +2409,41 @@ int main(int argc, char** argv) {
             migpf_plan_hash.size() == 64,
             "migrate-prefix should emit an immutable SHA-256 plan hash");
         expect(
+            migpf_plan["schema"].asString() ==
+                    "kob.product_prefix_migration.plan.v2" &&
+                !migpf_plan.isMember("apply_agent") &&
+                !migpf_plan.isMember("rollback_agent"),
+            "migrate-prefix planning should remain actorless plan schema v2");
+        expect(
             read_text(migpf_ok_output).find(temp_root.string()) ==
                 std::string::npos,
             "migrate-prefix output should not expose raw fixture paths");
+
+        const auto migpf_repeat_output = temp_root / "migpf_repeat.json";
+        expect_command_capture_success(
+            run_command_capture(binary, {
+                "-P", "quick-smoke-product", "config", "migrate-prefix",
+                "--from", "QS", "--to", "NEWQS", "--compact"
+            }, migpf_repeat_output),
+            migpf_repeat_output,
+            "repeated config migrate-prefix plan failed"
+        );
+        expect(
+            read_json(migpf_repeat_output)["plan_hash"].asString() ==
+                migpf_plan_hash,
+            "adding execution actors must not change reviewed plan hashes");
+
+        const auto migpf_plan_agent_output =
+            temp_root / "migpf_plan_agent.json";
+        expect(run_command_capture(binary, {
+            "-P", "quick-smoke-product", "config", "migrate-prefix",
+            "--from", "QS", "--to", "NEWQS", "--agent", "sisyphus"
+        }, migpf_plan_agent_output) != 0,
+            "migrate-prefix planning with an actor should fail");
+        expect(
+            read_text(migpf_plan_agent_output).find(
+                "--agent is not allowed") != std::string::npos,
+            "migrate-prefix should reject ignored read-only attribution");
 
         const auto migpf_fail_output = temp_root / "migpf_fail.json";
         expect(run_command_capture(binary, {
@@ -2194,7 +2482,7 @@ int main(int argc, char** argv) {
         expect(run_command_capture(binary, {
             "-P", "quick-smoke-product", "config", "migrate-prefix",
             "--from", "QS", "--to", "NEWQS", "--apply",
-            "--plan-hash", migpf_plan_hash
+            "--plan-hash", migpf_plan_hash, "--agent", "sisyphus"
         }, migpf_unconfirmed_output) != 0,
             "migrate-prefix apply without confirmation should fail");
         expect(
@@ -2202,12 +2490,40 @@ int main(int argc, char** argv) {
                 "confirmation_required") != std::string::npos,
             "migrate-prefix apply should require explicit confirmation");
 
+        const auto migpf_missing_agent_output =
+            temp_root / "migpf_missing_agent.json";
+        expect(run_command_capture(binary, {
+            "-P", "quick-smoke-product", "config", "migrate-prefix",
+            "--from", "QS", "--to", "NEWQS", "--apply",
+            "--plan-hash", migpf_plan_hash, "--confirm"
+        }, migpf_missing_agent_output) != 0,
+            "migrate-prefix apply without an actor should fail");
+        expect(
+            read_text(migpf_missing_agent_output).find(
+                "--agent is required") != std::string::npos,
+            "migrate-prefix apply should require --agent before mutation");
+
+        const auto migpf_invalid_agent_output =
+            temp_root / "migpf_invalid_agent.json";
+        expect(run_command_capture(binary, {
+            "-P", "quick-smoke-product", "config", "migrate-prefix",
+            "--from", "QS", "--to", "NEWQS", "--apply",
+            "--plan-hash", migpf_plan_hash, "--confirm",
+            "--agent", "AsSiStAnT"
+        }, migpf_invalid_agent_output) != 0,
+            "migrate-prefix apply with a placeholder actor should fail");
+        expect(
+            read_text(migpf_invalid_agent_output).find("invalid_agent") !=
+                std::string::npos,
+            "migrate-prefix should use core actor validation");
+
         const auto migpf_apply_output = temp_root / "migpf_apply.json";
         expect_command_capture_success(
             run_command_capture(binary, {
                 "-P", "quick-smoke-product", "config", "migrate-prefix",
                 "--from", "QS", "--to", "NEWQS", "--apply",
-                "--plan-hash", migpf_plan_hash, "--confirm", "--compact"
+                "--plan-hash", migpf_plan_hash, "--confirm",
+                "--agent", "sisyphus", "--compact"
             }, migpf_apply_output),
             migpf_apply_output,
             "guarded config migrate-prefix apply failed"
@@ -2215,7 +2531,10 @@ int main(int argc, char** argv) {
         const auto migpf_apply = read_json(migpf_apply_output);
         expect(
             migpf_apply["status"].asString() == "applied" &&
-                migpf_apply["recovery_status"].asString() == "available",
+                migpf_apply["recovery_status"].asString() == "available" &&
+                migpf_apply["schema"].asString() ==
+                    "kob.product_prefix_migration.result.v3" &&
+                migpf_apply["apply_agent"].asString() == "sisyphus",
             "apply should report applied status and recovery availability");
         expect(
             std::filesystem::is_regular_file(
@@ -2247,9 +2566,26 @@ int main(int argc, char** argv) {
             migpf_verify_output,
             "config migrate-prefix verification failed"
         );
+        const auto migpf_verify = read_json(migpf_verify_output);
         expect(
-            read_json(migpf_verify_output)["status"].asString() == "verified",
-            "migrate-prefix verification should pass");
+            migpf_verify["status"].asString() == "verified" &&
+                migpf_verify["schema"].asString() ==
+                    "kob.product_prefix_migration.verification.v3" &&
+                migpf_verify["apply_agent"].asString() == "sisyphus",
+            "migrate-prefix verification should expose validated provenance");
+
+        const auto migpf_verify_agent_output =
+            temp_root / "migpf_verify_agent.json";
+        expect(run_command_capture(binary, {
+            "config", "migrate-prefix", "--path", temp_root.string(),
+            "--verify", "--plan-hash", migpf_plan_hash,
+            "--agent", "sisyphus"
+        }, migpf_verify_agent_output) != 0,
+            "migrate-prefix verify with an actor should fail");
+        expect(
+            read_text(migpf_verify_agent_output).find(
+                "--agent is not allowed") != std::string::npos,
+            "migrate-prefix verify should reject ignored attribution");
 
         const auto migpf_status_output = temp_root / "migpf_status.json";
         expect_command_capture_success(
@@ -2260,9 +2596,83 @@ int main(int argc, char** argv) {
             migpf_status_output,
             "config migrate-prefix status failed"
         );
+        const auto migpf_status = read_json(migpf_status_output);
         expect(
-            read_json(migpf_status_output)["rollback_supported"].asBool(),
-            "migrate-prefix status should expose rollback support");
+            migpf_status["rollback_supported"].asBool() &&
+                migpf_status["schema"].asString() ==
+                    "kob.product_prefix_migration.status.v3" &&
+                migpf_status["apply_agent"].asString() == "sisyphus",
+            "migrate-prefix status should expose rollback and provenance");
+
+        const auto migpf_status_agent_output =
+            temp_root / "migpf_status_agent.json";
+        expect(run_command_capture(binary, {
+            "config", "migrate-prefix", "--path", temp_root.string(),
+            "--status", "--plan-hash", migpf_plan_hash,
+            "--agent", "sisyphus"
+        }, migpf_status_agent_output) != 0,
+            "migrate-prefix status with an actor should fail");
+
+        const auto migpf_transaction_journal =
+            temp_root / ".kano" / "cache" / "prefix-migrations" /
+            migpf_plan_hash / "journal.json";
+        const auto valid_migpf_journal = read_text(migpf_transaction_journal);
+        auto invalid_migpf_journal = valid_migpf_journal;
+        const auto journal_hash_position = invalid_migpf_journal.rfind(
+            "\"plan_hash\" : \"" + migpf_plan_hash + "\"");
+        expect(
+            journal_hash_position != std::string::npos,
+            "migration journal fixture should contain its plan hash");
+        invalid_migpf_journal.replace(
+            journal_hash_position + std::string("\"plan_hash\" : \"").size(),
+            migpf_plan_hash.size(), std::string(64, '0'));
+        write_text(migpf_transaction_journal, invalid_migpf_journal);
+        const auto migpf_failed_status_output =
+            temp_root / "migpf_failed_status.json";
+        expect(run_command_capture(binary, {
+            "config", "migrate-prefix", "--path", temp_root.string(),
+            "--status", "--plan-hash", migpf_plan_hash, "--compact"
+        }, migpf_failed_status_output) != 0,
+            "migrate-prefix failed core status should return nonzero");
+        expect(
+            read_text(migpf_failed_status_output).find(
+                "journal_plan_hash_mismatch") != std::string::npos,
+            "migrate-prefix failed status should retain the bounded core error");
+        write_text(migpf_transaction_journal, valid_migpf_journal);
+
+        const auto migpf_rollback_missing_agent_output =
+            temp_root / "migpf_rollback_missing_agent.json";
+        expect(run_command_capture(binary, {
+            "config", "migrate-prefix", "--path", temp_root.string(),
+            "--rollback", "--plan-hash", migpf_plan_hash, "--confirm"
+        }, migpf_rollback_missing_agent_output) != 0,
+            "migrate-prefix rollback without an actor should fail");
+        expect(
+            read_text(migpf_rollback_missing_agent_output).find(
+                "--agent is required") != std::string::npos,
+            "migrate-prefix rollback should require --agent before mutation");
+
+        const auto migpf_rollback_output = temp_root / "migpf_rollback.json";
+        expect_command_capture_success(
+            run_command_capture(binary, {
+                "config", "migrate-prefix", "--path", temp_root.string(),
+                "--rollback", "--plan-hash", migpf_plan_hash, "--confirm",
+                "--agent", "reviewer", "--compact"
+            }, migpf_rollback_output),
+            migpf_rollback_output,
+            "config migrate-prefix rollback failed"
+        );
+        const auto migpf_rollback = read_json(migpf_rollback_output);
+        expect(
+            migpf_rollback["status"].asString() == "rolled_back" &&
+                migpf_rollback["schema"].asString() ==
+                    "kob.product_prefix_migration.rollback.v3" &&
+                migpf_rollback["apply_agent"].asString() == "sisyphus" &&
+                migpf_rollback["rollback_agent"].asString() == "reviewer" &&
+                migpf_rollback["rollback_mode"].asString() == "manual" &&
+                !migpf_rollback["rollback_attempted_at"].asString().empty() &&
+                !migpf_rollback["rolled_back_at"].asString().empty(),
+            "manual rollback should emit apply and rollback provenance");
 
         const std::string embedded_quote_title =
             "CLI embedded \"quoted\" title";
