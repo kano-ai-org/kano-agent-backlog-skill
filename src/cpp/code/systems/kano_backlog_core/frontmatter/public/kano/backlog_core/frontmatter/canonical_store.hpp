@@ -33,6 +33,16 @@ public:
     BacklogItem read_metadata(const std::filesystem::path& item_path) const;
 
     /**
+     * Read frontmatter-backed metadata without retaining bytes beyond the supplied cap.
+     * Body sections are intentionally skipped and bytes_read reports bounded file input.
+     */
+    BacklogItem read_metadata_bounded(
+        const std::filesystem::path& item_path,
+        std::size_t maximum_bytes,
+        std::size_t* bytes_read = nullptr
+    ) const;
+
+    /**
      * Write item to file, preserving frontmatter and body structure.
      * Throws ValidationError or WriteError.
      */

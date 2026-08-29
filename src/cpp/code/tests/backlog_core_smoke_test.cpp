@@ -9,6 +9,7 @@
 #include "kano/backlog_core/config/config.hpp"
 #include "kano/backlog_core/frontmatter/canonical_store.hpp"
 #include "kano/backlog_core/frontmatter/frontmatter.hpp"
+#include "kano/backlog_core/models/errors.hpp"
 #include "kano/backlog_core/models/models.hpp"
 #include "kano/backlog_core/process/noninteractive_errors.hpp"
 #include "kano/backlog_core/refs/ref_parser.hpp"
@@ -32,6 +33,33 @@ void write_text(const std::filesystem::path& path, const std::string& text) {
     }
     output << text;
 }
+
+class DisposableDirectory {
+public:
+    explicit DisposableDirectory(const std::filesystem::path& path) : path_(path) {
+        std::error_code error;
+        std::filesystem::remove_all(path_, error);
+        if (error) {
+            throw std::runtime_error("failed to clean " + path_.string());
+        }
+        std::filesystem::create_directories(path_, error);
+        if (error) {
+            throw std::runtime_error("failed to create " + path_.string());
+        }
+    }
+
+    ~DisposableDirectory() {
+        std::error_code ignored;
+        std::filesystem::remove_all(path_, ignored);
+    }
+
+    const std::filesystem::path& path() const {
+        return path_;
+    }
+
+private:
+    std::filesystem::path path_;
+};
 
 } // namespace
 
@@ -141,6 +169,67 @@ int main() {
         expect(listed_items.size() == 1 && listed_items.front() == *persisted.file_path,
             "canonical item enumeration should exclude adjacent .index.md navigation artifacts");
         std::filesystem::remove_all(temp_root);
+
+        {
+            const DisposableDirectory bounded_fixtures(
+                std::filesystem::temp_directory_path() / "kano-backlog-core-bounded-metadata-smoke");
+            const auto item_directory = bounded_fixtures.path() / "items" / "task" / "0000";
+            CanonicalStore bounded_store(bounded_fixtures.path());
+
+            const std::string valid_frontmatter =
+                "---\r\n"
+                "id: GT-TSK-0002\r\n"
+                "uid: 019cdf6a-0000-7000-8000-000000000002\r\n"
+                "type: task\r\n"
+                "title: Bounded metadata smoke\r\n"
+                "state: Ready\r\n"
+                "created: \"2026-08-29\"\r\n"
+                "updated: \"2026-08-29\"\r\n"
+                "---\r\n";
+            std::string large_item = valid_frontmatter;
+            constexpr std::size_t kLargeBodyBytes = 2 * 1024 * 1024;
+            large_item.append(kLargeBodyBytes, 'x');
+            const auto large_item_path = item_directory / "GT-TSK-0002_bounded-metadata-smoke.md";
+            write_text(large_item_path, large_item);
+
+            constexpr std::size_t kMaximumFrontmatterBytes = 8 * 1024;
+            std::size_t valid_bytes_read = 0;
+            const auto bounded_item = bounded_store.read_metadata_bounded(
+                large_item_path,
+                kMaximumFrontmatterBytes,
+                &valid_bytes_read);
+            expect(bounded_item.id == "GT-TSK-0002", "bounded metadata read should map the canonical item");
+            expect(!bounded_item.context.has_value(), "bounded metadata read should skip body sections");
+            expect(valid_bytes_read >= valid_frontmatter.size(),
+                "bounded metadata read should include the closing delimiter");
+            expect(valid_bytes_read <= valid_frontmatter.size() + 4096,
+                "bounded metadata read should stop within one fixed chunk of frontmatter");
+            expect(valid_bytes_read < large_item.size(),
+                "bounded metadata read should not consume the multi-megabyte body");
+
+            constexpr std::size_t kMalformedFrontmatterCap = 128;
+            const auto malformed_item_path = item_directory / "GT-TSK-0003_unclosed-frontmatter.md";
+            write_text(
+                malformed_item_path,
+                "---\n"
+                "id: GT-TSK-0003\n" + std::string(2 * 1024, 'y'));
+
+            std::size_t malformed_bytes_read = 0;
+            bool byte_limit_thrown = false;
+            try {
+                static_cast<void>(bounded_store.read_metadata_bounded(
+                    malformed_item_path,
+                    kMalformedFrontmatterCap,
+                    &malformed_bytes_read));
+            } catch (const kano::backlog_core::ParseError& error) {
+                byte_limit_thrown = true;
+                expect(error.details == "frontmatter_byte_limit_exceeded",
+                    "unclosed bounded frontmatter should report the exact byte-limit reason");
+            }
+            expect(byte_limit_thrown, "unclosed bounded frontmatter should throw ParseError");
+            expect(malformed_bytes_read <= kMalformedFrontmatterCap,
+                "unclosed bounded frontmatter should never report bytes beyond the cap");
+        }
 
         expect(StateMachine::can_transition(ItemState::Ready, StateAction::Start),
             "ready should transition via Start");

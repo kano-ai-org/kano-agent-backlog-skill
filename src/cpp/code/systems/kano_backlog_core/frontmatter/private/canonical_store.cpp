@@ -4,6 +4,7 @@
 #include "kano/backlog_core/validation/validator.hpp"
 #include "kano/backlog_core/models/errors.hpp"
 #include <algorithm>
+#include <array>
 #include <fstream>
 #include <cctype>
 #include <regex>
@@ -139,6 +140,100 @@ std::string item_type_directory(ItemType type) {
         case ItemType::Issue: return "issue";
     }
     return "item";
+}
+
+constexpr std::size_t kBoundedFrontmatterChunkBytes = 4096;
+
+bool is_frontmatter_delimiter(
+    const std::string& retained,
+    std::size_t line_start,
+    std::size_t line_end
+) {
+    if (line_end > line_start && retained[line_end - 1] == '\r') {
+        --line_end;
+    }
+    return line_end - line_start == 3 && retained.compare(line_start, 3, "---") == 0;
+}
+
+std::string read_bounded_frontmatter_yaml(
+    std::ifstream& input,
+    const std::filesystem::path& item_path,
+    std::size_t maximum_bytes,
+    std::size_t& bytes_read
+) {
+    bytes_read = 0;
+    if (maximum_bytes == 0) {
+        throw ParseError(item_path, "frontmatter_byte_limit_exceeded");
+    }
+
+    std::array<char, kBoundedFrontmatterChunkBytes> chunk{};
+    std::string retained;
+    retained.reserve(std::min(maximum_bytes, kBoundedFrontmatterChunkBytes));
+    bool opening_delimiter_read = false;
+    std::size_t line_start = 0;
+
+    while (true) {
+        if (bytes_read == maximum_bytes) {
+            throw ParseError(item_path, "frontmatter_byte_limit_exceeded");
+        }
+
+        const std::size_t requested_bytes = std::min(chunk.size(), maximum_bytes - bytes_read);
+        input.read(chunk.data(), static_cast<std::streamsize>(requested_bytes));
+        const std::streamsize chunk_bytes = input.gcount();
+        if (chunk_bytes < 0) {
+            throw ParseError(item_path, "Failed to read file");
+        }
+        bytes_read += static_cast<std::size_t>(chunk_bytes);
+
+        for (std::streamsize index = 0; index < chunk_bytes; ++index) {
+            const char byte = chunk[static_cast<std::size_t>(index)];
+            retained.push_back(byte);
+            if (byte != '\n') {
+                continue;
+            }
+
+            const std::size_t line_end = retained.size() - 1;
+            if (!opening_delimiter_read) {
+                if (!is_frontmatter_delimiter(retained, 0, line_end)) {
+                    throw ParseError(item_path, "Invalid or missing frontmatter");
+                }
+                opening_delimiter_read = true;
+                retained.clear();
+                line_start = 0;
+                continue;
+            }
+
+            if (is_frontmatter_delimiter(retained, line_start, line_end)) {
+                retained.resize(line_start);
+                return retained;
+            }
+            line_start = retained.size();
+        }
+
+        if (input.bad()) {
+            throw ParseError(item_path, "Failed to read file");
+        }
+        if (static_cast<std::size_t>(chunk_bytes) == requested_bytes) {
+            continue;
+        }
+
+        if (!opening_delimiter_read) {
+            if (retained.empty()) {
+                throw ParseError(item_path, "Empty item file");
+            }
+            if (!is_frontmatter_delimiter(retained, 0, retained.size())) {
+                throw ParseError(item_path, "Invalid or missing frontmatter");
+            }
+            opening_delimiter_read = true;
+            retained.clear();
+            line_start = 0;
+        } else if (is_frontmatter_delimiter(retained, line_start, retained.size())) {
+            retained.resize(line_start);
+            return retained;
+        }
+
+        throw ParseError(item_path, "Unclosed frontmatter");
+    }
 }
 
 BacklogItem item_from_context(
@@ -298,6 +393,50 @@ BacklogItem CanonicalStore::read_metadata(const std::filesystem::path& item_path
     FrontmatterContext ctx;
     try {
         ctx.metadata = YAML::Load(yaml.str());
+    } catch (const YAML::Exception&) {
+        ctx.metadata = YAML::Node(YAML::NodeType::Null);
+    }
+    return item_from_context(item_path, ctx, false);
+}
+
+BacklogItem CanonicalStore::read_metadata_bounded(
+    const std::filesystem::path& item_path,
+    std::size_t maximum_bytes,
+    std::size_t* bytes_read
+) const {
+    diagnostics::ScopedMutationSpan span("canonical_store.read_metadata_bounded", item_path.filename().string());
+    if (bytes_read != nullptr) {
+        *bytes_read = 0;
+    }
+    if (!is_inside_path(item_path, product_root_)) {
+        throw ParseError(item_path, "Item path is outside active product root");
+    }
+    if (!std::filesystem::exists(item_path)) {
+        throw ItemNotFoundError(item_path);
+    }
+
+    std::ifstream input(item_path, std::ios::binary);
+    if (!input.is_open()) {
+        throw ParseError(item_path, "Failed to open file");
+    }
+
+    std::size_t bounded_bytes_read = 0;
+    std::string yaml;
+    try {
+        yaml = read_bounded_frontmatter_yaml(input, item_path, maximum_bytes, bounded_bytes_read);
+    } catch (...) {
+        if (bytes_read != nullptr) {
+            *bytes_read = bounded_bytes_read;
+        }
+        throw;
+    }
+    if (bytes_read != nullptr) {
+        *bytes_read = bounded_bytes_read;
+    }
+
+    FrontmatterContext ctx;
+    try {
+        ctx.metadata = YAML::Load(yaml);
     } catch (const YAML::Exception&) {
         ctx.metadata = YAML::Node(YAML::NodeType::Null);
     }
