@@ -103,6 +103,18 @@ set_tests_properties("${KB_TEST_PRODUCT_RELOCATION_OPS}" PROPERTIES
     ENVIRONMENT "CI=true;KANO_BACKLOG_NONINTERACTIVE=1;KANO_TEST_NONINTERACTIVE=1;GIT_TERMINAL_PROMPT=0"
 )
 
+add_executable(product_registration_ops_smoke_test
+    product_registration_ops_smoke_test.cpp
+)
+target_compile_features(product_registration_ops_smoke_test PRIVATE cxx_std_23)
+target_link_libraries(product_registration_ops_smoke_test PRIVATE kano::backlog_ops)
+set(KB_TEST_PRODUCT_REGISTRATION_OPS "[bdd][featured][feature:product-registration][scenario:KOB-BDD-PRODUCT-REGISTRATION-001] Existing external product registration is config-only bounded and recoverable by exact apply")
+add_test(NAME "${KB_TEST_PRODUCT_REGISTRATION_OPS}" COMMAND product_registration_ops_smoke_test)
+set_tests_properties("${KB_TEST_PRODUCT_REGISTRATION_OPS}" PROPERTIES
+    TIMEOUT 120
+    ENVIRONMENT "CI=true;KANO_BACKLOG_NONINTERACTIVE=1;KANO_TEST_NONINTERACTIVE=1;GIT_TERMINAL_PROMPT=0"
+)
+
 add_executable(topic_ops_smoke_test
     topic_ops_smoke_test.cpp
 )
