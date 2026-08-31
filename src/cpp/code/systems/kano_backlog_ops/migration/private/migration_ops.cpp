@@ -456,7 +456,7 @@ std::string replace_migration_ids(
 
 bool is_supported_text_reference(const std::filesystem::path& path) {
     const auto extension = path.extension().string();
-    return extension == ".md" || extension == ".json" || extension == ".toml" ||
+    return extension == ".md" || extension == ".json" || extension == ".jsonl" || extension == ".toml" ||
            extension == ".yaml" || extension == ".yml" || extension == ".txt";
 }
 

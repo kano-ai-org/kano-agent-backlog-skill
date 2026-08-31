@@ -138,7 +138,7 @@ int main() {
         observer.links.relates.push_back(source_initiative.id);
         observer.context = "Keep the unrelated KTO-TSK-00010 boundary sentinel byte-identical.";
         CanonicalStore(observer_root).write(observer);
-        const auto source_artifact = source_root / "artifacts" / source_initiative.id / "views" / "fixture.json";
+        const auto source_artifact = source_root / "artifacts" / source_initiative.id / "views" / "reviews.jsonl";
         write_text(source_artifact, "{\"owner\":\"" + source_initiative.id + "\"}\n");
 
         MigrationOps::PlanOptions options;
@@ -370,8 +370,13 @@ int main() {
             "apply should rewrite the external canonical reference");
         expect(observer_after.find("KTO-TSK-00010") != std::string::npos,
             "boundary-aware rewrite must leave unrelated ID-like text byte-identical");
-        expect(std::filesystem::is_regular_file(backlog_root / first.artifacts.front().target_path),
+        const auto target_artifact = backlog_root / first.artifacts.front().target_path;
+        expect(std::filesystem::is_regular_file(target_artifact),
             "apply should publish the owned artifact with its target owner");
+        const auto target_artifact_content = read_text(target_artifact);
+        expect(target_artifact_content.find(root_mapping->target_id) != std::string::npos &&
+               target_artifact_content.find(source_initiative.id) == std::string::npos,
+            "apply should rewrite migrated IDs inside owned JSONL artifacts");
         expect(!std::filesystem::exists(source_artifact),
             "apply should retire the source-owned artifact");
         expect(std::filesystem::is_regular_file(
